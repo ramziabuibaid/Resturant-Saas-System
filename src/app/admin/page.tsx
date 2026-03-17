@@ -106,6 +106,7 @@ export default async function AdminDashboardPage() {
                 <tr className="border-b border-[var(--border)] bg-[var(--bg-surface-2)] text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
                   <th className="p-4 text-right">الاسم</th>
                   <th className="p-4 text-right">النطاق الفرعي</th>
+                  <th className="p-4 text-right">اسم المستخدم</th>
                   <th className="p-4 text-right">الحالة</th>
                   <th className="p-4 text-right">التاريخ</th>
                 </tr>
@@ -113,7 +114,7 @@ export default async function AdminDashboardPage() {
               <tbody>
                 {recentRestaurants.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-[var(--text-muted)]">
+                    <td colSpan={5} className="p-8 text-center text-[var(--text-muted)]">
                       لا توجد مطاعم بعد. أضف مطعم من الإجراءات السريعة.
                     </td>
                   </tr>
@@ -128,6 +129,9 @@ export default async function AdminDashboardPage() {
                       </td>
                       <td className="p-4 font-mono text-[12px] text-[var(--text-secondary)]">
                         {r.subdomain}
+                      </td>
+                      <td className="p-4 font-medium text-[var(--text-secondary)]">
+                        {r.owner_username ?? "—"}
                       </td>
                       <td className="p-4">
                         <span

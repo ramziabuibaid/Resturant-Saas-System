@@ -25,6 +25,15 @@
 
 ## 2. إعداد المصادقة (Authentication)
 
+### تعطيل تأكيد البريد (للتسجيل بدون إيميل)
+
+لتسجيل الزائر الجديد بـ **اسم مستخدم + كلمة مرور** فقط (بدون إيميل حقيقي أو تفعيل):
+
+- في Supabase: **Authentication → Providers → Email**
+- عطّل **Confirm email** (أو اتركه معطّلاً) حتى يُنشأ الحساب فوراً ويُوجّه لإنشاء المطعم.
+
+### URL Configuration
+
 في لوحة Supabase: **Authentication → URL Configuration**
 
 - **Site URL:** مثلاً `http://localhost:3000` (أو رابط الإنتاج لاحقاً)

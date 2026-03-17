@@ -2,11 +2,13 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPlaceholderEmail } from "@/lib/placeholder-email";
 import type { Profile } from "@/lib/types/database";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
 const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const USERNAME_REGEX = /^[a-z0-9_-]{3,30}$/;
 const SUBDOMAIN_MIN = 2;
 const SUBDOMAIN_MAX = 63;
 
@@ -72,6 +74,41 @@ export async function isSuperAdmin(profile: Profile | null): Promise<boolean> {
   return profile?.role === SUPER_ADMIN_ROLE;
 }
 
+/**
+ * بعد تسجيل الزائر بـ (username + password) ننشئ له بروفايلاً باسم المستخدم والبريد الداخلي.
+ * يُستدعى من العميل بعد signUp مباشرة.
+ */
+export async function createProfileAfterSignup(
+  username: string
+): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "يجب تسجيل الدخول أولاً" };
+
+  const raw = username?.trim();
+  if (!raw || raw.length < 3) return { error: "اسم المستخدم 3 أحرف على الأقل" };
+  const lower = raw.toLowerCase();
+  if (!USERNAME_REGEX.test(lower))
+    return { error: "اسم المستخدم: حروف إنجليزية صغيرة، أرقام، شرطة أو شرطة سفلية فقط (3–30 حرفاً)" };
+
+  const login_email = getPlaceholderEmail(raw);
+  const admin = createAdminClient();
+  const { error } = await admin.from("profiles").upsert(
+    {
+      id: user.id,
+      username: lower,
+      login_email,
+      role: "owner",
+    },
+    { onConflict: "id" }
+  );
+  if (error) return { error: error.message || "فشل إنشاء الملف الشخصي" };
+  revalidatePath("/complete-profile");
+  return { error: null };
+}
+
 export async function setProfileRestaurant(
   restaurantId: string
 ): Promise<{ error: string | null }> {
@@ -130,7 +167,7 @@ export async function createRestaurantAndLink(payload: {
     .insert({
       name,
       subdomain: subRaw,
-      status: "trial",
+      status: "active",
     })
     .select("id")
     .single();

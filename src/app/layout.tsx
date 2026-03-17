@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
-import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Cairo, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import "./globals.css";
 
-/** DESIGN_SYSTEM: Plus Jakarta Sans — كل النصوص */
-const plusJakarta = Plus_Jakarta_Sans({
+/** DESIGN_SYSTEM: Cairo — كل النصوص العربية */
+const cairo = Cairo({
   variable: "--font-sans",
-  subsets: ["latin", "latin-ext"],
-  weight: ["400", "500", "600", "700"],
+  subsets: ["arabic", "latin"],
+  weight: ["400", "500", "600", "700", "800"],
 });
 
 /** DESIGN_SYSTEM: JetBrains Mono — أرقام، كود، IDs */
@@ -29,9 +29,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" data-theme="dark" suppressHydrationWarning>
+    <html lang="ar" data-theme="dark" suppressHydrationWarning className="transition-colors duration-300">
       <body
-        className={`${plusJakarta.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${cairo.variable} ${jetbrainsMono.variable} antialiased`}
         style={{ fontFamily: "var(--font-sans)" }}
       >
         <ThemeProvider>

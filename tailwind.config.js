@@ -31,7 +31,7 @@ module.exports = {
         },
       },
       fontFamily: {
-        sans: ["var(--font-sans)", "Plus Jakarta Sans", "sans-serif"],
+        sans: ["var(--font-sans)", "Cairo", "sans-serif"],
         mono: ["var(--font-mono)", "JetBrains Mono", "monospace"],
       },
       borderRadius: {

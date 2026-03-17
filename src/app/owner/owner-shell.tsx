@@ -15,6 +15,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarInset,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import {
   LayoutDashboardIcon,
@@ -117,8 +118,9 @@ export function OwnerShell({
       </Sidebar>
       <SidebarInset>
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <h1 className="text-lg font-semibold text-foreground">{restaurantName}</h1>
-          <span className="text-sm text-muted-foreground">لوحة المطعم</span>
+          <SidebarTrigger className="md:hidden" />
+          <h1 className="text-lg font-semibold text-foreground truncate">{restaurantName}</h1>
+          <span className="hidden text-sm text-muted-foreground sm:inline">لوحة المطعم</span>
           <div className="ml-auto flex items-center gap-1">
             {livePreviewUrl && (
               <a

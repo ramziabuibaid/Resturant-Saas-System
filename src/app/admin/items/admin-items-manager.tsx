@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
+import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
 import { PlusIcon, MoreVerticalIcon, PencilIcon, Trash2Icon, PlusCircleIcon, XIcon } from "lucide-react";
 
 type AdminItemsManagerProps = {
@@ -511,7 +512,7 @@ export function AdminItemsManager({
               <CardContent className="p-0">
                 <div className="flex gap-4 p-4">
                   {item.image_url ? (
-                    <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-[var(--bg-surface-2)]">
+                    <div className="relative w-20 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-[var(--bg-surface-2)]" style={{ aspectRatio: "4/3" }}>
                       <Image
                         src={item.image_url}
                         alt=""
@@ -522,9 +523,7 @@ export function AdminItemsManager({
                       />
                     </div>
                   ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--bg-surface-2)] text-[var(--text-muted)]">
-                      —
-                    </div>
+                    <MenuItemImagePlaceholder className="w-20 shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-[var(--text-primary)]">{item.name}</p>

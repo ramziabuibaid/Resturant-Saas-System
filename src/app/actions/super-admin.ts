@@ -1,17 +1,36 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { Restaurant } from "@/lib/types/database";
 import { revalidatePath } from "next/cache";
 
-export async function getAllRestaurants(): Promise<Restaurant[]> {
+export type RestaurantWithOwner = Restaurant & { owner_username?: string | null };
+
+export async function getAllRestaurants(): Promise<RestaurantWithOwner[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const { data: restaurants, error } = await supabase
     .from("restaurants")
     .select("id, name, subdomain, status, created_at, logo_url")
     .order("name");
-  if (error) return [];
-  return (data ?? []) as Restaurant[];
+  if (error || !restaurants?.length) return (restaurants ?? []) as RestaurantWithOwner[];
+
+  const ids = restaurants.map((r) => r.id);
+  const admin = createAdminClient();
+  const { data: profiles } = await admin
+    .from("profiles")
+    .select("restaurant_id, username")
+    .in("restaurant_id", ids)
+    .eq("role", "owner");
+  const usernameByRestaurant = new Map<string, string | null>();
+  for (const p of profiles ?? []) {
+    if (p.restaurant_id) usernameByRestaurant.set(p.restaurant_id, p.username ?? null);
+  }
+
+  return restaurants.map((r) => ({
+    ...r,
+    owner_username: usernameByRestaurant.get(r.id) ?? null,
+  })) as RestaurantWithOwner[];
 }
 
 export type CreateRestaurantInput = {

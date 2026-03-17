@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Restaurant } from "@/lib/types/database";
+import type { RestaurantWithOwner } from "@/app/actions/super-admin";
 import { createRestaurant, deleteRestaurant } from "@/app/actions/super-admin";
 import {
   Table,
@@ -27,7 +27,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 
 type RestaurantsTableProps = {
-  initialRestaurants: Restaurant[];
+  initialRestaurants: RestaurantWithOwner[];
 };
 
 export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) {
@@ -49,7 +49,7 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
       return;
     }
     if (result.data) {
-      setRestaurants((prev) => [...prev, result.data!]);
+      setRestaurants((prev) => [...prev, { ...result.data!, owner_username: null }]);
       setName("");
       setSubdomain("");
       setStatus("active");
@@ -135,6 +135,7 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Subdomain</TableHead>
+              <TableHead>Owner username</TableHead>
               <TableHead>Status</TableHead>
               <TableHead className="w-[80px]">Actions</TableHead>
             </TableRow>
@@ -142,7 +143,7 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
           <TableBody>
             {restaurants.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={4} className="text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-center text-muted-foreground">
                   No restaurants yet. Create one above.
                 </TableCell>
               </TableRow>
@@ -153,6 +154,7 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
                   <TableCell>
                     <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{r.subdomain}</code>
                   </TableCell>
+                  <TableCell className="font-medium">{r.owner_username ?? "—"}</TableCell>
                   <TableCell>
                     <span className="capitalize">{r.status ?? "active"}</span>
                   </TableCell>

@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getAllRestaurants } from "@/app/actions/super-admin";
-import { getOwnersByRestaurantIds } from "@/app/actions/owner-credentials";
 import { RestaurantsTable } from "./restaurants-table";
 
 export const metadata = {
@@ -15,7 +14,9 @@ export default async function AdminRestaurantsPage() {
   if (tenant) redirect("/admin");
 
   const restaurants = await getAllRestaurants();
-  const ownerUsernames = await getOwnersByRestaurantIds(restaurants.map((r) => r.id));
+  const ownerUsernames = Object.fromEntries(
+    restaurants.map((r) => [r.id, r.owner_username ?? null])
+  );
 
   return (
     <div className="space-y-6">

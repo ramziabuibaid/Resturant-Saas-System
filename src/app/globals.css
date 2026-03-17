@@ -21,10 +21,10 @@
   --brand-light: #ede9ff;
   --brand-dark: #4035c8;
 
-  /* Text */
-  --text-primary: #0f0e17;
-  --text-secondary: #4a4869;
-  --text-muted: #9896b0;
+  /* Text — Slate-900 titles, Slate-500 descriptions */
+  --text-primary: #0f172a;
+  --text-secondary: #64748b;
+  --text-muted: #94a3b8;
   --text-inverse: #ffffff;
 
   /* Borders */
@@ -70,7 +70,7 @@
   --header-height: 60px;
 
   /* Typography */
-  --font-sans: "Plus Jakarta Sans", sans-serif;
+  --font-sans: "Cairo", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
   /* Shadcn compat — map from design system */
@@ -111,14 +111,13 @@
 }
 
 [data-theme="dark"] {
-  /* ===== DARK MODE — ألوان مريحة على غرار لوحات تحكم حديثة (منار وغيرها) ===== */
-  /* خلفيات أزرق غامق / رمادي-أزرق مريحة للعين */
+  /* ===== DARK MODE — خلفيات عميقة Slate-950 لمظهر Premium ===== */
 
-  /* Backgrounds — Slate/Blue grey */
-  --bg-base: #0f172a;
-  --bg-surface: #1e293b;
-  --bg-surface-2: #334155;
-  --bg-overlay: #475569;
+  /* Backgrounds — Slate-950 deep, not pure black */
+  --bg-base: #020617;
+  --bg-surface: #0f172a;
+  --bg-surface-2: #1e293b;
+  --bg-overlay: #334155;
 
   /* Brand — بنفسجي للعناصر الرئيسية (Dashboard، أزرار CTA) */
   --brand: #8b5cf6;
@@ -356,6 +355,14 @@
   to { background-position: -200% 0; }
 }
 
+/* ========== Theme transition ========== */
+html {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
 /* ========== Base ========== */
 @layer base {
   * {
@@ -368,5 +375,10 @@
   }
   html {
     font-family: var(--font-sans);
+  }
+  /* Headings: bold + Slate hierarchy */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: 700;
+    color: var(--text-primary);
   }
 }

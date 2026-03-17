@@ -2,6 +2,8 @@
 
 import { useMemo, useState } from "react";
 import Image from "next/image";
+import { motion } from "framer-motion";
+import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 
@@ -23,14 +25,18 @@ function PriceDisplay({
   currencyCode: string;
 }) {
   const opts = item.price_options;
-  const priceClass = unavailable ? "text-stone-500" : "text-amber-300 font-bold tabular-nums";
+  const priceClass = unavailable
+    ? "text-stone-500"
+    : "font-bold tabular-nums text-[var(--brand)] dark:text-[var(--brand-dark)]";
   if (opts && Array.isArray(opts) && opts.length > 0) {
     return (
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-base">
         {opts.map((o) => (
           <span key={o.label} className={priceClass}>
             <span className="font-medium text-stone-400">{o.label}:</span>{" "}
-            <span className="text-lg">{formatMenuPrice(o.price_cents, currencyCode)}</span>
+            <span className="inline-block text-lg" dir="ltr" style={{ unicodeBidi: "isolate" }}>
+              {formatMenuPrice(o.price_cents, currencyCode)}
+            </span>
           </span>
         ))}
       </div>
@@ -38,7 +44,9 @@ function PriceDisplay({
   }
   return (
     <p className={`mt-2 text-lg font-bold tabular-nums ${priceClass}`}>
-      {formatMenuPrice(item.price, currencyCode)}
+      <span className="inline-block" dir="ltr" style={{ unicodeBidi: "isolate" }}>
+        {formatMenuPrice(item.price, currencyCode)}
+      </span>
     </p>
   );
 }
@@ -216,12 +224,15 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                   </span>
                 </div>
                 <div className="-mx-2 flex snap-x snap-mandatory gap-3 overflow-x-auto pb-2 pe-1 ps-2">
-                  {featuredItems.map((item) => (
-                    <article
+                  {featuredItems.map((item, idx) => (
+                    <motion.article
                       key={item.id}
-                      className="group relative flex w-56 shrink-0 snap-center flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-gradient-to-b from-stone-900/90 to-stone-950/90 shadow-sm shadow-black/40"
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ duration: 0.25, delay: idx * 0.05 }}
+                      className="group relative flex w-56 shrink-0 snap-center flex-col overflow-hidden rounded-2xl border border-stone-700/80 bg-gradient-to-b from-stone-900/90 to-stone-950/90 shadow-sm shadow-black/40 transition-shadow duration-200 hover:shadow-lg hover:shadow-black/30"
                     >
-                      <div className="relative h-28 w-full overflow-hidden bg-stone-900">
+                      <div className="relative w-full overflow-hidden rounded-[var(--radius-md)] bg-stone-900" style={{ aspectRatio: "4/3" }}>
                         {item.image_url ? (
                           <Image
                             src={item.image_url}
@@ -232,12 +243,10 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                             unoptimized
                           />
                         ) : (
-                          <div className="flex h-full w-full items-center justify-center text-xs text-stone-600">
-                            لا توجد صورة
-                          </div>
+                          <MenuItemImagePlaceholder className="h-full w-full !aspect-auto" />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                        <div className="absolute bottom-2 right-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-bold tabular-nums text-amber-200">
+                        <div className="absolute bottom-2 right-2 rounded-full bg-black/70 px-3 py-1.5 text-sm font-bold tabular-nums text-[var(--brand)]" dir="ltr" style={{ unicodeBidi: "isolate" }}>
                           {formatMenuPrice(getDisplayPrice(item), currencyCode)}
                         </div>
                       </div>
@@ -251,7 +260,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                           </p>
                         )}
                       </div>
-                    </article>
+                    </motion.article>
                   ))}
                 </div>
               </div>
@@ -302,8 +311,15 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
           </div>
         ) : (
           <div className="space-y-10">
-            {visibleGroups.map(({ id, name, items }) => (
-              <section key={id} aria-label={name} className="space-y-4">
+            {visibleGroups.map(({ id, name, items }, groupIndex) => (
+              <motion.section
+                key={id}
+                aria-label={name}
+                className="space-y-4"
+                initial={{ opacity: 0, y: 16 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.3, delay: groupIndex * 0.06 }}
+              >
                 <div className="flex items-center justify-between gap-3">
                   <h2 className="text-sm font-semibold uppercase tracking-[0.25em] text-stone-400">
                     {name}
@@ -313,19 +329,22 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                   </span>
                 </div>
                 <ul className="grid gap-3 sm:grid-cols-2">
-                  {items.map((item) => {
+                  {items.map((item, index) => {
                     const unavailable = item.is_available === false;
                     return (
-                      <li
+                      <motion.li
                         key={item.id}
-                        className={`group relative flex gap-3 rounded-2xl border bg-stone-900/80 p-3.5 shadow-sm shadow-black/40 ring-1 ring-white/5 transition hover:-translate-y-[1px] hover:shadow-md hover:shadow-black/60 sm:gap-3.5 ${
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.25, delay: index * 0.04 }}
+                        className={`group relative flex gap-3 rounded-2xl border border-stone-700/80 bg-stone-900/80 p-3.5 shadow-sm ring-1 ring-white/5 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-lg hover:shadow-black/30 sm:gap-3.5 ${
                           unavailable
-                            ? "border-stone-700/80 opacity-60 grayscale-[0.2]"
-                            : "border-stone-700/80"
+                            ? "opacity-60 grayscale-[0.2]"
+                            : ""
                         }`}
                       >
                         {item.image_url ? (
-                          <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-stone-900 sm:h-24 sm:w-24">
+                          <div className="relative w-20 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-stone-900 sm:w-24" style={{ aspectRatio: "4/3" }}>
                             <Image
                               src={item.image_url}
                               alt={item.name}
@@ -337,12 +356,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-transparent" />
                           </div>
                         ) : (
-                          <div
-                            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-dashed border-stone-700/70 bg-stone-900/60 text-[11px] text-stone-500 sm:h-24 sm:w-24"
-                            aria-hidden
-                          >
-                            بدون صورة
-                          </div>
+                          <MenuItemImagePlaceholder className="w-20 shrink-0 sm:w-24" />
                         )}
                         <div className="min-w-0 flex-1">
                           <p
@@ -375,25 +389,43 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                             </p>
                           ) : null}
                         </div>
-                      </li>
+                      </motion.li>
                     );
                   })}
                 </ul>
-              </section>
+              </motion.section>
             ))}
           </div>
         )}
       </main>
 
-      <footer className="border-t border-white/5 bg-stone-950/95 py-6 text-xs text-stone-500">
-        <div className="mx-auto max-w-5xl px-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <span className="text-[11px] text-stone-500">
+      <footer
+        className="border-t p-6"
+        style={{
+          background: "var(--bg-surface)",
+          borderColor: "var(--border)",
+        }}
+      >
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <p
+            className="text-[13px]"
+            style={{ color: "var(--text-muted)" }}
+          >
             {restaurant.footer_note ||
-              "شكراً لزيارتك. نتمنى لك تجربة شهية وممتعة."}
-          </span>
-          <span className="text-[11px] text-stone-600">
-            تعمل الصفحة بواسطة نظام إدارة المطاعم.
-          </span>
+              `© ${new Date().getFullYear()} ${restaurant.name} — جميع الحقوق محفوظة`}
+          </p>
+          <a
+            href="https://resturant.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[13px] font-semibold transition-opacity hover:opacity-90"
+            style={{ color: "var(--brand)" }}
+          >
+            <span className="font-normal" style={{ color: "var(--text-muted)" }}>
+              مدعوم بـ{" "}
+            </span>
+            <strong>منيو</strong>
+          </a>
         </div>
       </footer>
     </div>
