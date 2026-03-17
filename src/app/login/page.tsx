@@ -50,6 +50,8 @@ export default async function LoginPage() {
   }
 
   const profile = await getProfile();
-  // الجميع يوجّه إلى /admin: على الدومين الرئيسي = لوحة مالك النظام، على نطاق المطعم = لوحة تحكم المطعم
-  redirect("/admin");
+  // مالك النظام → /admin؛ صاحب مطعم → /admin (لوحة المطعم)؛ غير مكتمل → إعداد المطعم
+  if (profile?.role === "super_admin") redirect("/admin");
+  if (profile?.restaurant_id) redirect("/admin");
+  redirect("/complete-profile");
 }

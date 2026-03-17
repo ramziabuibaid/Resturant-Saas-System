@@ -3,21 +3,21 @@ import { getSession } from "@/app/actions/auth";
 import { SignupForm } from "./signup-form";
 
 export const metadata = {
-  title: "Create account | Admin",
-  description: "Create an owner account",
+  title: "إنشاء حساب مطعم | منيو",
+  description: "إنشاء حساب مطعم والحصول على أول شهر مجاناً",
 };
 
 export default async function SignupPage() {
   const session = await getSession();
-  if (session) redirect("/admin");
+  if (session) redirect("/complete-profile");
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4" dir="rtl">
       <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
         <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">Create account</h1>
+          <h1 className="text-2xl font-semibold">إنشاء حساب مطعم</h1>
           <p className="text-sm text-muted-foreground">
-            After signing up, sign in once. You will then choose your restaurant to complete setup (no need to run SQL manually).
+            أنشئ حسابك ثم أنشئ مطعمك من نفس الصفحة — أول شهر مجاناً دون إدخال بطاقة بنكية.
           </p>
         </div>
         <SignupForm />

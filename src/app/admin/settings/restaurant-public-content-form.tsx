@@ -1,13 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { updateRestaurantPublicContent } from "@/app/actions/admin-restaurant";
+import { uploadRestaurantHeroBackground } from "@/lib/supabase/storage";
 import { MENU_CURRENCIES } from "@/lib/currencies";
 import { cn } from "@/lib/utils";
+import { ImagePlusIcon, Trash2Icon } from "lucide-react";
 
 type Props = {
   restaurantId: string;
@@ -36,8 +39,11 @@ export function RestaurantPublicContentForm({
     initialCurrencyCode ?? "SAR"
   );
   const [loading, setLoading] = useState(false);
+  const [heroUploading, setHeroUploading] = useState(false);
+  const [heroError, setHeroError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const heroFileInputRef = useRef<HTMLInputElement>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -87,19 +93,88 @@ export function RestaurantPublicContentForm({
       </div>
 
       <div className="space-y-1.5">
-        <Label htmlFor="hero-bg">
-          رابط صورة الخلفية العريضة (اختياري)
-        </Label>
-        <Input
-          id="hero-bg"
-          value={heroBackgroundUrl}
-          onChange={(e) => setHeroBackgroundUrl(e.target.value)}
-          placeholder="مثال: https://your-bucket.supabase.co/storage/v1/object/public/..."
-          disabled={loading}
+        <Label>صورة الخلفية العريضة للهيرو (اختياري)</Label>
+        <input
+          ref={heroFileInputRef}
+          type="file"
+          accept="image/jpeg,image/png,image/webp,image/gif"
+          className="hidden"
+          onChange={async (e) => {
+            const file = e.target.files?.[0];
+            if (!file) return;
+            setHeroError(null);
+            setHeroUploading(true);
+            const result = await uploadRestaurantHeroBackground(restaurantId, file);
+            setHeroUploading(false);
+            e.target.value = "";
+            if ("error" in result) {
+              setHeroError(result.error);
+              return;
+            }
+            setHeroBackgroundUrl(result.url);
+          }}
         />
+        {heroBackgroundUrl ? (
+          <div className="space-y-2">
+            <div className="relative h-32 w-full max-w-xl overflow-hidden rounded-lg border border-border bg-muted">
+              <Image
+                src={heroBackgroundUrl}
+                alt="خلفية الهيرو"
+                fill
+                className="object-cover"
+                sizes="(max-width: 640px) 100vw, 640px"
+                unoptimized
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || heroUploading}
+                onClick={() => heroFileInputRef.current?.click()}
+                className="gap-1.5"
+              >
+                <ImagePlusIcon className="size-4" />
+                تغيير الصورة
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={loading || heroUploading}
+                onClick={() => {
+                  setHeroBackgroundUrl("");
+                  setHeroError(null);
+                }}
+                className="gap-1.5 text-destructive hover:text-destructive"
+              >
+                <Trash2Icon className="size-4" />
+                إزالة الصورة
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              disabled={loading || heroUploading}
+              onClick={() => heroFileInputRef.current?.click()}
+              className="gap-1.5"
+            >
+              <ImagePlusIcon className="size-4" />
+              {heroUploading ? "جاري الرفع…" : "رفع صورة الخلفية"}
+            </Button>
+            {heroUploading && (
+              <p className="text-xs text-muted-foreground">جاري رفع الصورة…</p>
+            )}
+          </div>
+        )}
+        {heroError && <p className="text-sm text-destructive">{heroError}</p>}
         <p className="text-xs text-muted-foreground">
-          تظهر هذه الصورة في خلفية الهيرو في صفحة المنيو. يفضّل صورة أفقية
-          عالية الجودة.
+          تظهر هذه الصورة في خلفية الهيرو في صفحة المنيو. يُفضّل صورة أفقية
+          عالية الجودة (JPG, PNG, WebP, GIF).
         </p>
       </div>
 

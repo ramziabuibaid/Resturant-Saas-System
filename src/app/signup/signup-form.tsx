@@ -25,7 +25,7 @@ export function SignupForm() {
     const { error: err } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/admin` },
+      options: { emailRedirectTo: `${window.location.origin}/complete-profile` },
     });
     setLoading(false);
     if (err) {
@@ -38,24 +38,24 @@ export function SignupForm() {
 
   if (success) {
     return (
-      <div className="space-y-4 text-center text-sm">
+      <div className="space-y-4 text-center text-sm" dir="rtl">
         <p className="text-green-600">
-          Account created. If your project requires it, check your email to confirm. Otherwise go to login.
+          تم إنشاء الحساب. إن كان المشروع يتطلب تأكيد البريد، راجع بريدك ثم سجّل الدخول.
         </p>
         <p className="text-muted-foreground">
-          After you sign in, you will choose your restaurant once — then you can use the dashboard. No SQL needed.
+          بعد تسجيل الدخول ستُنشئ مطعمك أو تربط حسابك بمطعم موجود، وتحصل على أول شهر مجاناً دون إدخال بطاقة بنكية.
         </p>
         <Link href="/login" className={cn(buttonVariants({ variant: "outline" }), "w-full inline-flex justify-center")}>
-          Go to login
+          تسجيل الدخول
         </Link>
       </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" dir="rtl">
       <div className="space-y-2">
-        <Label htmlFor="email">Email</Label>
+        <Label htmlFor="email">البريد الإلكتروني</Label>
         <Input
           id="email"
           type="email"
@@ -65,10 +65,11 @@ export function SignupForm() {
           required
           autoComplete="email"
           disabled={loading}
+          className="text-right"
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="password">Password</Label>
+        <Label htmlFor="password">كلمة المرور</Label>
         <Input
           id="password"
           type="password"
@@ -78,17 +79,18 @@ export function SignupForm() {
           minLength={6}
           autoComplete="new-password"
           disabled={loading}
+          className="text-right"
         />
       </div>
       {error && (
         <p className="text-sm text-destructive">{error}</p>
       )}
       <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Creating…" : "Create account"}
+        {loading ? "جاري الإنشاء…" : "إنشاء حساب"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
         <Link href="/login" className="underline hover:text-foreground">
-          Already have an account? Sign in
+          لديك حساب؟ تسجيل الدخول
         </Link>
       </p>
     </form>

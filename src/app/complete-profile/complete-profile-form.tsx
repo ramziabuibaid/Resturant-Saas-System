@@ -1,66 +1,80 @@
 "use client";
 
 import { useState } from "react";
-import { setProfileRestaurant } from "@/app/actions/auth";
-import type { Restaurant } from "@/lib/types/database";
+import { createRestaurantAndLink } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type Props = { restaurants: Restaurant[] };
-
-export function CompleteProfileForm({ restaurants }: Props) {
-  const [restaurantId, setRestaurantId] = useState("");
+export function CompleteProfileForm() {
+  const [name, setName] = useState("");
+  const [subdomain, setSubdomain] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!restaurantId) return;
     setError(null);
     setLoading(true);
-    const { error: err } = await setProfileRestaurant(restaurantId);
+    const { error: err } = await createRestaurantAndLink({
+      name: name.trim(),
+      subdomain: subdomain.trim(),
+    });
     if (err) {
       setError(err);
       setLoading(false);
       return;
     }
     setLoading(false);
-    // Full navigation so the server sees the new profile
     window.location.href = "/owner";
   }
 
-  if (restaurants.length === 0) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        No restaurants found. Create a restaurant in Supabase (Table Editor → restaurants) first.
-      </p>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="space-y-2">
-        <Label htmlFor="restaurant">Restaurant</Label>
-        <select
-          id="restaurant"
-          value={restaurantId}
-          onChange={(e) => setRestaurantId(e.target.value)}
-          required
-          className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-          disabled={loading}
-        >
-          <option value="">— Select —</option>
-          {restaurants.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.name} ({r.subdomain})
-            </option>
-          ))}
-        </select>
-      </div>
-      {error && <p className="text-sm text-destructive">{error}</p>}
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "Saving…" : "Continue to dashboard"}
-      </Button>
-    </form>
+    <div className="space-y-6" dir="rtl">
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          أنشئ مطعمك واحصل على أول شهر مجاناً — دون إدخال بطاقة بنكية. بعدها يمكنك الاشتراك من لوحة التحكم.
+        </p>
+        <div className="space-y-2">
+          <Label htmlFor="restaurant-name">اسم المطعم</Label>
+          <Input
+            id="restaurant-name"
+            type="text"
+            placeholder="مثال: مطعم النخيل"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            minLength={2}
+            disabled={loading}
+            className="text-right"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="restaurant-subdomain">النطاق الفرعي (لرابط المنيو)</Label>
+          <Input
+            id="restaurant-subdomain"
+            type="text"
+            placeholder="مثال: alnakhil"
+            value={subdomain}
+            onChange={(e) =>
+              setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ""))
+            }
+            required
+            minLength={2}
+            maxLength={63}
+            disabled={loading}
+            className="font-mono text-right"
+          />
+          <p className="text-xs text-muted-foreground">
+            حروف إنجليزية صغيرة، أرقام وشرطة فقط. سيكون منيو مطعمك متاحاً على:
+            subdomain.yourdomain.com
+          </p>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <Button type="submit" className="w-full" disabled={loading}>
+          {loading ? "جاري الإنشاء…" : "إنشاء المطعم والدخول للوحة التحكم"}
+        </Button>
+      </form>
+    </div>
   );
 }

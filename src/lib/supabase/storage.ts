@@ -46,3 +46,28 @@ export async function uploadRestaurantLogo(
   } = supabase.storage.from(BUCKET).getPublicUrl(path);
   return { url: publicUrl };
 }
+
+/**
+ * رفع صورة الخلفية العريضة للهيرو (صفحة المنيو).
+ * المسار: restaurantId/hero-bg.ext
+ */
+export async function uploadRestaurantHeroBackground(
+  restaurantId: string,
+  file: File
+): Promise<{ url: string } | { error: string }> {
+  const { createClient } = await import("@/lib/supabase/client");
+  const supabase = createClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  if (!/^(jpe?g|png|webp|gif)$/i.test(ext))
+    return { error: "نوع الملف غير مدعوم. استخدم صورة (jpg, png, webp, gif)." };
+  const path = `${restaurantId}/hero-bg.${ext}`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
+    cacheControl: "3600",
+    upsert: true,
+  });
+  if (error) return { error: error.message };
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(BUCKET).getPublicUrl(path);
+  return { url: publicUrl };
+}

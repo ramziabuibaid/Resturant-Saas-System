@@ -6,6 +6,10 @@ import type { Profile } from "@/lib/types/database";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 
+const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const SUBDOMAIN_MIN = 2;
+const SUBDOMAIN_MAX = 63;
+
 const SUPER_ADMIN_ROLE = "super_admin";
 
 export async function getSession() {
@@ -85,6 +89,65 @@ export async function setProfileRestaurant(
     { onConflict: "id" }
   );
   if (error) return { error: error.message };
+  revalidatePath("/owner");
+  revalidatePath("/complete-profile");
+  return { error: null };
+}
+
+/**
+ * إنشاء مطعم جديد وربط الحساب به (للزائر الجديد — شهر تجريبي بدون تدخل المالك).
+ * يستخدم Admin لتفادي RLS على restaurants و profiles.
+ */
+export async function createRestaurantAndLink(payload: {
+  name: string;
+  subdomain: string;
+}): Promise<{ error: string | null }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "يجب تسجيل الدخول أولاً" };
+
+  const name = payload.name?.trim();
+  const subRaw = payload.subdomain?.trim().toLowerCase();
+  if (!name || name.length < 2) return { error: "اسم المطعم يجب أن يكون حرفين على الأقل" };
+  if (!subRaw) return { error: "النطاق الفرعي مطلوب" };
+  if (subRaw.length < SUBDOMAIN_MIN || subRaw.length > SUBDOMAIN_MAX)
+    return { error: `النطاق الفرعي بين ${SUBDOMAIN_MIN} و ${SUBDOMAIN_MAX} حرفاً` };
+  if (!SUBDOMAIN_REGEX.test(subRaw))
+    return { error: "النطاق الفرعي: حروف إنجليزية صغيرة، أرقام وشرطة فقط" };
+
+  const admin = createAdminClient();
+  const { data: existing } = await admin
+    .from("restaurants")
+    .select("id")
+    .ilike("subdomain", subRaw)
+    .maybeSingle();
+  if (existing) return { error: "النطاق الفرعي مستخدم لمطعم آخر. اختر غيره." };
+
+  const { data: newRestaurant, error: insertErr } = await admin
+    .from("restaurants")
+    .insert({
+      name,
+      subdomain: subRaw,
+      status: "trial",
+    })
+    .select("id")
+    .single();
+  if (insertErr) return { error: insertErr.message || "فشل إنشاء المطعم" };
+  if (!newRestaurant?.id) return { error: "فشل إنشاء المطعم" };
+
+  const { error: profileErr } = await admin.from("profiles").upsert(
+    {
+      id: user.id,
+      restaurant_id: newRestaurant.id,
+      role: "owner",
+      login_email: user.email ?? null,
+    },
+    { onConflict: "id" }
+  );
+  if (profileErr) return { error: profileErr.message || "فشل ربط الحساب بالمطعم" };
+
   revalidatePath("/owner");
   revalidatePath("/complete-profile");
   return { error: null };
