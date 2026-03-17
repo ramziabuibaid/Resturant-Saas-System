@@ -143,6 +143,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                     className="object-contain object-center"
                     sizes="64px"
                     priority
+                    unoptimized
                   />
                 </div>
               ) : (
@@ -185,6 +186,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                     priority
                     className="object-cover"
                     sizes="(max-width: 768px) 100vw, 640px"
+                    unoptimized
                   />
                   <div className="absolute inset-0 bg-gradient-to-br from-stone-950/80 via-stone-900/80 to-stone-950/90" />
                 </div>
@@ -227,6 +229,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                             fill
                             className="object-cover transition-transform duration-500 group-hover:scale-[1.05]"
                             sizes="224px"
+                            unoptimized
                           />
                         ) : (
                           <div className="flex h-full w-full items-center justify-center text-xs text-stone-600">
@@ -329,6 +332,7 @@ export function MenuView({ restaurant, categories, menuItems }: MenuViewProps) {
                               fill
                               className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
                               sizes="96px"
+                              unoptimized
                             />
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-transparent" />
                           </div>

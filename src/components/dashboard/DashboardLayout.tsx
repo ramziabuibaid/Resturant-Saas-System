@@ -72,6 +72,7 @@ export function DashboardLayout({
                   fill
                   className="object-contain"
                   sizes="36px"
+                  unoptimized
                 />
               </div>
             ) : null}
@@ -135,6 +136,7 @@ export function DashboardLayout({
                     fill
                     className="object-cover"
                     sizes="36px"
+                    unoptimized
                   />
                 </div>
               ) : (

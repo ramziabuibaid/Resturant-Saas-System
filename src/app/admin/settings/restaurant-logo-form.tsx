@@ -68,6 +68,7 @@ export function RestaurantLogoForm({ restaurantId, currentLogoUrl }: Props) {
                 fill
                 className="object-contain"
                 sizes="160px"
+                unoptimized
               />
             </div>
           ) : (
