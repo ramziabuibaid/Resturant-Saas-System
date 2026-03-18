@@ -20,6 +20,14 @@ export async function resolveAdminTenant(): Promise<{
 } | null> {
   let tenant = await getIdentifiedRestaurant();
   if (tenant) return tenant;
+
+  // إذا كان الدخول من الدومين الرئيسي (localhost:3000) يجب تجاهل cookie
+  // وإرجاع null حتى لا نُعامل /admin كأنه لوحة مطعم.
+  const h = await headers();
+  const host = h.get("x-original-host") ?? h.get("host") ?? "";
+  const sub = subdomainFromHost(host);
+  if (!sub) return null;
+
   const cookieStore = await cookies();
   const subFromCookie = cookieStore.get(ADMIN_TENANT_COOKIE)?.value;
   if (subFromCookie) {
@@ -30,9 +38,7 @@ export async function resolveAdminTenant(): Promise<{
     }
   }
   if (tenant) return tenant;
-  const h = await headers();
-  const host = h.get("x-original-host") ?? h.get("host") ?? "";
-  const sub = subdomainFromHost(host);
-  if (sub) tenant = await getRestaurantBySubdomain(sub);
+  // fallback: نستخدم subdomain من الـ host مباشرة
+  tenant = await getRestaurantBySubdomain(sub);
   return tenant;
 }

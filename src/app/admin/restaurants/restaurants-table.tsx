@@ -1,8 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { Restaurant } from "@/lib/types/database";
-import { createRestaurant, deleteRestaurant } from "@/app/actions/super-admin";
+import {
+  createRestaurant,
+  deleteRestaurant,
+  updateRestaurantSubdomain,
+} from "@/app/actions/super-admin";
 import {
   createOrUpdateOwnerCredentials,
   updateOwnerPassword,
@@ -66,6 +71,14 @@ export function RestaurantsTable({
   const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
   const [passwordSubmitError, setPasswordSubmitError] = useState<string | null>(null);
   const [passwordLoading, setPasswordLoading] = useState(false);
+
+  const [subdomainDialogRestaurant, setSubdomainDialogRestaurant] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [newSubdomain, setNewSubdomain] = useState("");
+  const [subdomainSubmitError, setSubdomainSubmitError] = useState<string | null>(null);
+  const [subdomainLoading, setSubdomainLoading] = useState(false);
 
   async function handleCreate() {
     setError(null);
@@ -133,6 +146,28 @@ export function RestaurantsTable({
     setPasswordDialogRestaurant(null);
     setNewPassword("");
     setNewPasswordConfirm("");
+  }
+
+  async function handleChangeSubdomain() {
+    if (!subdomainDialogRestaurant) return;
+    setSubdomainSubmitError(null);
+    setSubdomainLoading(true);
+
+    const result = await updateRestaurantSubdomain(subdomainDialogRestaurant.id, newSubdomain);
+
+    setSubdomainLoading(false);
+    if (result.error) {
+      setSubdomainSubmitError(result.error);
+      return;
+    }
+
+    const normalized = newSubdomain.trim().toLowerCase().replace(/\s+/g, "-");
+    setRestaurants((prev) =>
+      prev.map((r) => (r.id === subdomainDialogRestaurant.id ? { ...r, subdomain: normalized } : r))
+    );
+
+    setSubdomainDialogRestaurant(null);
+    setNewSubdomain("");
   }
 
   return (
@@ -403,6 +438,84 @@ export function RestaurantsTable({
                             </DialogContent>
                           </Dialog>
                         )}
+                        <Link href={`/menu/${r.subdomain}`} target="_blank" rel="noreferrer">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-[12px] font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+                          >
+                            المنيو العام
+                          </Button>
+                        </Link>
+                        <Dialog
+                          open={subdomainDialogRestaurant?.id === r.id}
+                          onOpenChange={(open) => {
+                            if (!open) {
+                              setSubdomainDialogRestaurant(null);
+                              setSubdomainSubmitError(null);
+                              return;
+                            }
+                            setSubdomainDialogRestaurant({ id: r.id, name: r.name });
+                            setNewSubdomain(r.subdomain ?? "");
+                            setSubdomainSubmitError(null);
+                          }}
+                        >
+                          <DialogTrigger className="inline-flex h-8 items-center gap-1 rounded-md px-3 text-sm font-medium hover:bg-accent hover:text-accent-foreground">
+                            تعديل النطاق
+                          </DialogTrigger>
+                          <DialogContent className="sm:max-w-md">
+                            <DialogHeader>
+                              <DialogTitle>تعديل النطاق الفرعي</DialogTitle>
+                              <DialogDescription>
+                                تعيين نطاق جديد للمطعم "{r.name}". سيؤثر على رابط المنيو العام.
+                              </DialogDescription>
+                            </DialogHeader>
+
+                            <div className="grid gap-4 py-4">
+                              {subdomainSubmitError && (
+                                <p className="text-sm text-destructive">{subdomainSubmitError}</p>
+                              )}
+                              <div className="grid gap-2">
+                                <Label htmlFor="new-subdomain">النطاق الفرعي الجديد</Label>
+                                <Input
+                                  id="new-subdomain"
+                                  value={newSubdomain}
+                                  onChange={(e) =>
+                                    setNewSubdomain(
+                                      e.target.value.toLowerCase().replace(/\s+/g, "-")
+                                    )
+                                  }
+                                  placeholder="مثال: albaraka"
+                                  dir="ltr"
+                                  className="font-mono"
+                                />
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                المنيو سيكون متاحاً عند: <code>{newSubdomain || r.subdomain}.localhost</code>
+                              </p>
+                            </div>
+
+                            <DialogFooter>
+                              <Button
+                                variant="outline"
+                                onClick={() => {
+                                  setSubdomainDialogRestaurant(null);
+                                }}
+                              >
+                                إلغاء
+                              </Button>
+                              <Button
+                                onClick={handleChangeSubdomain}
+                                disabled={
+                                  subdomainLoading || !newSubdomain.trim() || newSubdomain.trim() === r.subdomain
+                                }
+                              >
+                                {subdomainLoading ? "جاري الحفظ…" : "حفظ"}
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
                         <Button
                           variant="ghost"
                           size="icon"

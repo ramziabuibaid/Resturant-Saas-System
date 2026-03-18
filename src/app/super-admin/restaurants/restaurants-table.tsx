@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import type { RestaurantWithOwner } from "@/app/actions/super-admin";
 import { createRestaurant, deleteRestaurant } from "@/app/actions/super-admin";
 import {
@@ -59,8 +60,13 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
 
   async function handleDelete(id: string, name: string) {
     if (!confirm(`Delete restaurant "${name}"? This cannot be undone.`)) return;
+    setError(null);
     const result = await deleteRestaurant(id);
-    if (!result.error) setRestaurants((prev) => prev.filter((r) => r.id !== id));
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setRestaurants((prev) => prev.filter((r) => r.id !== id));
   }
 
   return (
@@ -159,14 +165,26 @@ export function RestaurantsTable({ initialRestaurants }: RestaurantsTableProps) 
                     <span className="capitalize">{r.status ?? "active"}</span>
                   </TableCell>
                   <TableCell>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(r.id, r.name)}
-                    >
-                      <Trash2Icon className="size-4" />
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/menu/${r.subdomain}`} target="_blank" rel="noreferrer">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 px-2 text-[12px] font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-overlay)]"
+                        >
+                          المنيو العام
+                        </Button>
+                      </Link>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="size-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(r.id, r.name)}
+                      >
+                        <Trash2Icon className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

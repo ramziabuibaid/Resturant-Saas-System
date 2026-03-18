@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cairo, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { SessionHashHandler } from "@/components/auth/SessionHashHandler";
 import "./globals.css";
 
 /** DESIGN_SYSTEM: Cairo — كل النصوص العربية */
@@ -35,7 +36,10 @@ export default function RootLayout({
         style={{ fontFamily: "var(--font-sans)" }}
       >
         <ThemeProvider>
-          <TooltipProvider>{children}</TooltipProvider>
+          <TooltipProvider>
+            {children}
+            <SessionHashHandler />
+          </TooltipProvider>
         </ThemeProvider>
       </body>
     </html>

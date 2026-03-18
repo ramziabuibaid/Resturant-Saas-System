@@ -68,6 +68,17 @@ export function LoginForm() {
       <Button type="submit" className="w-full" disabled={loading}>
         {loading ? "جاري الدخول…" : "تسجيل الدخول"}
       </Button>
+      <Button
+        type="button"
+        variant="outline"
+        className="w-full"
+        disabled={loading}
+        onClick={() => {
+          window.location.href = "/login?mode=username";
+        }}
+      >
+        تسجيل الدخول عبر اسم المستخدم
+      </Button>
       <p className="text-center text-xs text-muted-foreground">
         <Link href="/" className="underline hover:text-foreground">
           العودة للرئيسية

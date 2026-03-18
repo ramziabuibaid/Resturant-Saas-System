@@ -39,6 +39,44 @@ export type CreateRestaurantInput = {
   status?: "active" | "suspended" | "trial";
 };
 
+const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
+const SUBDOMAIN_MIN = 2;
+const SUBDOMAIN_MAX = 63;
+
+export async function updateRestaurantSubdomain(
+  restaurantId: string,
+  newSubdomain: string
+): Promise<{ error: string | null }> {
+  const subRaw = newSubdomain?.trim().toLowerCase().replace(/\s+/g, "-") ?? "";
+  if (!subRaw) return { error: "النطاق الفرعي مطلوب" };
+  if (subRaw.length < SUBDOMAIN_MIN || subRaw.length > SUBDOMAIN_MAX) {
+    return { error: `النطاق الفرعي بين ${SUBDOMAIN_MIN} و ${SUBDOMAIN_MAX} حرفاً` };
+  }
+  if (!SUBDOMAIN_REGEX.test(subRaw)) return { error: "النطاق الفرعي: حروف إنجليزية صغيرة، أرقام وشرطة فقط" };
+
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("restaurants")
+    .select("id")
+    .ilike("subdomain", subRaw)
+    .neq("id", restaurantId)
+    .maybeSingle();
+
+  if (existing) return { error: "النطاق الفرعي مستخدم لمطعم آخر" };
+
+  const { error: updateErr } = await supabase
+    .from("restaurants")
+    .update({ subdomain: subRaw })
+    .eq("id", restaurantId);
+
+  if (updateErr) return { error: updateErr.message };
+
+  revalidatePath("/admin/restaurants");
+  revalidatePath("/admin");
+  return { error: null };
+}
+
 export async function createRestaurant(
   input: CreateRestaurantInput
 ): Promise<{ data: Restaurant | null; error: string | null }> {
@@ -71,9 +109,18 @@ export async function createRestaurant(
 export async function deleteRestaurant(
   id: string
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("restaurants").delete().eq("id", id);
-  if (error) return { error: error.message };
+  // Super admin: احذف التبعيات أولاً لتجنب مشاكل قيود المفاتيح الأجنبية
+  const admin = createAdminClient();
+
+  const { error: menuItemsErr } = await admin.from("menu_items").delete().eq("restaurant_id", id);
+  if (menuItemsErr) return { error: menuItemsErr.message };
+
+  const { error: categoriesErr } = await admin.from("categories").delete().eq("restaurant_id", id);
+  if (categoriesErr) return { error: categoriesErr.message };
+
+  const { error: restaurantsErr } = await admin.from("restaurants").delete().eq("id", id);
+  if (restaurantsErr) return { error: restaurantsErr.message };
+
   revalidatePath("/admin");
   revalidatePath("/admin/restaurants");
   return { error: null };

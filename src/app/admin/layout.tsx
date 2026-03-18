@@ -1,7 +1,11 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
-import { getSuperAdminProfileOrRedirect, getProfileForRestaurantAdminOrRedirect, getRestaurantForProfile } from "@/app/actions/auth";
+import {
+  getSuperAdminProfileOrRedirectWithLoginMode,
+  getProfileForRestaurantAdminOrRedirect,
+  getRestaurantForProfile,
+} from "@/app/actions/auth";
 import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";
 
@@ -24,7 +28,7 @@ export default async function AdminLayout({
 
   if (!tenant) {
     // بدون subdomain = منطقة Super Admin فقط
-    await getSuperAdminProfileOrRedirect();
+    await getSuperAdminProfileOrRedirectWithLoginMode("username");
     return <AdminShell>{children}</AdminShell>;
   }
 

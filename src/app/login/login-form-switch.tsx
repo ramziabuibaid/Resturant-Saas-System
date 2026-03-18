@@ -3,17 +3,23 @@
 import { useEffect, useState } from "react";
 import { LoginForm } from "./login-form";
 import { OwnerLoginForm } from "./owner-login-form";
+import { SuperAdminUsernameLoginForm } from "./super-admin-username-form";
+import { useSearchParams } from "next/navigation";
 
 type Props = {
   serverTenant: { id: string; subdomain: string } | null;
+  loginMode: "username" | "email";
 };
 
 /**
  * عندما لا يصل المطعم من السيرفر، نطلب المطعم عبر API باستخدام host المتصفح.
  */
-export function LoginFormSwitch({ serverTenant }: Props) {
+export function LoginFormSwitch({ serverTenant, loginMode }: Props) {
   const [clientTenant, setClientTenant] = useState<{ id: string; subdomain: string } | null>(null);
   const [checking, setChecking] = useState(!serverTenant);
+  const sp = useSearchParams();
+  const modeParam = sp.get("mode");
+  const effectiveLoginMode: "username" | "email" = modeParam === "username" ? "username" : loginMode;
 
   useEffect(() => {
     if (serverTenant) {
@@ -67,10 +73,12 @@ export function LoginFormSwitch({ serverTenant }: Props) {
       <div className="space-y-2 text-center">
         <h1 className="text-2xl font-semibold">لوحة إدارة النظام</h1>
         <p className="text-sm text-muted-foreground">
-          تسجيل دخول مالك النظام (بالبريد الإلكتروني وكلمة المرور).
+          {effectiveLoginMode === "username"
+            ? "تسجيل دخول مالك النظام (باسم المستخدم وكلمة المرور)."
+            : "تسجيل دخول مالك النظام (بالبريد الإلكتروني وكلمة المرور)."}
         </p>
       </div>
-      <LoginForm />
+      {effectiveLoginMode === "username" ? <SuperAdminUsernameLoginForm /> : <LoginForm />}
     </>
   );
 }

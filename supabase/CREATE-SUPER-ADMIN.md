@@ -38,21 +38,25 @@ alter table public.profiles
 في **SQL Editor** شغّل الأمر التالي بعد استبدال `YOUR_USER_UID` بـ UUID المستخدم الذي نسخته من الخطوة 1:
 
 ```sql
-insert into public.profiles (id, role, restaurant_id)
-values ('YOUR_USER_UID', 'super_admin', null)
+insert into public.profiles (id, role, restaurant_id, username, login_email)
+values ('YOUR_USER_UID', 'super_admin', null, 'admin', 'admin@example.com')
 on conflict (id) do update set
   role = 'super_admin',
-  restaurant_id = null;
+  restaurant_id = null,
+  username = excluded.username,
+  login_email = excluded.login_email;
 ```
 
 مثال (استبدل UUID بالقيمة الحقيقية):
 
 ```sql
-insert into public.profiles (id, role, restaurant_id)
-values ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'super_admin', null)
+insert into public.profiles (id, role, restaurant_id, username, login_email)
+values ('a1b2c3d4-e5f6-7890-abcd-ef1234567890', 'super_admin', null, 'admin', 'admin@example.com')
 on conflict (id) do update set
   role = 'super_admin',
-  restaurant_id = null;
+  restaurant_id = null,
+  username = excluded.username,
+  login_email = excluded.login_email;
 ```
 
 ---
@@ -62,8 +66,8 @@ on conflict (id) do update set
 1. افتح التطبيق على **الدومين الرئيسي** (بدون subdomain)، مثلاً:
    - `http://localhost:3000`
 2. اذهب إلى **تسجيل الدخول** (أو `/login`).
-3. يجب أن تظهر واجهة **«لوحة إدارة النظام»** مع حقلي البريد وكلمة المرور.
-4. أدخل **نفس البريد وكلمة المرور** اللذين أنشأتهما في الخطوة 1.
+3. يجب أن تظهر واجهة **«لوحة إدارة النظام»** مع حقلي **اسم المستخدم** و**كلمة المرور**.
+4. أدخل **اسم المستخدم** الذي وضعته في `profiles.username` (مثلاً `admin`) مع **نفس كلمة المرور** التي أنشأتها في الخطوة 1.
 5. بعد الدخول ستُوجّه إلى `/admin` وترى لوحة مالك النظام (إحصائيات، مطاعم، إضافة مطعم، إلخ).
 
 ---

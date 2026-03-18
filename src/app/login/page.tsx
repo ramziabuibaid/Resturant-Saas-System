@@ -9,6 +9,8 @@ export const metadata = {
   description: "تسجيل الدخول إلى لوحة التحكم",
 };
 
+type LoginMode = "username" | "email";
+
 function subdomainFromHost(host: string): string | null {
   const withoutPort = host.split(":")[0].trim().toLowerCase();
   const parts = withoutPort.split(".");
@@ -35,7 +37,11 @@ async function resolveTenant(): Promise<{ id: string; subdomain: string } | null
   return tenant;
 }
 
-export default async function LoginPage() {
+export default async function LoginPage({
+}: {}) {
+  // نُحدد loginMode بشكل آمن على السيرفر، ثم نقرأ mode من المتصفح داخل LoginFormSwitch.
+  const mode: LoginMode = "email";
+
   const serverTenant = await resolveTenant();
   const session = await getSession();
 
@@ -43,7 +49,7 @@ export default async function LoginPage() {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4">
         <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
-          <LoginFormSwitch serverTenant={serverTenant} />
+          <LoginFormSwitch serverTenant={serverTenant} loginMode={mode} />
         </div>
       </div>
     );

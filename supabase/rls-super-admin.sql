@@ -33,6 +33,9 @@ CREATE POLICY "Super admin can update restaurants"
   ON public.restaurants FOR UPDATE
   USING (
     (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'super_admin'
+  )
+  WITH CHECK (
+    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'super_admin'
   );
 
 -- السماح لـ super_admin بحذف المطاعم

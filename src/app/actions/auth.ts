@@ -57,6 +57,21 @@ export async function getSuperAdminProfileOrRedirect(): Promise<Profile> {
   return profile;
 }
 
+/**
+ * Same as getSuperAdminProfileOrRedirect, but controls which login form is shown:
+ * - loginMode="username" redirects to /login?mode=username
+ * - loginMode="email" redirects to /login?mode=email
+ */
+export async function getSuperAdminProfileOrRedirectWithLoginMode(
+  loginMode: "username" | "email"
+): Promise<Profile> {
+  const session = await getSession();
+  if (!session) redirect(`/login?mode=${loginMode}`);
+  const profile = await getProfile();
+  if (!profile || profile.role !== SUPER_ADMIN_ROLE) redirect("/owner");
+  return profile;
+}
+
 /** For /admin on subdomain (restaurant owner): requires session + profile with restaurant_id = tenantId. */
 export async function getProfileForRestaurantAdminOrRedirect(
   tenantId: string
@@ -266,6 +281,48 @@ export async function signInWithUsernamePassword(
   });
   if (signInError) return { error: "اسم المستخدم أو كلمة المرور غير صحيحة" };
   return { error: null };
+}
+
+/**
+ * تسجيل دخول مالك النظام (super_admin) باسم المستخدم وكلمة المرور عبر الدومين الرئيسي.
+ * نستخدم Admin لقراءة login_email لأن RLS تمنع القراءة قبل تسجيل الدخول.
+ */
+export async function signInSuperAdminWithUsernamePassword(
+  username: string,
+  password: string
+): Promise<{ error: string | null }> {
+  const uname = username.trim().toLowerCase();
+  if (!uname || !password) return { error: "اسم المستخدم وكلمة المرور مطلوبان" };
+
+  let profile: { login_email: string | null } | null = null;
+  try {
+    const admin = createAdminClient();
+    const { data } = await admin
+      .from("profiles")
+      .select("login_email")
+      .eq("role", "super_admin")
+      .eq("username", uname)
+      .maybeSingle();
+    profile = data;
+  } catch {
+    return { error: "تسجيل الدخول غير متاح حالياً. تأكد من إعداد SUPABASE_SERVICE_ROLE_KEY." };
+  }
+
+  try {
+    if (!profile?.login_email) return { error: "لم يتم العثور على super_admin أو login_email غير مضبوط" };
+
+    const supabase = await createClient();
+    const resolvedEmail = profile.login_email.trim();
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: resolvedEmail,
+      password,
+    });
+
+    if (signInError) return { error: signInError.message || "فشل تسجيل الدخول" };
+    return { error: null };
+  } catch (e: any) {
+    return { error: e?.message || "فشل تسجيل الدخول" };
+  }
 }
 
 /** Owner dashboard stats: categories count, menu items count (placeholder for sales until orders exist). */

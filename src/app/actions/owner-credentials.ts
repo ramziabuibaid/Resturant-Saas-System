@@ -4,7 +4,9 @@ import { ensureEnvLoaded } from "@/lib/load-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 
-const OWNER_EMAIL_DOMAIN = "owners.local";
+// Supabase يرفض نطاقات مثل `.local` لإرسال رسائل الاسترجاع/التفعيل.
+// استخدم نطاقاً صالحاً (placeholder) بدلًا من `owners.local`.
+const OWNER_EMAIL_DOMAIN = "owners.example.com";
 
 /** يرجع null إذا كل المتغيرات موجودة، أو اسم المتغير الناقص. */
 function getMissingEnv(): string | null {
