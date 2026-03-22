@@ -1,0 +1,171 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import type { RestaurantTable } from "@/lib/types/database";
+import { createRestaurantTable, deleteRestaurantTable } from "@/app/actions/tables";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { PrinterIcon, QrCodeIcon, Trash2Icon } from "lucide-react";
+
+type Props = {
+  initialTables: RestaurantTable[];
+  menuBaseUrl: string;
+};
+
+export function TablesClient({ initialTables, menuBaseUrl }: Props) {
+  const router = useRouter();
+  const [tables, setTables] = useState(initialTables);
+  const [label, setLabel] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setTables(initialTables);
+  }, [initialTables]);
+
+  async function addTable(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    const res = await createRestaurantTable(label);
+    setLoading(false);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setLabel("");
+    router.refresh();
+  }
+
+  async function remove(id: string) {
+    if (!confirm("حذف هذه الطاولة؟ روابط الـ QR القديمة ستتوقف عن العمل.")) return;
+    setError(null);
+    const res = await deleteRestaurantTable(id);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setTables((t) => t.filter((x) => x.id !== id));
+  }
+
+  function printQr(labelText: string, qrSrc: string) {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"/><title>QR — ${labelText}</title>
+      <style>
+        body { font-family: system-ui; text-align: center; padding: 2rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        img { width: 280px; height: 280px; }
+        p { color: #555; margin-top: 1rem; font-size: 14px; }
+      </style></head><body>
+      <h1>${labelText}</h1>
+      <img src="${qrSrc}" alt="QR" />
+      <p>امسح الرمز لفتح المنيو وربط الطلب بهذه الطاولة تلقائياً.</p>
+      <script>window.onload = () => { window.print(); }</script>
+      </body></html>`);
+    w.document.close();
+  }
+
+  return (
+    <div className="space-y-8">
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">الطاولات ورموز QR</h1>
+        <p className="text-muted-foreground">
+          أضف كل طاولة باسم واضح، ثم اطبع رمز QR الخاص بها وضعه على الطاولة. الزبون يمسح الرمز فيفتح المنيو
+          ويُرسَم الطلب على هذه الطاولة دون إدخال يدوي.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>إضافة طاولة</CardTitle>
+          <CardDescription>مثال: طاولة 5، تراس 2، VIP...</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={addTable} className="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div className="flex-1 space-y-2">
+              <label className="text-sm font-medium">اسم الطاولة</label>
+              <Input
+                value={label}
+                onChange={(e) => setLabel(e.target.value)}
+                placeholder="طاولة 12"
+                required
+              />
+            </div>
+            <Button type="submit" disabled={loading}>
+              {loading ? "جاري الحفظ..." : "إضافة"}
+            </Button>
+          </form>
+          {error ? (
+            <p className="mt-2 text-sm text-destructive" role="alert">
+              {error}
+            </p>
+          ) : null}
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {tables.map((t) => {
+          const orderUrl = `${menuBaseUrl.replace(/\/$/, "")}/?t=${t.public_token}`;
+          const qrSrc = `/api/qr?data=${encodeURIComponent(orderUrl)}`;
+          return (
+            <Card key={t.id} className="overflow-hidden">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">{t.label}</CardTitle>
+                <CardDescription className="break-all text-xs" dir="ltr">
+                  {orderUrl}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="relative mx-auto aspect-square w-48 overflow-hidden rounded-lg border bg-white">
+                  <Image src={qrSrc} alt="" fill className="object-contain p-2" unoptimized />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => printQr(t.label, qrSrc)}
+                  >
+                    <PrinterIcon className="size-4" />
+                    طباعة
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1"
+                    onClick={() => window.open(qrSrc, "_blank")}
+                  >
+                    <QrCodeIcon className="size-4" />
+                    صورة QR
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="ms-auto text-destructive hover:text-destructive"
+                    onClick={() => remove(t.id)}
+                  >
+                    <Trash2Icon className="size-4" />
+                    حذف
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
+
+      {tables.length === 0 ? (
+        <p className="text-center text-sm text-muted-foreground">
+          لا توجد طاولات بعد. أضف أول طاولة أعلاه ثم اطبع الرموز.
+        </p>
+      ) : null}
+    </div>
+  );
+}

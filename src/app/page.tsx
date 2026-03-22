@@ -2,6 +2,10 @@ import { headers } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getRestaurantBySubdomain } from "@/app/actions/auth";
 import { getMenuItemsBySubdomain } from "@/app/actions/menu";
+import {
+  getRestaurantTableByToken,
+  listPublicTablesForRestaurant,
+} from "@/app/actions/orders";
 import { MenuView } from "@/components/menu-view";
 import { LandingPage } from "@/components/landing/landing-page";
 
@@ -38,18 +42,34 @@ export async function generateMetadata() {
   };
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ t?: string }>;
+}) {
   const identified = await resolveTenant();
+  const sp = await searchParams;
 
   if (identified) {
     const { restaurant, categories, menuItems } =
       await getMenuItemsBySubdomain(identified.subdomain);
     if (restaurant) {
+      const urlToken = typeof sp?.t === "string" ? sp.t : null;
+      const tableFromQr = urlToken
+        ? await getRestaurantTableByToken(restaurant.id, urlToken)
+        : null;
+      const publicTables = tableFromQr
+        ? []
+        : await listPublicTablesForRestaurant(restaurant.id);
       return (
         <MenuView
           restaurant={restaurant}
           categories={categories ?? []}
           menuItems={menuItems ?? []}
+          subdomain={restaurant.subdomain}
+          tableFromQr={tableFromQr}
+          tableToken={urlToken}
+          publicTables={publicTables}
         />
       );
     }

@@ -9,6 +9,10 @@ type RestaurantPublicContentPayload = {
   hero_background_url?: string | null;
   footer_note?: string | null;
   currency_code?: string | null;
+  menu_title_animation_enabled?: boolean;
+  menu_banner_url?: string | null;
+  menu_banner_kind?: "image" | "video" | null;
+  menu_banner_caption?: string | null;
 };
 
 async function assertRestaurantOwner(restaurantId: string) {
@@ -69,14 +73,74 @@ export async function updateRestaurantPublicContent(
       hero_background_url: payload.hero_background_url ?? null,
       footer_note: payload.footer_note ?? null,
       currency_code: payload.currency_code ?? null,
+      menu_title_animation_enabled:
+        payload.menu_title_animation_enabled ?? false,
+      menu_banner_url: payload.menu_banner_url ?? null,
+      menu_banner_kind: payload.menu_banner_kind ?? null,
+      menu_banner_caption: payload.menu_banner_caption?.trim()
+        ? payload.menu_banner_caption.trim()
+        : null,
     })
     .eq("id", restaurantId);
 
   if (dbError) return { error: dbError.message };
 
+  const { data: row } = await supabase
+    .from("restaurants")
+    .select("subdomain")
+    .eq("id", restaurantId)
+    .maybeSingle();
+
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
+  revalidatePath("/owner");
+  revalidatePath("/owner/settings");
   revalidatePath("/");
-  revalidatePath("/");
+  if (row?.subdomain) {
+    revalidatePath(`/menu/${row.subdomain}`);
+  }
+  return { error: null };
+}
+
+type LoyaltySettingsPayload = {
+  loyalty_program_enabled: boolean;
+  loyalty_spend_cents_per_point: number;
+  loyalty_point_value_cents: number;
+};
+
+/**
+ * إعدادات برنامج النقاط: مبلغ الإنفاق لكسب نقطة واحدة، وقيمة النقطة عند الخصم (بالسنت).
+ */
+export async function updateRestaurantLoyaltySettings(
+  restaurantId: string,
+  payload: LoyaltySettingsPayload
+): Promise<{ error: string | null }> {
+  const { supabase, error } = await assertRestaurantOwner(restaurantId);
+  if (error) return { error };
+
+  const spend = Math.floor(payload.loyalty_spend_cents_per_point);
+  const val = Math.floor(payload.loyalty_point_value_cents);
+  if (spend < 1) {
+    return { error: "مبلغ الإنفاق لكسب نقطة يجب أن يعادل 0.01 على الأقل من عملتك" };
+  }
+  if (val < 1) {
+    return { error: "قيمة النقطة يجب أن تعادل 0.01 على الأقل من عملتك" };
+  }
+
+  const { error: dbError } = await supabase
+    .from("restaurants")
+    .update({
+      loyalty_program_enabled: payload.loyalty_program_enabled,
+      loyalty_spend_cents_per_point: spend,
+      loyalty_point_value_cents: val,
+    })
+    .eq("id", restaurantId);
+
+  if (dbError) return { error: dbError.message };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/owner/settings");
+  revalidatePath("/admin/customers");
+  revalidatePath("/owner/customers");
   return { error: null };
 }

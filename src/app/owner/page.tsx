@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getOwnerDashboardStats } from "@/app/actions/auth";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { FolderIcon, UtensilsCrossedIcon } from "lucide-react";
+import { ClipboardListIcon, FolderIcon, UtensilsCrossedIcon } from "lucide-react";
 import { OwnerDashboardCharts } from "./owner-dashboard-charts";
 
 const linkButtonClass =
@@ -26,7 +26,7 @@ export default async function OwnerDashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur transition-shadow hover:shadow-md">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">التصنيفات</CardTitle>
@@ -50,6 +50,19 @@ export default async function OwnerDashboardPage() {
             <p className="text-xs text-muted-foreground">إجمالي الأصناف</p>
             <Link href="/owner/items" className={linkButtonClass + " mt-4 block w-fit"}>
               إدارة أصناف القائمة
+            </Link>
+          </CardContent>
+        </Card>
+        <Card className="overflow-hidden border-border/50 bg-card/80 backdrop-blur transition-shadow hover:shadow-md">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">طلبات بانتظار المعالجة</CardTitle>
+            <ClipboardListIcon className="size-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{stats.pendingOrdersCount}</div>
+            <p className="text-xs text-muted-foreground">من طلبات المنيو والـ QR</p>
+            <Link href="/owner/orders" className={linkButtonClass + " mt-4 block w-fit"}>
+              عرض الطلبات
             </Link>
           </CardContent>
         </Card>

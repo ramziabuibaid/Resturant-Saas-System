@@ -238,7 +238,9 @@ export async function getRestaurantForProfile(profile: Profile) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("restaurants")
-    .select("id, name, subdomain, logo_url, headline, subheadline, hero_background_url, footer_note, currency_code")
+    .select(
+      "id, name, subdomain, logo_url, headline, subheadline, hero_background_url, footer_note, currency_code, menu_title_animation_enabled, menu_banner_url, menu_banner_kind, menu_banner_caption, loyalty_program_enabled, loyalty_spend_cents_per_point, loyalty_point_value_cents"
+    )
     .eq("id", profile.restaurant_id)
     .single();
   return data;
@@ -325,18 +327,28 @@ export async function signInSuperAdminWithUsernamePassword(
   }
 }
 
-/** Owner dashboard stats: categories count, menu items count (placeholder for sales until orders exist). */
+/** Owner dashboard stats: categories, menu items, طلبات قيد الانتظار (إن وُجد جدول الطلبات). */
 export async function getOwnerDashboardStats(restaurantId: string): Promise<{
   categoriesCount: number;
   menuItemsCount: number;
+  pendingOrdersCount: number;
 }> {
   const supabase = await createClient();
   const [catRes, itemsRes] = await Promise.all([
     supabase.from("categories").select("id", { count: "exact", head: true }).eq("restaurant_id", restaurantId),
     supabase.from("menu_items").select("id", { count: "exact", head: true }).eq("restaurant_id", restaurantId),
   ]);
+  let pendingOrdersCount = 0;
+  const pendingRes = await supabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .eq("restaurant_id", restaurantId)
+    .eq("status", "pending");
+  if (!pendingRes.error) pendingOrdersCount = pendingRes.count ?? 0;
+
   return {
     categoriesCount: catRes.count ?? 0,
     menuItemsCount: itemsRes.count ?? 0,
+    pendingOrdersCount,
   };
 }

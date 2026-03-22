@@ -355,6 +355,96 @@
   to { background-position: -200% 0; }
 }
 
+/* ========== Public menu: restaurant name (optional) ========== */
+@keyframes menuRestaurantTitleGlow {
+  0%,
+  26% {
+    opacity: 1;
+    color: #fbbf24;
+    text-shadow:
+      0 0 12px rgba(251, 191, 36, 0.95),
+      0 0 28px rgba(52, 211, 153, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+  34% {
+    opacity: 0.07;
+    color: rgb(245 245 244);
+    text-shadow: none;
+  }
+  38% {
+    opacity: 0.07;
+  }
+  44% {
+    opacity: 1;
+    color: #fbbf24;
+    text-shadow:
+      0 0 12px rgba(251, 191, 36, 0.95),
+      0 0 28px rgba(52, 211, 153, 0.45),
+      0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+  100% {
+    opacity: 1;
+    color: #fbbf24;
+    text-shadow:
+      0 0 14px rgba(251, 191, 36, 1),
+      0 0 36px rgba(52, 211, 153, 0.55),
+      0 2px 6px rgba(0, 0, 0, 0.45);
+  }
+}
+
+.menu-restaurant-title-animate {
+  animation: menuRestaurantTitleGlow 2.85s ease-in-out infinite;
+}
+
+/* منيو عام — نفس التأثير بلون أوضح على خلفية فاتحة */
+@keyframes menuRestaurantTitleGlowLight {
+  0%,
+  26% {
+    opacity: 1;
+    color: #b45309;
+    text-shadow:
+      0 0 10px rgba(217, 119, 6, 0.55),
+      0 0 22px rgba(5, 150, 105, 0.35),
+      0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+  34% {
+    opacity: 0.1;
+    color: rgb(28 25 23);
+    text-shadow: none;
+  }
+  38% {
+    opacity: 0.1;
+  }
+  44% {
+    opacity: 1;
+    color: #b45309;
+    text-shadow:
+      0 0 10px rgba(217, 119, 6, 0.55),
+      0 0 22px rgba(5, 150, 105, 0.35),
+      0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+  100% {
+    opacity: 1;
+    color: #b45309;
+    text-shadow:
+      0 0 12px rgba(217, 119, 6, 0.65),
+      0 0 26px rgba(5, 150, 105, 0.4),
+      0 1px 3px rgba(0, 0, 0, 0.12);
+  }
+}
+
+[data-theme="light"] .menu-restaurant-title-animate {
+  animation: menuRestaurantTitleGlowLight 2.85s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .menu-restaurant-title-animate {
+    animation: none !important;
+    color: var(--text-primary);
+    text-shadow: none;
+  }
+}
+
 /* ========== Theme transition ========== */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;

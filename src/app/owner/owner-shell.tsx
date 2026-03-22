@@ -23,6 +23,9 @@ import {
   UtensilsCrossedIcon,
   SettingsIcon,
   SmartphoneIcon,
+  QrCodeIcon,
+  ClipboardListIcon,
+  UsersIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -91,6 +94,46 @@ export function OwnerShell({
                       </Link>
                     }
                     isActive={pathname.startsWith("/owner/categories")}
+                  />
+                </SidebarMenuItem>
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+          <SidebarGroup>
+            <SidebarGroupLabel>الطلبات والطاولات</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={
+                      <Link href="/owner/orders" className="flex items-center gap-2">
+                        <ClipboardListIcon className="size-5" />
+                        <span>الطلبات</span>
+                      </Link>
+                    }
+                    isActive={pathname.startsWith("/owner/orders")}
+                  />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={
+                      <Link href="/owner/customers" className="flex items-center gap-2">
+                        <UsersIcon className="size-5" />
+                        <span>العملاء والولاء</span>
+                      </Link>
+                    }
+                    isActive={pathname.startsWith("/owner/customers")}
+                  />
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton
+                    render={
+                      <Link href="/owner/tables" className="flex items-center gap-2">
+                        <QrCodeIcon className="size-5" />
+                        <span>الطاولات و QR</span>
+                      </Link>
+                    }
+                    isActive={pathname.startsWith("/owner/tables")}
                   />
                 </SidebarMenuItem>
               </SidebarMenu>

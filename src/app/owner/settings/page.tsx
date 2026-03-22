@@ -2,6 +2,7 @@ import { getProfileOrRedirect, getRestaurantForProfile } from "@/app/actions/aut
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { RestaurantLogoForm } from "@/app/admin/settings/restaurant-logo-form";
 import { RestaurantPublicContentForm } from "@/app/admin/settings/restaurant-public-content-form";
+import { RestaurantLoyaltySettingsForm } from "@/app/admin/settings/restaurant-loyalty-settings-form";
 
 export const metadata = {
   title: "الإعدادات | لوحة المطعم",
@@ -67,6 +68,40 @@ export default async function OwnerSettingsPage() {
               initialHeroBackgroundUrl={restaurant.hero_background_url ?? null}
               initialFooterNote={restaurant.footer_note ?? null}
               initialCurrencyCode={restaurant.currency_code ?? null}
+              initialMenuTitleAnimationEnabled={
+                restaurant.menu_title_animation_enabled === true
+              }
+              initialMenuBannerUrl={restaurant.menu_banner_url ?? null}
+              initialMenuBannerKind={
+                restaurant.menu_banner_kind === "video" ||
+                restaurant.menu_banner_kind === "image"
+                  ? restaurant.menu_banner_kind
+                  : null
+              }
+              initialMenuBannerCaption={restaurant.menu_banner_caption ?? null}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/80 backdrop-blur">
+        <CardHeader>
+          <CardTitle>الولاء والنقاط</CardTitle>
+          <CardDescription>
+            حدّد كم يدفع الزبون لكسب نقطة واحدة، وما قيمة النقطة عند الخصم. يُطبَّق احتساب
+            النقاط على الطلبات الجديدة عند تفعيل البرنامج.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {restaurant && (
+            <RestaurantLoyaltySettingsForm
+              restaurantId={restaurant.id}
+              currencyCode={restaurant.currency_code ?? null}
+              initialEnabled={restaurant.loyalty_program_enabled === true}
+              initialSpendCentsPerPoint={Number(
+                restaurant.loyalty_spend_cents_per_point ?? 100
+              )}
+              initialPointValueCents={Number(restaurant.loyalty_point_value_cents ?? 10)}
             />
           )}
         </CardContent>

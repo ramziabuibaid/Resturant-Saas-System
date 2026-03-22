@@ -14,6 +14,19 @@ export type Restaurant = {
   footer_note?: string | null;
   /** رمز العملة لعرض الأسعار في المنيو (ISO 4217، مثل SAR، ILS، JOD) */
   currency_code?: string | null;
+  /** عند التفعيل: تأثير لون وتوهج ووميض لاسم المطعم في المنيو العام */
+  menu_title_animation_enabled?: boolean | null;
+  /** بانر ترويجي (صورة أو فيديو) في أعلى صفحة المنيو */
+  menu_banner_url?: string | null;
+  menu_banner_kind?: "image" | "video" | null;
+  /** نص اختياري تحت البانر */
+  menu_banner_caption?: string | null;
+  /** تفعيل اكتساب النقاط من الطلبات */
+  loyalty_program_enabled?: boolean | null;
+  /** إنفاق بالسنت لكسب نقطة واحدة (مثال 100 = 1.00 عملة) */
+  loyalty_spend_cents_per_point?: number | null;
+  /** قيمة نقطة واحدة عند الخصم بالسنت */
+  loyalty_point_value_cents?: number | null;
   status?: "active" | "suspended" | "trial" | null;
   created_at?: string;
   updated_at?: string;
@@ -69,4 +82,84 @@ export type Profile = {
   login_email?: string | null; // البريد المخزن في auth.users لاستخدامه عند تسجيل الدخول
   created_at?: string;
   updated_at?: string;
+};
+
+/** طاولة في المطعم — الرمز العام يُستخدم في رابط الـ QR */
+export type RestaurantTable = {
+  id: string;
+  restaurant_id: string;
+  label: string;
+  public_token: string;
+  sort_order: number | null;
+  created_at?: string;
+};
+
+export type OrderFulfillment = "dine_in" | "pickup" | "delivery";
+
+export type OrderStatus =
+  | "pending"
+  | "accepted"
+  | "preparing"
+  | "ready"
+  | "completed"
+  | "cancelled";
+
+export type GuestOrder = {
+  id: string;
+  restaurant_id: string;
+  table_id: string | null;
+  fulfillment: OrderFulfillment;
+  delivery_address: string | null;
+  customer_phone: string;
+  status: OrderStatus;
+  created_at: string;
+};
+
+export type GuestOrderItem = {
+  id: string;
+  order_id: string;
+  menu_item_id: string;
+  quantity: number;
+  unit_price_cents: number;
+  price_option_label: string | null;
+  line_total_cents: number;
+  menu_item_name?: string;
+};
+
+export type GuestOrderWithDetails = GuestOrder & {
+  table_label: string | null;
+  items: GuestOrderItem[];
+};
+
+/** ملف زبون لكل مطعم حسب رقم الجوال — مشتريات، نقاط، ولاء */
+export type RestaurantCustomerPhone = {
+  id: string;
+  restaurant_id: string;
+  phone_normalized: string;
+  first_seen_at?: string;
+  last_order_at?: string;
+  order_count: number;
+  total_spent_cents: number;
+  points_balance: number;
+  lifetime_points_earned: number;
+  lifetime_points_redeemed: number;
+};
+
+export type LoyaltyPointReason =
+  | "earn_order"
+  | "redeem"
+  | "bonus_campaign"
+  | "admin_adjust"
+  | "expiry";
+
+/** سجل حركة نقاط (اكتساب / استبدال / حملة) */
+export type LoyaltyPointLedgerEntry = {
+  id: string;
+  restaurant_id: string;
+  phone_normalized: string;
+  order_id: string | null;
+  delta_points: number;
+  reason: LoyaltyPointReason;
+  note: string | null;
+  created_at: string;
 };

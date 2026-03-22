@@ -7,6 +7,7 @@ export const MENU_CURRENCIES = [
   { code: "SYP", labelAr: "ليرة سورية", symbol: "ل.س" },
   { code: "JOD", labelAr: "دينار أردني", symbol: "د.أ" },
   { code: "SAR", labelAr: "ريال سعودي", symbol: "﷼" },
+  { code: "USD", labelAr: "دولار أمريكي", symbol: "$" },
   { code: "AED", labelAr: "درهم إماراتي", symbol: "د.إ" },
   { code: "KWD", labelAr: "دينار كويتي", symbol: "د.ك" },
   { code: "IQD", labelAr: "دينار عراقي", symbol: "ع.د" },
