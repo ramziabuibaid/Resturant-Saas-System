@@ -1,6 +1,7 @@
 import { headers } from "next/headers";
 import { getProfileOrRedirect, getRestaurantForProfile } from "@/app/actions/auth";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
+import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
 import { OwnerShell } from "./owner-shell";
 
 export const metadata = {
@@ -31,7 +32,8 @@ export default async function OwnerLayout({
     const h = await headers();
     const host = h.get("host") ?? "";
     const proto = h.get("x-forwarded-proto") ?? "http";
-    livePreviewUrl = `${proto}://${subdomain}.${host}`;
+    const built = buildTenantPublicSiteUrl(subdomain, host, proto);
+    livePreviewUrl = built || null;
   }
 
   return (

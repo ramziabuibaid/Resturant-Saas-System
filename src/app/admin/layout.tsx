@@ -8,6 +8,7 @@ import {
 } from "@/app/actions/auth";
 import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";
+import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
 
 export const metadata = {
   title: "لوحة التحكم",
@@ -41,7 +42,8 @@ export default async function AdminLayout({
     const h = await headers();
     const host = h.get("host") ?? "";
     const proto = h.get("x-forwarded-proto") ?? "http";
-    livePreviewUrl = `${proto}://${restaurant.subdomain}.${host}`;
+    const built = buildTenantPublicSiteUrl(restaurant.subdomain, host, proto);
+    livePreviewUrl = built || null;
   }
 
   return (

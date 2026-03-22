@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getRestaurantForProfile } from "@/app/actions/auth";
 import { listRestaurantTables } from "@/app/actions/tables";
+import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
 import { TablesClient } from "./tables-client";
 
 export const metadata = {
@@ -17,8 +18,7 @@ export default async function OwnerTablesPage() {
   const h = await headers();
   const host = h.get("host") ?? "";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  const sub = restaurant?.subdomain;
-  const menuBaseUrl = sub ? `${proto}://${sub}.${host}` : "";
+  const menuBaseUrl = buildTenantPublicSiteUrl(restaurant?.subdomain ?? null, host, proto);
 
   return (
     <div className="space-y-4">
