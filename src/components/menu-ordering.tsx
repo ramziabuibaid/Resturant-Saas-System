@@ -1,11 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import type { MenuItem, OrderFulfillment, Restaurant } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { resolveUnitPriceCents } from "@/lib/order-pricing";
+import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
 import { createGuestOrder } from "@/app/actions/orders";
+import { parseExcludedIngredients } from "@/lib/order-exclusions";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +24,8 @@ export type CartLine = {
   menuItemId: string;
   quantity: number;
   priceOptionLabel: string | null;
+  /** مكوّنات يطلب الزبون عدم إضافتها في الطبق */
+  excludedIngredients: string[];
 };
 
 export type TableContext = {
@@ -30,8 +35,10 @@ export type TableContext = {
   publicTables: { id: string; label: string }[];
 };
 
-function lineKey(menuItemId: string, priceOptionLabel: string | null) {
-  return `${menuItemId}::${priceOptionLabel ?? ""}`;
+/** يميّز سطر السلة (نفس الصنف + الحجم + نفس قائمة الاستبعاد) */
+export function cartLineKey(line: CartLine): string {
+  const ex = [...line.excludedIngredients].sort().join("|\u0001|");
+  return `${line.menuItemId}::${line.priceOptionLabel ?? ""}::${ex}`;
 }
 
 export function AddItemButton({
@@ -46,19 +53,24 @@ export function AddItemButton({
   const [open, setOpen] = useState(false);
   const [option, setOption] = useState<string>("");
   const [qty, setQty] = useState(1);
-  const opts = item.price_options;
-  const hasOptions = opts && Array.isArray(opts) && opts.length > 0;
+  const [excludedText, setExcludedText] = useState("");
+  const priceOpts = Array.isArray(item.price_options) ? item.price_options : [];
+  const optionCount = priceOpts.length;
+  /** شاشة الاختيار فقط عند وجود أكثر من حجم/وزن */
+  const needsSizeDialog = optionCount > 1;
 
   function confirm() {
-    if (hasOptions && !option) return;
+    if (needsSizeDialog && !option) return;
     onAdd({
       menuItemId: item.id,
       quantity: qty,
-      priceOptionLabel: hasOptions ? option : null,
+      priceOptionLabel: option,
+      excludedIngredients: parseExcludedIngredients(excludedText),
     });
     setOpen(false);
     setQty(1);
     setOption("");
+    setExcludedText("");
   }
 
   if (unavailable) return null;
@@ -71,11 +83,24 @@ export function AddItemButton({
         variant="default"
         className="mt-2 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
         onClick={() => {
-          if (hasOptions) {
-            setOption(opts![0]!.label);
-            setOpen(true);
+          if (optionCount === 0) {
+            onAdd({
+              menuItemId: item.id,
+              quantity: 1,
+              priceOptionLabel: null,
+              excludedIngredients: [],
+            });
+          } else if (optionCount === 1) {
+            onAdd({
+              menuItemId: item.id,
+              quantity: 1,
+              priceOptionLabel: priceOpts[0]!.label,
+              excludedIngredients: [],
+            });
           } else {
-            onAdd({ menuItemId: item.id, quantity: 1, priceOptionLabel: null });
+            setOption(priceOpts[0]!.label);
+            setExcludedText("");
+            setOpen(true);
           }
         }}
       >
@@ -83,14 +108,20 @@ export function AddItemButton({
         أضف للسلة
       </Button>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(v) => {
+          setOpen(v);
+          if (!v) setExcludedText("");
+        }}
+      >
         <DialogContent className="sm:max-w-md" scrollable>
           <DialogHeader className="p-4 pb-0">
             <DialogTitle>{item.name}</DialogTitle>
-            <DialogDescription>اختر الحجم أو الكمية ثم أضف للسلة.</DialogDescription>
+            <DialogDescription>اختر الحجم أو الوزن ثم الكمية.</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-2">
-            {hasOptions && (
+            {needsSizeDialog ? (
               <div className="space-y-2">
                 <label className="text-xs font-medium text-stone-600 dark:text-stone-400">الخيار</label>
                 <select
@@ -98,14 +129,14 @@ export function AddItemButton({
                   value={option}
                   onChange={(e) => setOption(e.target.value)}
                 >
-                  {opts!.map((o) => (
+                  {priceOpts.map((o) => (
                     <option key={o.label} value={o.label}>
                       {o.label}
                     </option>
                   ))}
                 </select>
               </div>
-            )}
+            ) : null}
             <div className="flex items-center justify-between gap-3">
               <span className="text-sm text-stone-600 dark:text-stone-400">الكمية</span>
               <div className="flex items-center gap-2">
@@ -128,12 +159,24 @@ export function AddItemButton({
                 </Button>
               </div>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-stone-600 dark:text-stone-400">
+                بدون مكونات (اختياري)
+              </label>
+              <Textarea
+                value={excludedText}
+                onChange={(e) => setExcludedText(e.target.value)}
+                placeholder="مثال: حار، بصل، صوص…"
+                rows={2}
+                className="min-h-0 resize-none text-sm"
+              />
+            </div>
           </div>
           <DialogFooter className="border-t-0 p-4 pt-0 sm:justify-between">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               إلغاء
             </Button>
-            <Button type="button" onClick={confirm} disabled={Boolean(hasOptions && !option)}>
+            <Button type="button" onClick={confirm} disabled={Boolean(needsSizeDialog && !option)}>
               أضف للسلة
             </Button>
           </DialogFooter>
@@ -148,12 +191,18 @@ export function MenuCartBar({
   setCart,
   menuById,
   currencyCode,
+  secondaryEnabled,
+  secondaryCurrencyCode,
+  secondaryExchangeRate,
   onCheckout,
 }: {
   cart: CartLine[];
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   menuById: Map<string, MenuItem>;
   currencyCode: string;
+  secondaryEnabled: boolean;
+  secondaryCurrencyCode: string | null;
+  secondaryExchangeRate: number | null;
   onCheckout: () => void;
 }) {
   const totalCents = useMemo(() => {
@@ -168,6 +217,26 @@ export function MenuCartBar({
     return t;
   }, [cart, menuById]);
 
+  const totalSecondaryCents = useMemo(() => {
+    if (!secondaryEnabled || !secondaryCurrencyCode) return null;
+    let t = 0;
+    for (const line of cart) {
+      const item = menuById.get(line.menuItemId);
+      if (!item) continue;
+      const r = resolveUnitPriceCents(item, line.priceOptionLabel);
+      if (!r.ok) continue;
+      const sec = resolveSecondaryUnitCents(
+        item,
+        r.cents,
+        line.priceOptionLabel,
+        secondaryExchangeRate
+      );
+      if (sec == null) return null;
+      t += sec * line.quantity;
+    }
+    return t;
+  }, [cart, menuById, secondaryEnabled, secondaryCurrencyCode, secondaryExchangeRate]);
+
   if (cart.length === 0) return null;
 
   return (
@@ -177,9 +246,22 @@ export function MenuCartBar({
           <p className="text-xs text-stone-500 dark:text-stone-400">
             {cart.reduce((s, l) => s + l.quantity, 0)} صنف في السلة
           </p>
-          <p className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50" dir="ltr">
-            {formatMenuPrice(totalCents, currencyCode)}
-          </p>
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <p
+              className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
+              dir="ltr"
+            >
+              {formatMenuPrice(totalCents, currencyCode)}
+            </p>
+            {totalSecondaryCents != null && secondaryCurrencyCode ? (
+              <p
+                className="text-xs font-medium tabular-nums text-stone-500 dark:text-stone-400"
+                dir="ltr"
+              >
+                {formatMenuPrice(totalSecondaryCents, secondaryCurrencyCode)}
+              </p>
+            ) : null}
+          </div>
         </div>
         <Button type="button" size="lg" className="shrink-0 gap-2" onClick={onCheckout}>
           <ShoppingBagIcon className="size-5" />
@@ -195,97 +277,132 @@ export function CartLinesEditor({
   setCart,
   menuById,
   currencyCode,
+  secondaryEnabled,
+  secondaryCurrencyCode,
+  secondaryExchangeRate,
 }: {
   cart: CartLine[];
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
   menuById: Map<string, MenuItem>;
   currencyCode: string;
+  secondaryEnabled: boolean;
+  secondaryCurrencyCode: string | null;
+  secondaryExchangeRate: number | null;
 }) {
   return (
-    <ul className="max-h-48 space-y-2 overflow-y-auto text-sm">
-      {cart.map((line) => {
+    <ul className="max-h-[min(24rem,50vh)] space-y-3 overflow-y-auto text-sm">
+      {cart.map((line, idx) => {
         const item = menuById.get(line.menuItemId);
         if (!item) return null;
-        const key = lineKey(line.menuItemId, line.priceOptionLabel);
         const r = resolveUnitPriceCents(item, line.priceOptionLabel);
         const unit = r.ok ? r.cents : 0;
+        const lineSecondaryCents =
+          secondaryEnabled && secondaryCurrencyCode && r.ok
+            ? resolveSecondaryUnitCents(
+                item,
+                unit,
+                line.priceOptionLabel,
+                secondaryExchangeRate
+              )
+            : null;
         return (
           <li
-            key={key}
-            className="flex items-center justify-between gap-2 rounded-lg border border-stone-200/80 bg-stone-50/80 px-2 py-1.5 dark:border-stone-700 dark:bg-stone-900/50"
+            key={idx}
+            className="space-y-2 rounded-lg border border-stone-200/80 bg-stone-50/80 px-3 py-2 dark:border-stone-700 dark:bg-stone-900/50"
           >
-            <div className="min-w-0">
-              <p className="truncate font-medium">{item.name}</p>
-              {line.priceOptionLabel ? (
-                <p className="text-[11px] text-stone-500">{line.priceOptionLabel}</p>
-              ) : null}
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-base font-bold leading-snug text-stone-900 dark:text-stone-50">
+                  {item.name}
+                </p>
+                {line.priceOptionLabel ? (
+                  <p className="mt-0.5 text-[11px] font-medium text-stone-600 dark:text-stone-400">
+                    {line.priceOptionLabel}
+                  </p>
+                ) : null}
+              </div>
+              <div className="flex items-center gap-1 shrink-0">
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="outline"
+                  onClick={() =>
+                    setCart((prev) => {
+                      const copy = [...prev];
+                      if (copy[idx].quantity <= 1) copy.splice(idx, 1);
+                      else
+                        copy[idx] = {
+                          ...copy[idx],
+                          quantity: copy[idx].quantity - 1,
+                        };
+                      return copy;
+                    })
+                  }
+                >
+                  <MinusIcon className="size-3" />
+                </Button>
+                <span className="w-6 text-center tabular-nums">{line.quantity}</span>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="outline"
+                  onClick={() =>
+                    setCart((prev) => {
+                      const copy = [...prev];
+                      copy[idx] = {
+                        ...copy[idx],
+                        quantity: Math.min(99, copy[idx].quantity + 1),
+                      };
+                      return copy;
+                    })
+                  }
+                >
+                  <PlusIcon className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  className="text-red-600"
+                  onClick={() => setCart((prev) => prev.filter((_, i) => i !== idx))}
+                >
+                  <Trash2Icon className="size-3.5" />
+                </Button>
+              </div>
+              <div className="flex min-w-[4.5rem] flex-col items-end gap-0.5 text-end">
+                <span
+                  className="text-xs font-medium tabular-nums text-stone-800 dark:text-stone-200"
+                  dir="ltr"
+                >
+                  {formatMenuPrice(unit * line.quantity, currencyCode)}
+                </span>
+                {lineSecondaryCents != null && secondaryCurrencyCode ? (
+                  <span
+                    className="text-[10px] tabular-nums text-stone-500 dark:text-stone-400"
+                    dir="ltr"
+                  >
+                    {formatMenuPrice(lineSecondaryCents * line.quantity, secondaryCurrencyCode)}
+                  </span>
+                ) : null}
+              </div>
             </div>
-            <div className="flex items-center gap-1 shrink-0">
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="outline"
-                onClick={() =>
-                  setCart((prev) => {
-                    const i = prev.findIndex(
-                      (l) =>
-                        l.menuItemId === line.menuItemId &&
-                        l.priceOptionLabel === line.priceOptionLabel
-                    );
-                    if (i < 0) return prev;
-                    const copy = [...prev];
-                    if (copy[i].quantity <= 1) copy.splice(i, 1);
-                    else copy[i] = { ...copy[i], quantity: copy[i].quantity - 1 };
-                    return copy;
-                  })
-                }
-              >
-                <MinusIcon className="size-3" />
-              </Button>
-              <span className="w-6 text-center tabular-nums">{line.quantity}</span>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="outline"
-                onClick={() =>
-                  setCart((prev) => {
-                    const i = prev.findIndex(
-                      (l) =>
-                        l.menuItemId === line.menuItemId &&
-                        l.priceOptionLabel === line.priceOptionLabel
-                    );
-                    if (i < 0) return prev;
-                    const copy = [...prev];
-                    copy[i] = { ...copy[i], quantity: Math.min(99, copy[i].quantity + 1) };
-                    return copy;
-                  })
-                }
-              >
-                <PlusIcon className="size-4" />
-              </Button>
-              <Button
-                type="button"
-                size="icon-xs"
-                variant="ghost"
-                className="text-red-600"
-                onClick={() =>
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-stone-600 dark:text-stone-400">
+                بدون مكونات (اختياري)
+              </label>
+              <Textarea
+                value={line.excludedIngredients.join("، ")}
+                onChange={(e) => {
+                  const parsed = parseExcludedIngredients(e.target.value);
                   setCart((prev) =>
-                    prev.filter(
-                      (l) =>
-                        !(
-                          l.menuItemId === line.menuItemId &&
-                          l.priceOptionLabel === line.priceOptionLabel
-                        )
-                    )
-                  )
-                }
-              >
-                <Trash2Icon className="size-3.5" />
-              </Button>
+                    prev.map((l, i) => (i === idx ? { ...l, excludedIngredients: parsed } : l))
+                  );
+                }}
+                placeholder="مثال: حار، بصل، صوص…"
+                rows={2}
+                className="min-h-0 resize-y text-xs"
+              />
             </div>
-            <span className="text-xs tabular-nums text-stone-600 dark:text-stone-300" dir="ltr">
-              {formatMenuPrice(unit * line.quantity, currencyCode)}
-            </span>
           </li>
         );
       })}
@@ -331,6 +448,13 @@ export function MenuCheckoutDialog({
     }
   }, [open]);
 
+  /** يضمن تفريغ السلة فوراً قبل رسم شاشة النجاح (حتى يختفي شريط السلة فوراً). */
+  useLayoutEffect(() => {
+    if (success) {
+      setCart([]);
+    }
+  }, [success, setCart]);
+
   const totalCents = useMemo(() => {
     let t = 0;
     for (const line of cart) {
@@ -342,6 +466,34 @@ export function MenuCheckoutDialog({
     }
     return t;
   }, [cart, menuById]);
+
+  const secondaryCode = restaurant.secondary_currency_code ?? null;
+  const secondaryExchangeRate =
+    restaurant.secondary_currency_exchange_rate != null
+      ? Number(restaurant.secondary_currency_exchange_rate)
+      : null;
+  const secondaryOn =
+    restaurant.secondary_currency_enabled === true && Boolean(secondaryCode);
+
+  const totalSecondaryCents = useMemo(() => {
+    if (!secondaryOn || !secondaryCode) return null;
+    let t = 0;
+    for (const line of cart) {
+      const item = menuById.get(line.menuItemId);
+      if (!item) continue;
+      const r = resolveUnitPriceCents(item, line.priceOptionLabel);
+      if (!r.ok) continue;
+      const sec = resolveSecondaryUnitCents(
+        item,
+        r.cents,
+        line.priceOptionLabel,
+        secondaryExchangeRate
+      );
+      if (sec == null) return null;
+      t += sec * line.quantity;
+    }
+    return t;
+  }, [cart, menuById, secondaryOn, secondaryCode, secondaryExchangeRate]);
 
   async function submit() {
     setMessage(null);
@@ -377,6 +529,7 @@ export function MenuCheckoutDialog({
         menuItemId: l.menuItemId,
         quantity: l.quantity,
         priceOptionLabel: l.priceOptionLabel,
+        excludedIngredients: l.excludedIngredients,
       })),
     });
     setSubmitting(false);
@@ -408,6 +561,7 @@ export function MenuCheckoutDialog({
                 type="button"
                 className="w-full"
                 onClick={() => {
+                  setCart([]);
                   setSuccess(false);
                   onOpenChange(false);
                 }}
@@ -519,16 +673,45 @@ export function MenuCheckoutDialog({
             />
           </div>
 
-          <CartLinesEditor
-            cart={cart}
-            setCart={setCart}
-            menuById={menuById}
-            currencyCode={currencyCode}
-          />
+          <div className="space-y-2">
+            <div>
+              <p className="text-xs font-medium text-stone-600 dark:text-stone-400">ملخص الطلب</p>
+              <p className="mt-0.5 text-[11px] text-stone-500 dark:text-stone-400">
+                يمكنك ذكر المكوّنات التي لا تريدها في الطبق (مثل: حار، بصل).
+              </p>
+            </div>
+            <CartLinesEditor
+              cart={cart}
+              setCart={setCart}
+              menuById={menuById}
+              currencyCode={currencyCode}
+              secondaryEnabled={secondaryOn}
+              secondaryCurrencyCode={secondaryCode}
+              secondaryExchangeRate={secondaryExchangeRate}
+            />
+          </div>
 
-          <p className="text-end text-sm font-semibold tabular-nums text-stone-800 dark:text-stone-100" dir="ltr">
-            الإجمالي: {formatMenuPrice(totalCents, currencyCode)}
-          </p>
+          <div className="rounded-2xl border border-stone-200/90 bg-gradient-to-b from-emerald-50/90 to-white px-4 py-4 dark:border-stone-700 dark:from-emerald-950/40 dark:to-stone-900/80">
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+              <span
+                className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
+                dir="ltr"
+              >
+                {formatMenuPrice(totalCents, currencyCode)}
+              </span>
+              {totalSecondaryCents != null && secondaryCode ? (
+                <span
+                  className="inline-flex items-center gap-2 border-s border-emerald-200/90 ps-4 text-sm font-semibold tabular-nums text-stone-600 dark:border-emerald-800 dark:text-stone-300"
+                  dir="ltr"
+                >
+                  {formatMenuPrice(totalSecondaryCents, secondaryCode)}
+                </span>
+              ) : null}
+            </div>
+            <p className="mt-2 text-center text-[11px] text-stone-500 dark:text-stone-400">
+              الإجمالي المقدّر للطلب
+            </p>
+          </div>
 
           {message ? (
             <p className="text-sm text-red-600 dark:text-red-400" role="alert">

@@ -13,6 +13,7 @@ import type {
 } from "@/lib/types/database";
 import { resolveUnitPriceCents } from "@/lib/order-pricing";
 import { pointsEarnedForOrder } from "@/lib/loyalty";
+import { normalizeExcludedForDb } from "@/lib/order-exclusions";
 
 export async function getRestaurantTableByToken(
   restaurantId: string,
@@ -61,7 +62,13 @@ export type CreateGuestOrderInput = {
   tableId: string | null;
   deliveryAddress: string | null;
   customerPhone: string;
-  items: { menuItemId: string; quantity: number; priceOptionLabel: string | null }[];
+  items: {
+    menuItemId: string;
+    quantity: number;
+    priceOptionLabel: string | null;
+    /** مكوّنات لا يريدها الزبون في الطبق */
+    excludedIngredients?: string[];
+  }[];
 };
 
 function normalizePhone(raw: string): string | null {
@@ -158,12 +165,16 @@ export async function createGuestOrder(
     unit_price_cents: number;
     price_option_label: string | null;
     line_total_cents: number;
+    excluded_ingredients: string[];
   }[] = [];
 
   for (const row of input.items) {
     const item = byId.get(row.menuItemId);
     if (!item) return { ok: false, error: "صنف غير موجود" };
     if (item.is_available === false) return { ok: false, error: `غير متاح: ${item.name}` };
+
+    const exNorm = normalizeExcludedForDb(row.excludedIngredients ?? []);
+    if (!exNorm.ok) return { ok: false, error: "قائمة المكوّنات المستبعدة غير صالحة" };
 
     const pr = resolveUnitPriceCents(item, row.priceOptionLabel);
     if (!pr.ok) return { ok: false, error: `اختر حجم السعر لـ ${item.name}` };
@@ -175,6 +186,7 @@ export async function createGuestOrder(
       unit_price_cents: unit,
       price_option_label: row.priceOptionLabel?.trim() || null,
       line_total_cents: unit * q,
+      excluded_ingredients: exNorm.value,
     });
   }
 
@@ -203,6 +215,7 @@ export async function createGuestOrder(
       unit_price_cents: l.unit_price_cents,
       price_option_label: l.price_option_label,
       line_total_cents: l.line_total_cents,
+      excluded_ingredients: l.excluded_ingredients.length ? l.excluded_ingredients : [],
     }))
   );
 
@@ -335,7 +348,12 @@ export async function listRestaurantOrders(options?: {
       unit_price_cents: number;
       price_option_label: string | null;
       line_total_cents: number;
+      excluded_ingredients?: unknown;
     };
+    let excluded: string[] = [];
+    if (Array.isArray(r.excluded_ingredients)) {
+      excluded = r.excluded_ingredients.filter((x): x is string => typeof x === "string");
+    }
     const list = itemsByOrder.get(r.order_id) ?? [];
     list.push({
       id: r.id,
@@ -345,6 +363,7 @@ export async function listRestaurantOrders(options?: {
       unit_price_cents: r.unit_price_cents,
       price_option_label: r.price_option_label,
       line_total_cents: r.line_total_cents,
+      excluded_ingredients: excluded.length ? excluded : undefined,
       menu_item_name: nameById.get(r.menu_item_id) ?? undefined,
     });
     itemsByOrder.set(r.order_id, list);

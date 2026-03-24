@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { GuestOrderWithDetails, OrderStatus } from "@/lib/types/database";
 import { updateOrderStatus } from "@/app/actions/orders";
 import { formatMenuPrice } from "@/lib/currencies";
+import { secondaryCentsFromPrimaryCents } from "@/lib/secondary-currency";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 const STATUS_LABELS: Record<OrderStatus, string> = {
   pending: "مستجد",
@@ -23,11 +24,26 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 type Props = {
   initialOrders: GuestOrderWithDetails[];
   currencyCode: string;
+  secondaryCurrencyCode?: string | null;
+  secondaryExchangeRate?: number | null;
 };
 
-export function OrdersClient({ initialOrders, currencyCode }: Props) {
+export function OrdersClient({
+  initialOrders,
+  currencyCode,
+  secondaryCurrencyCode = null,
+  secondaryExchangeRate = null,
+}: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [updating, setUpdating] = useState<string | null>(null);
+
+  const rateRaw =
+    secondaryExchangeRate != null ? Number(secondaryExchangeRate) : NaN;
+  const showSecondary =
+    Boolean(secondaryCurrencyCode) &&
+    Number.isFinite(rateRaw) &&
+    rateRaw > 0;
+  const rate = showSecondary ? rateRaw : NaN;
 
   async function setStatus(orderId: string, status: OrderStatus) {
     setUpdating(orderId);
@@ -76,10 +92,21 @@ export function OrdersClient({ initialOrders, currencyCode }: Props) {
                         ) : null}
                       </CardDescription>
                     </div>
-                    <div className="flex flex-col items-end gap-2">
+                    <div className="flex flex-col items-end gap-1">
                       <span className="text-lg font-bold tabular-nums" dir="ltr">
                         {formatMenuPrice(total, currencyCode)}
                       </span>
+                      {showSecondary && secondaryCurrencyCode ? (
+                        <span
+                          className="text-xs font-medium tabular-nums text-muted-foreground"
+                          dir="ltr"
+                        >
+                          {formatMenuPrice(
+                            secondaryCentsFromPrimaryCents(total, rate),
+                            secondaryCurrencyCode
+                          )}
+                        </span>
+                      ) : null}
                       <select
                         className="rounded-md border border-input bg-background px-2 py-1.5 text-sm"
                         value={o.status}
@@ -95,16 +122,40 @@ export function OrdersClient({ initialOrders, currencyCode }: Props) {
                     </div>
                   </CardHeader>
                   <CardContent className="border-t pt-3">
-                    <ul className="space-y-1 text-sm">
+                    <ul className="space-y-2 text-sm">
                       {o.items.map((i) => (
-                        <li key={i.id} className="flex justify-between gap-2">
-                          <span>
-                            {i.menu_item_name ?? "صنف"}
-                            {i.price_option_label ? ` (${i.price_option_label})` : ""} × {i.quantity}
-                          </span>
-                          <span dir="ltr" className="tabular-nums text-muted-foreground">
-                            {formatMenuPrice(i.line_total_cents, currencyCode)}
-                          </span>
+                        <li key={i.id} className="flex flex-col gap-1 border-b border-border/60 pb-2 last:border-0 last:pb-0">
+                          <div className="flex justify-between gap-2">
+                            <span className="font-medium">
+                              {i.menu_item_name ?? "صنف"}
+                              {i.price_option_label ? ` (${i.price_option_label})` : ""} × {i.quantity}
+                            </span>
+                            <span
+                              dir="ltr"
+                              className="flex flex-col items-end gap-0.5 text-end tabular-nums"
+                            >
+                              <span className="text-muted-foreground">
+                                {formatMenuPrice(i.line_total_cents, currencyCode)}
+                              </span>
+                              {showSecondary && secondaryCurrencyCode ? (
+                                <span className="text-[11px] text-muted-foreground/80">
+                                  {formatMenuPrice(
+                                    secondaryCentsFromPrimaryCents(
+                                      i.line_total_cents,
+                                      rate
+                                    ),
+                                    secondaryCurrencyCode
+                                  )}
+                                </span>
+                              ) : null}
+                            </span>
+                          </div>
+                          {i.excluded_ingredients && i.excluded_ingredients.length > 0 ? (
+                            <p className="text-xs leading-relaxed text-amber-800 dark:text-amber-200">
+                              <span className="font-semibold">بدون: </span>
+                              {i.excluded_ingredients.join("، ")}
+                            </p>
+                          ) : null}
                         </li>
                       ))}
                     </ul>

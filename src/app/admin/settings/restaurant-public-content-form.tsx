@@ -23,6 +23,10 @@ type Props = {
   initialHeroBackgroundUrl: string | null;
   initialFooterNote: string | null;
   initialCurrencyCode: string | null;
+  initialSecondaryCurrencyEnabled?: boolean;
+  initialSecondaryCurrencyCode?: string | null;
+  /** وحدات العملة الثانية لكل 1 وحدة أساسية */
+  initialSecondaryExchangeRate?: number | null;
   initialMenuTitleAnimationEnabled?: boolean;
   initialMenuBannerUrl?: string | null;
   initialMenuBannerKind?: "image" | "video" | null;
@@ -36,6 +40,9 @@ export function RestaurantPublicContentForm({
   initialHeroBackgroundUrl,
   initialFooterNote,
   initialCurrencyCode,
+  initialSecondaryCurrencyEnabled = false,
+  initialSecondaryCurrencyCode = null,
+  initialSecondaryExchangeRate = null,
   initialMenuTitleAnimationEnabled = false,
   initialMenuBannerUrl = null,
   initialMenuBannerKind = null,
@@ -49,6 +56,19 @@ export function RestaurantPublicContentForm({
   const [footerNote, setFooterNote] = useState(initialFooterNote ?? "");
   const [currencyCode, setCurrencyCode] = useState(
     initialCurrencyCode ?? "SAR"
+  );
+  const [secondaryCurrencyEnabled, setSecondaryCurrencyEnabled] = useState(
+    initialSecondaryCurrencyEnabled
+  );
+  const [secondaryCurrencyCode, setSecondaryCurrencyCode] = useState(
+    initialSecondaryCurrencyCode ?? "USD"
+  );
+  const [secondaryExchangeRateInput, setSecondaryExchangeRateInput] = useState(
+    () =>
+      initialSecondaryExchangeRate != null &&
+      Number.isFinite(Number(initialSecondaryExchangeRate))
+        ? String(initialSecondaryExchangeRate)
+        : ""
   );
   const [menuTitleAnimationEnabled, setMenuTitleAnimationEnabled] = useState(
     initialMenuTitleAnimationEnabled
@@ -70,11 +90,32 @@ export function RestaurantPublicContentForm({
   const heroFileInputRef = useRef<HTMLInputElement>(null);
   const bannerFileInputRef = useRef<HTMLInputElement>(null);
 
+  const secondaryCurrencyOptions = MENU_CURRENCIES.filter(
+    (c) => c.code !== currencyCode
+  );
+  const effectiveSecondaryCurrencyCode =
+    secondaryCurrencyOptions.some((c) => c.code === secondaryCurrencyCode)
+      ? secondaryCurrencyCode
+      : (secondaryCurrencyOptions[0]?.code ?? "USD");
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccess(false);
+
+    let secondaryRate: number | null = null;
+    if (secondaryCurrencyEnabled) {
+      const parsed = parseFloat(secondaryExchangeRateInput.replace(",", "."));
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        setLoading(false);
+        setError(
+          "أدخل سعر صرف صحيحاً (أكبر من صفر): عدد وحدات العملة الثانية لكل 1 وحدة من العملة الأساسية."
+        );
+        return;
+      }
+      secondaryRate = parsed;
+    }
 
     const result = await updateRestaurantPublicContent(restaurantId, {
       headline: headline.trim() || null,
@@ -82,6 +123,11 @@ export function RestaurantPublicContentForm({
       hero_background_url: heroBackgroundUrl.trim() || null,
       footer_note: footerNote.trim() || null,
       currency_code: currencyCode || null,
+      secondary_currency_enabled: secondaryCurrencyEnabled,
+      secondary_currency_code: secondaryCurrencyEnabled
+        ? effectiveSecondaryCurrencyCode || null
+        : null,
+      secondary_currency_exchange_rate: secondaryCurrencyEnabled ? secondaryRate : null,
       menu_title_animation_enabled: menuTitleAnimationEnabled,
       menu_banner_url: menuBannerUrl.trim() || null,
       menu_banner_kind: menuBannerUrl.trim() ? menuBannerKind : null,
@@ -358,6 +404,69 @@ export function RestaurantPublicContentForm({
         <p className="text-xs text-muted-foreground">
           تظهر أسعار المنيو للعملاء بالعملة المختارة وشعارها.
         </p>
+      </div>
+
+      <div className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="secondary-currency-enabled" className="text-base">
+              تفعيل عملة ثانية في المنيو
+            </Label>
+            <p className="text-xs text-muted-foreground">
+              عند التفعيل سيظهر السعر الأساسي ثم السعر بالعملة الثانية أسفله. عيّن سعر
+              الصرف لاحتساب السعر الثاني تلقائياً عند عدم إدخاله يدوياً للصنف.
+            </p>
+          </div>
+          <Switch
+            id="secondary-currency-enabled"
+            checked={secondaryCurrencyEnabled}
+            onCheckedChange={setSecondaryCurrencyEnabled}
+            disabled={loading}
+            aria-label="تفعيل عرض عملة ثانية"
+            className="shrink-0 sm:ms-4"
+          />
+        </div>
+
+        {secondaryCurrencyEnabled ? (
+          <>
+            <div className="space-y-1.5">
+              <Label htmlFor="secondary-currency">العملة الثانية</Label>
+              <select
+                id="secondary-currency"
+                value={effectiveSecondaryCurrencyCode}
+                onChange={(e) => setSecondaryCurrencyCode(e.target.value)}
+                disabled={loading}
+                className={cn(
+                  "flex h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                )}
+              >
+                {secondaryCurrencyOptions.map((c) => (
+                  <option key={c.code} value={c.code}>
+                    {c.labelAr} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="secondary-exchange-rate">سعر الصرف</Label>
+              <Input
+                id="secondary-exchange-rate"
+                type="number"
+                step="any"
+                min="0"
+                inputMode="decimal"
+                value={secondaryExchangeRateInput}
+                onChange={(e) => setSecondaryExchangeRateInput(e.target.value)}
+                placeholder="مثال: 3.7"
+                disabled={loading}
+              />
+              <p className="text-xs text-muted-foreground">
+                عدد وحدات {MENU_CURRENCIES.find((c) => c.code === effectiveSecondaryCurrencyCode)?.labelAr ?? "العملة الثانية"} مقابل 1 وحدة من عملة المنيو الأساسية ({currencyCode}). يُستخدم لحساب الأسعار الثانوية تلقائياً عند تركها فارغة في الأصناف.
+              </p>
+            </div>
+          </>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/30 p-4">

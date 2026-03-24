@@ -21,30 +21,41 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
-import { PlusIcon, MoreVerticalIcon, PencilIcon, Trash2Icon, PlusCircleIcon, XIcon } from "lucide-react";
+import { PlusIcon, PencilIcon, Trash2Icon, PlusCircleIcon, XIcon } from "lucide-react";
+import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
+import { CategoryPickerField } from "./category-picker-field";
+import { cn } from "@/lib/utils";
+
+const DEFAULT_PRIMARY_CURRENCY = "SAR";
+import { formatMenuPrice } from "@/lib/currencies";
 
 type AdminItemsManagerProps = {
   restaurantId: string;
   initialCategories: Category[];
   initialItems: MenuItem[];
+  secondaryCurrencyEnabled?: boolean;
+  secondaryCurrencyCode?: string | null;
+  /** وحدات العملة الثانية لكل 1 وحدة أساسية — عند ضبطه يمكن ترك أسعار ثانوية فارغة ليحسبها النظام */
+  secondaryExchangeRate?: number | null;
+  /** رمز عملة المنيو الأساسية لعرض الأسعار في البطاقات */
+  primaryCurrencyCode?: string | null;
 };
 
-type PriceOptionRow = { label: string; price: string };
+type PriceOptionRow = { label: string; price: string; secondaryPrice: string };
 
-const emptyPriceOptionRow = (): PriceOptionRow => ({ label: "", price: "" });
+const emptyPriceOptionRow = (): PriceOptionRow => ({
+  label: "",
+  price: "",
+  secondaryPrice: "",
+});
 
 const emptyForm = {
   name: "",
   description: "",
   price: "",
+  secondaryPrice: "",
   category_id: "",
   image_url: "",
   imageFile: null as File | null,
@@ -65,12 +76,24 @@ export function AdminItemsManager({
   restaurantId,
   initialCategories,
   initialItems,
+  secondaryCurrencyEnabled = false,
+  secondaryCurrencyCode = null,
+  secondaryExchangeRate = null,
+  primaryCurrencyCode = null,
 }: AdminItemsManagerProps) {
-  const [categories] = useState<Category[]>(initialCategories);
+  const hasExchangeRate =
+    typeof secondaryExchangeRate === "number" &&
+    Number.isFinite(secondaryExchangeRate) &&
+    secondaryExchangeRate > 0;
+  const primaryCode = primaryCurrencyCode?.trim() || DEFAULT_PRIMARY_CURRENCY;
+  const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [items, setItems] = useState<MenuItem[]>(initialItems);
   useEffect(() => {
     setItems(initialItems);
   }, [initialItems]);
+  useEffect(() => {
+    setCategories(initialCategories);
+  }, [initialCategories]);
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
@@ -91,8 +114,16 @@ export function AdminItemsManager({
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const filledOptions = addForm.priceOptions.filter((r) => r.label.trim() && r.price.trim());
+    if (addForm.priceOptions.length > 0 && filledOptions.length === 0) {
+      showMsg(
+        "err",
+        "أدخل الحجم والسعر لكل صف، أو احذف كل أحجام الصنف لاستخدام سعر واحد."
+      );
+      return;
+    }
     let priceCents: number;
     let price_options: { label: string; price_cents: number }[] | null = null;
+    let secondary_price_options: { label: string; price_cents: number }[] | null = null;
     if (filledOptions.length > 0) {
       const opts = filledOptions.map((r) => ({
         label: r.label.trim(),
@@ -103,12 +134,43 @@ export function AdminItemsManager({
         showMsg("err", "أدخل أسعاراً صحيحة لجميع الأحجام (مثلاً 25 أو 50.00).");
         return;
       }
+      const secondaryManual: { label: string; price_cents: number }[] = [];
+      for (const r of filledOptions) {
+        if (!r.secondaryPrice?.trim()) continue;
+        const sc = parsePriceToCents(r.secondaryPrice);
+        if (sc < 0) {
+          showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية بشكل صحيح أو اترك الحقل فارغاً ليحسبها النظام.");
+          return;
+        }
+        secondaryManual.push({ label: r.label.trim(), price_cents: sc });
+      }
+      if (secondaryCurrencyEnabled && !hasExchangeRate) {
+        if (secondaryManual.length !== filledOptions.length) {
+          showMsg(
+            "err",
+            "أدخل السعر بعملة ورمز العملة الثانية لكل الأحجام، أو عِدْ إلى إعدادات المنيو لضبط العملة الثانية."
+          );
+          return;
+        }
+      }
       price_options = opts;
       priceCents = opts[0].price_cents;
+      secondary_price_options =
+        secondaryCurrencyEnabled && secondaryManual.length > 0 ? secondaryManual : null;
     } else {
       priceCents = parsePriceToCents(addForm.price);
       if (priceCents < 0) {
         showMsg("err", "أدخل سعراً صحيحاً (مثلاً 50.00).");
+        return;
+      }
+      if (secondaryCurrencyEnabled && addForm.secondaryPrice.trim()) {
+        const secondary = parsePriceToCents(addForm.secondaryPrice);
+        if (secondary < 0) {
+          showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية بشكل صحيح أو اتركه فارغاً ليحسبه النظام.");
+          return;
+        }
+      } else if (secondaryCurrencyEnabled && !hasExchangeRate && !addForm.secondaryPrice.trim()) {
+        showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية أو عِدْ إلى إعدادات المنيو لضبط العملة الثانية.");
         return;
       }
     }
@@ -128,10 +190,15 @@ export function AdminItemsManager({
       name: addForm.name.trim(),
       description: addForm.description.trim() || null,
       price: priceCents,
+      secondary_price:
+        secondaryCurrencyEnabled && !secondary_price_options && addForm.secondaryPrice.trim()
+          ? parsePriceToCents(addForm.secondaryPrice)
+          : null,
       category_id: addForm.category_id || null,
       image_url: imageUrl,
       is_available: true,
       price_options,
+      secondary_price_options,
     });
     setAdding(false);
     if (error) {
@@ -146,17 +213,26 @@ export function AdminItemsManager({
 
   const startEdit = (item: MenuItem) => {
     setEditingId(item.id);
+    const secondaryOptionsByLabel = new Map(
+      (item.secondary_price_options ?? []).map((o) => [o.label, o.price_cents] as const)
+    );
     const priceOptions: PriceOptionRow[] =
       item.price_options && Array.isArray(item.price_options) && item.price_options.length > 0
         ? item.price_options.map((o) => ({
             label: o.label,
             price: (o.price_cents / 100).toFixed(2),
+            secondaryPrice:
+              typeof secondaryOptionsByLabel.get(o.label) === "number"
+                ? ((secondaryOptionsByLabel.get(o.label) as number) / 100).toFixed(2)
+                : "",
           }))
         : [];
     setEditForm({
       name: item.name,
       description: item.description || "",
       price: formatPrice(item.price),
+      secondaryPrice:
+        typeof item.secondary_price === "number" ? formatPrice(item.secondary_price) : "",
       category_id: item.category_id || "",
       image_url: item.image_url || "",
       imageFile: null,
@@ -168,8 +244,16 @@ export function AdminItemsManager({
     e.preventDefault();
     if (!editingId) return;
     const filledOptions = editForm.priceOptions.filter((r) => r.label.trim() && r.price.trim());
+    if (editForm.priceOptions.length > 0 && filledOptions.length === 0) {
+      showMsg(
+        "err",
+        "أدخل الحجم والسعر لكل صف، أو احذف كل أحجام الصنف لاستخدام سعر واحد."
+      );
+      return;
+    }
     let priceCents: number;
     let price_options: { label: string; price_cents: number }[] | null = null;
+    let secondary_price_options: { label: string; price_cents: number }[] | null = null;
     if (filledOptions.length > 0) {
       const opts = filledOptions.map((r) => ({
         label: r.label.trim(),
@@ -180,12 +264,43 @@ export function AdminItemsManager({
         showMsg("err", "أدخل أسعاراً صحيحة لجميع الأحجام (مثلاً 25 أو 50.00).");
         return;
       }
+      const secondaryManual: { label: string; price_cents: number }[] = [];
+      for (const r of filledOptions) {
+        if (!r.secondaryPrice?.trim()) continue;
+        const sc = parsePriceToCents(r.secondaryPrice);
+        if (sc < 0) {
+          showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية بشكل صحيح أو اترك الحقل فارغاً ليحسبها النظام.");
+          return;
+        }
+        secondaryManual.push({ label: r.label.trim(), price_cents: sc });
+      }
+      if (secondaryCurrencyEnabled && !hasExchangeRate) {
+        if (secondaryManual.length !== filledOptions.length) {
+          showMsg(
+            "err",
+            "أدخل السعر بعملة ورمز العملة الثانية لكل الأحجام، أو عِدْ إلى إعدادات المنيو لضبط العملة الثانية."
+          );
+          return;
+        }
+      }
       price_options = opts;
       priceCents = opts[0].price_cents;
+      secondary_price_options =
+        secondaryCurrencyEnabled && secondaryManual.length > 0 ? secondaryManual : null;
     } else {
       priceCents = parsePriceToCents(editForm.price);
       if (priceCents < 0) {
         showMsg("err", "أدخل سعراً صحيحاً (مثلاً 50.00).");
+        return;
+      }
+      if (secondaryCurrencyEnabled && editForm.secondaryPrice.trim()) {
+        const secondary = parsePriceToCents(editForm.secondaryPrice);
+        if (secondary < 0) {
+          showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية بشكل صحيح أو اتركه فارغاً ليحسبه النظام.");
+          return;
+        }
+      } else if (secondaryCurrencyEnabled && !hasExchangeRate && !editForm.secondaryPrice.trim()) {
+        showMsg("err", "أدخل السعر بعملة ورمز العملة الثانية أو عِدْ إلى إعدادات المنيو لضبط العملة الثانية.");
         return;
       }
     }
@@ -204,9 +319,14 @@ export function AdminItemsManager({
       name: editForm.name.trim(),
       description: editForm.description.trim() || null,
       price: priceCents,
+      secondary_price:
+        secondaryCurrencyEnabled && !secondary_price_options && editForm.secondaryPrice.trim()
+          ? parsePriceToCents(editForm.secondaryPrice)
+          : null,
       category_id: editForm.category_id || null,
       image_url: imageUrl,
       price_options,
+      secondary_price_options,
     });
     setSavingEdit(false);
     if (error) {
@@ -265,7 +385,7 @@ export function AdminItemsManager({
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm text-[var(--text-muted)]">
-          إضافة وتعديل وحذف الأصناف. السعر بالدولار (مثلاً 50.00).
+          إضافة وتعديل وحذف الأصناف.
         </p>
         <Button
           onClick={() => setAddDialogOpen(true)}
@@ -317,18 +437,18 @@ export function AdminItemsManager({
                       <Label htmlFor="add-category" className="text-sm font-medium text-[var(--text-primary)]">
                         التصنيف
                       </Label>
-                      <select
+                      <CategoryPickerField
                         id="add-category"
+                        restaurantId={restaurantId}
+                        categories={categories}
+                        onCategoriesChange={setCategories}
                         value={addForm.category_id}
-                        onChange={(e) => setAddForm((f) => ({ ...f, category_id: e.target.value }))}
+                        onValueChange={(categoryId) =>
+                          setAddForm((f) => ({ ...f, category_id: categoryId }))
+                        }
                         disabled={adding}
-                        className="mt-1.5 flex h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20"
-                      >
-                        <option value="">— لا تصنيف —</option>
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                        onNotify={showMsg}
+                      />
                     </div>
                   </div>
                 </section>
@@ -338,79 +458,151 @@ export function AdminItemsManager({
                     السعر والأحجام
                   </h3>
                   <div className="space-y-4 rounded-xl bg-[var(--bg-base)]/60 p-4">
-                    <div>
-                      <Label htmlFor="add-price" className="text-sm font-medium text-[var(--text-primary)]">
-                        سعر واحد (إن لم تُضف أحجاماً أدناه)
-                      </Label>
-                      <Input
-                        id="add-price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        placeholder="25.00"
-                        value={addForm.price}
-                        onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))}
-                        disabled={adding}
-                        className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
-                        أو أضف عدة أحجام/أوزان (نفر، نصف كيلو، كيلو، صغير، وسط، كبير)
-                      </p>
-                      <div className="space-y-2">
-                        {addForm.priceOptions.map((row, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2"
-                          >
+                    {addForm.priceOptions.length === 0 ? (
+                      <>
+                        <div>
+                          <Label htmlFor="add-price" className="text-sm font-medium text-[var(--text-primary)]">
+                            سعر واحد (إن لم تُضف أحجاماً أدناه)
+                          </Label>
+                          <Input
+                            id="add-price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="25.00"
+                            value={addForm.price}
+                            onChange={(e) => setAddForm((f) => ({ ...f, price: e.target.value }))}
+                            disabled={adding}
+                            className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
+                          />
+                        </div>
+                        {secondaryCurrencyEnabled ? (
+                          <div>
+                            <Label
+                              htmlFor="add-secondary-price"
+                              className="text-sm font-medium text-[var(--text-primary)]"
+                            >
+                              السعر بعملة ورمز العملة الثانية ({secondaryCurrencyCode ?? "—"})
+                              {hasExchangeRate ? (
+                                <span className="ms-1 text-xs font-normal text-[var(--text-muted)]">
+                                  (اختياري — يُحسب تلقائياً عند تركه فارغاً)
+                                </span>
+                              ) : null}
+                            </Label>
                             <Input
-                              placeholder="الحجم"
-                              value={row.label}
-                              onChange={(e) =>
-                                setAddForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.map((r, i) =>
-                                    i === idx ? { ...r, label: e.target.value } : r
-                                  ),
-                                }))
-                              }
-                              disabled={adding}
-                              className="h-9 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
-                            />
-                            <Input
+                              id="add-secondary-price"
                               type="number"
                               step="0.01"
                               min="0"
-                              placeholder="سعر"
-                              value={row.price}
+                              placeholder={hasExchangeRate ? "يُحسب تلقائياً" : "25.00"}
+                              value={addForm.secondaryPrice}
                               onChange={(e) =>
-                                setAddForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.map((r, i) =>
-                                    i === idx ? { ...r, price: e.target.value } : r
-                                  ),
-                                }))
+                                setAddForm((f) => ({ ...f, secondaryPrice: e.target.value }))
                               }
                               disabled={adding}
-                              className="h-9 w-20 rounded-lg border-[var(--border)] bg-[var(--bg-base)] font-mono text-sm tabular-nums"
+                              className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
                             />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-9 shrink-0 rounded-full text-[var(--text-muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
-                              onClick={() =>
-                                setAddForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.filter((_, i) => i !== idx),
-                                }))
-                              }
-                              disabled={adding}
-                              aria-label="إزالة"
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                        {addForm.priceOptions.length === 0
+                          ? "أو أضف عدة أحجام/أوزان (نفر، نصف كيلو، كيلو، صغير، وسط، كبير)"
+                          : "أسعار الأحجام — احذف كل الصفوف لعودة «سعر واحد» أعلاه"}
+                      </p>
+                      <div className="space-y-3">
+                        {addForm.priceOptions.map((row, idx) => (
+                          <div
+                            key={idx}
+                            className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-3"
+                          >
+                            <div className="flex items-start gap-2">
+                              <Input
+                                placeholder="الحجم أو الوحدة (نفر، نصف كيلو، كبير…)"
+                                value={row.label}
+                                onChange={(e) =>
+                                  setAddForm((f) => ({
+                                    ...f,
+                                    priceOptions: f.priceOptions.map((r, i) =>
+                                      i === idx ? { ...r, label: e.target.value } : r
+                                    ),
+                                  }))
+                                }
+                                disabled={adding}
+                                className="h-11 min-h-11 w-full min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-11 shrink-0 rounded-xl text-[var(--text-muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
+                                onClick={() =>
+                                  setAddForm((f) => ({
+                                    ...f,
+                                    priceOptions: f.priceOptions.filter((_, i) => i !== idx),
+                                  }))
+                                }
+                                disabled={adding}
+                                aria-label="إزالة"
+                              >
+                                <XIcon className="size-4" />
+                              </Button>
+                            </div>
+                            <div
+                              className={cn(
+                                "grid gap-3",
+                                secondaryCurrencyEnabled ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+                              )}
                             >
-                              <XIcon className="size-4" />
-                            </Button>
+                              <div className="flex min-w-0 flex-col gap-1.5">
+                                <span className="text-xs font-medium text-[var(--text-muted)]">
+                                  السعر ({primaryCode})
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0"
+                                  value={row.price}
+                                  onChange={(e) =>
+                                    setAddForm((f) => ({
+                                      ...f,
+                                      priceOptions: f.priceOptions.map((r, i) =>
+                                        i === idx ? { ...r, price: e.target.value } : r
+                                      ),
+                                    }))
+                                  }
+                                  disabled={adding}
+                                  className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-start font-mono text-sm tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                                />
+                              </div>
+                              {secondaryCurrencyEnabled ? (
+                                <div className="flex min-w-0 flex-col gap-1.5">
+                                  <span className="text-xs font-medium text-[var(--text-muted)]">
+                                    السعر ({secondaryCurrencyCode ?? "—"})
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder={hasExchangeRate ? "—" : "0"}
+                                    value={row.secondaryPrice}
+                                    onChange={(e) =>
+                                      setAddForm((f) => ({
+                                        ...f,
+                                        priceOptions: f.priceOptions.map((r, i) =>
+                                          i === idx ? { ...r, secondaryPrice: e.target.value } : r
+                                        ),
+                                      }))
+                                    }
+                                    disabled={adding}
+                                    className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-start font-mono text-sm tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                         <Button
@@ -510,9 +702,9 @@ export function AdminItemsManager({
               className="overflow-hidden border-[var(--border)] bg-[var(--bg-surface)] shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)] card-enter"
             >
               <CardContent className="p-0">
-                <div className="flex gap-4 p-4">
+                <div className="flex items-start gap-4 p-4">
                   {item.image_url ? (
-                    <div className="relative w-20 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-[var(--bg-surface-2)]" style={{ aspectRatio: "4/3" }}>
+                    <div className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-[var(--radius-md)] bg-[var(--bg-surface-2)]">
                       <Image
                         src={item.image_url}
                         alt=""
@@ -523,38 +715,102 @@ export function AdminItemsManager({
                       />
                     </div>
                   ) : (
-                    <MenuItemImagePlaceholder className="w-20 shrink-0" />
+                    <MenuItemImagePlaceholder className="h-20 w-20 shrink-0" />
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-[var(--text-primary)]">{item.name}</p>
-                    <p className="mt-0.5 text-sm font-medium text-[var(--brand)] font-mono">
-                      ${formatPrice(item.price)}
-                    </p>
+                    {item.price_options &&
+                    Array.isArray(item.price_options) &&
+                    item.price_options.length > 0 ? (
+                      <div className="mt-0.5 space-y-1">
+                        {item.price_options.map((o) => {
+                          const sec =
+                            secondaryCurrencyEnabled && secondaryCurrencyCode
+                              ? resolveSecondaryUnitCents(
+                                  item,
+                                  o.price_cents,
+                                  o.label,
+                                  hasExchangeRate ? secondaryExchangeRate : null
+                                )
+                              : null;
+                          return (
+                            <div key={o.label} className="text-xs leading-snug">
+                              <span className="font-medium text-[var(--text-secondary)]">
+                                {o.label}:{" "}
+                              </span>
+                              <span
+                                className="font-semibold text-[var(--brand)] tabular-nums"
+                                dir="ltr"
+                              >
+                                {formatMenuPrice(o.price_cents, primaryCode)}
+                              </span>
+                              {sec != null && secondaryCurrencyCode ? (
+                                <span
+                                  className="ms-1.5 text-[var(--text-muted)] tabular-nums"
+                                  dir="ltr"
+                                >
+                                  {formatMenuPrice(sec, secondaryCurrencyCode)}
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <>
+                        <p
+                          className="mt-0.5 text-sm font-semibold text-[var(--brand)] tabular-nums"
+                          dir="ltr"
+                        >
+                          {formatMenuPrice(item.price, primaryCode)}
+                        </p>
+                        {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
+                          (() => {
+                            const sec = resolveSecondaryUnitCents(
+                              item,
+                              item.price,
+                              null,
+                              hasExchangeRate ? secondaryExchangeRate : null
+                            );
+                            if (sec == null) return null;
+                            return (
+                              <p
+                                className="mt-0.5 text-xs font-medium text-[var(--text-muted)] tabular-nums"
+                                dir="ltr"
+                              >
+                                {formatMenuPrice(sec, secondaryCurrencyCode)}
+                              </p>
+                            );
+                          })()
+                        ) : null}
+                      </>
+                    )}
                     <p className="mt-1 truncate text-xs text-[var(--text-muted)]">
                       {getCategoryName(item.category_id)}
                     </p>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-                      aria-label="الإجراءات"
+                  <div className="flex shrink-0 flex-col gap-1.5 self-start">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => startEdit(item)}
+                      className="h-9 min-w-[5.5rem] gap-1.5 border-[var(--border)] bg-[var(--bg-surface)] px-3 text-xs font-semibold text-[var(--text-primary)] hover:bg-[var(--bg-surface-2)]"
                     >
-                      <MoreVerticalIcon className="size-4" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-[var(--bg-overlay)] border-[var(--border)]">
-                      <DropdownMenuItem onClick={() => startEdit(item)}>
-                        <PencilIcon className="size-4 me-2" />
-                        تعديل
-                      </DropdownMenuItem>
-                      <DropdownMenuItem
-                        variant="destructive"
-                        onClick={() => setDeleteId(item.id)}
-                      >
-                        <Trash2Icon className="size-4 me-2" />
-                        حذف
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                      <PencilIcon className="size-3.5" />
+                      تعديل
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleteId(item.id)}
+                      className="h-9 min-w-[5.5rem] gap-1.5 px-3 text-xs font-semibold"
+                    >
+                      <Trash2Icon className="size-3.5" />
+                      حذف
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-[var(--border)] px-4 py-3">
                   <span className="text-xs font-medium uppercase tracking-wider text-[var(--text-muted)]">
@@ -613,18 +869,18 @@ export function AdminItemsManager({
                       <Label htmlFor="edit-category" className="text-sm font-medium text-[var(--text-primary)]">
                         التصنيف
                       </Label>
-                      <select
+                      <CategoryPickerField
                         id="edit-category"
+                        restaurantId={restaurantId}
+                        categories={categories}
+                        onCategoriesChange={setCategories}
                         value={editForm.category_id}
-                        onChange={(e) => setEditForm((f) => ({ ...f, category_id: e.target.value }))}
+                        onValueChange={(categoryId) =>
+                          setEditForm((f) => ({ ...f, category_id: categoryId }))
+                        }
                         disabled={savingEdit}
-                        className="mt-1.5 flex h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2 text-sm focus:border-[var(--brand)] focus:outline-none focus:ring-2 focus:ring-[var(--brand)]/20"
-                      >
-                        <option value="">— لا تصنيف —</option>
-                        {categories.map((c) => (
-                          <option key={c.id} value={c.id}>{c.name}</option>
-                        ))}
-                      </select>
+                        onNotify={showMsg}
+                      />
                     </div>
                   </div>
                 </section>
@@ -634,78 +890,150 @@ export function AdminItemsManager({
                     السعر والأحجام
                   </h3>
                   <div className="space-y-4 rounded-xl bg-[var(--bg-base)]/60 p-4">
-                    <div>
-                      <Label htmlFor="edit-price" className="text-sm font-medium text-[var(--text-primary)]">
-                        سعر واحد (إن لم تُضف أحجاماً أدناه)
-                      </Label>
-                      <Input
-                        id="edit-price"
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={editForm.price}
-                        onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
-                        disabled={savingEdit}
-                        className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
-                      />
-                    </div>
-                    <div>
-                      <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
-                        أو عدة أحجام/أوزان
-                      </p>
-                      <div className="space-y-2">
-                        {editForm.priceOptions.map((row, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] px-3 py-2"
-                          >
+                    {editForm.priceOptions.length === 0 ? (
+                      <>
+                        <div>
+                          <Label htmlFor="edit-price" className="text-sm font-medium text-[var(--text-primary)]">
+                            سعر واحد (إن لم تُضف أحجاماً أدناه)
+                          </Label>
+                          <Input
+                            id="edit-price"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={editForm.price}
+                            onChange={(e) => setEditForm((f) => ({ ...f, price: e.target.value }))}
+                            disabled={savingEdit}
+                            className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
+                          />
+                        </div>
+                        {secondaryCurrencyEnabled ? (
+                          <div>
+                            <Label
+                              htmlFor="edit-secondary-price"
+                              className="text-sm font-medium text-[var(--text-primary)]"
+                            >
+                              السعر بعملة ورمز العملة الثانية ({secondaryCurrencyCode ?? "—"})
+                              {hasExchangeRate ? (
+                                <span className="ms-1 text-xs font-normal text-[var(--text-muted)]">
+                                  (اختياري — يُحسب تلقائياً عند تركه فارغاً)
+                                </span>
+                              ) : null}
+                            </Label>
                             <Input
-                              placeholder="الحجم"
-                              value={row.label}
-                              onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.map((r, i) =>
-                                    i === idx ? { ...r, label: e.target.value } : r
-                                  ),
-                                }))
-                              }
-                              disabled={savingEdit}
-                              className="h-9 flex-1 border-0 bg-transparent shadow-none focus-visible:ring-0"
-                            />
-                            <Input
+                              id="edit-secondary-price"
                               type="number"
                               step="0.01"
                               min="0"
-                              placeholder="سعر"
-                              value={row.price}
+                              placeholder={hasExchangeRate ? "يُحسب تلقائياً" : undefined}
+                              value={editForm.secondaryPrice}
                               onChange={(e) =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.map((r, i) =>
-                                    i === idx ? { ...r, price: e.target.value } : r
-                                  ),
-                                }))
+                                setEditForm((f) => ({ ...f, secondaryPrice: e.target.value }))
                               }
                               disabled={savingEdit}
-                              className="h-9 w-20 rounded-lg border-[var(--border)] bg-[var(--bg-base)] font-mono text-sm tabular-nums"
+                              className="mt-1.5 h-11 w-32 rounded-xl border-[var(--border)] bg-[var(--bg-surface)] font-mono tabular-nums focus:border-[var(--brand)] focus:ring-2 focus:ring-[var(--brand)]/20"
                             />
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="icon"
-                              className="size-9 shrink-0 rounded-full text-[var(--text-muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
-                              onClick={() =>
-                                setEditForm((f) => ({
-                                  ...f,
-                                  priceOptions: f.priceOptions.filter((_, i) => i !== idx),
-                                }))
-                              }
-                              disabled={savingEdit}
-                              aria-label="إزالة"
+                          </div>
+                        ) : null}
+                      </>
+                    ) : null}
+                    <div>
+                      <p className="mb-2 text-xs font-medium text-[var(--text-muted)]">
+                        {editForm.priceOptions.length === 0
+                          ? "أو عدة أحجام/أوزان (نفر، نصف كيلو، كيلو، صغير، وسط، كبير)"
+                          : "أسعار الأحجام — احذف كل الصفوف لعودة «سعر واحد» أعلاه"}
+                      </p>
+                      <div className="space-y-3">
+                        {editForm.priceOptions.map((row, idx) => (
+                          <div
+                            key={idx}
+                            className="space-y-3 rounded-xl border border-[var(--border)] bg-[var(--bg-surface)] p-3"
+                          >
+                            <div className="flex items-start gap-2">
+                              <Input
+                                placeholder="الحجم أو الوحدة (نفر، نصف كيلو، كبير…)"
+                                value={row.label}
+                                onChange={(e) =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    priceOptions: f.priceOptions.map((r, i) =>
+                                      i === idx ? { ...r, label: e.target.value } : r
+                                    ),
+                                  }))
+                                }
+                                disabled={savingEdit}
+                                className="h-11 min-h-11 w-full min-w-0 flex-1 rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                              />
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="size-11 shrink-0 rounded-xl text-[var(--text-muted)] hover:bg-[var(--danger-bg)] hover:text-[var(--danger)]"
+                                onClick={() =>
+                                  setEditForm((f) => ({
+                                    ...f,
+                                    priceOptions: f.priceOptions.filter((_, i) => i !== idx),
+                                  }))
+                                }
+                                disabled={savingEdit}
+                                aria-label="إزالة"
+                              >
+                                <XIcon className="size-4" />
+                              </Button>
+                            </div>
+                            <div
+                              className={cn(
+                                "grid gap-3",
+                                secondaryCurrencyEnabled ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"
+                              )}
                             >
-                              <XIcon className="size-4" />
-                            </Button>
+                              <div className="flex min-w-0 flex-col gap-1.5">
+                                <span className="text-xs font-medium text-[var(--text-muted)]">
+                                  السعر ({primaryCode})
+                                </span>
+                                <Input
+                                  type="number"
+                                  step="0.01"
+                                  min="0"
+                                  placeholder="0"
+                                  value={row.price}
+                                  onChange={(e) =>
+                                    setEditForm((f) => ({
+                                      ...f,
+                                      priceOptions: f.priceOptions.map((r, i) =>
+                                        i === idx ? { ...r, price: e.target.value } : r
+                                      ),
+                                    }))
+                                  }
+                                  disabled={savingEdit}
+                                  className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-start font-mono text-sm tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                                />
+                              </div>
+                              {secondaryCurrencyEnabled ? (
+                                <div className="flex min-w-0 flex-col gap-1.5">
+                                  <span className="text-xs font-medium text-[var(--text-muted)]">
+                                    السعر ({secondaryCurrencyCode ?? "—"})
+                                  </span>
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder={hasExchangeRate ? "—" : "0"}
+                                    value={row.secondaryPrice}
+                                    onChange={(e) =>
+                                      setEditForm((f) => ({
+                                        ...f,
+                                        priceOptions: f.priceOptions.map((r, i) =>
+                                          i === idx ? { ...r, secondaryPrice: e.target.value } : r
+                                        ),
+                                      }))
+                                    }
+                                    disabled={savingEdit}
+                                    className="h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--bg-base)] px-3 text-start font-mono text-sm tabular-nums text-[var(--text-primary)] placeholder:text-[var(--text-muted)] focus-visible:border-[var(--brand)] focus-visible:ring-2 focus-visible:ring-[var(--brand)]/20"
+                                  />
+                                </div>
+                              ) : null}
+                            </div>
                           </div>
                         ))}
                         <Button

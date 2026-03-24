@@ -68,6 +68,17 @@ export default async function OwnerSettingsPage() {
               initialHeroBackgroundUrl={restaurant.hero_background_url ?? null}
               initialFooterNote={restaurant.footer_note ?? null}
               initialCurrencyCode={restaurant.currency_code ?? null}
+              initialSecondaryCurrencyEnabled={
+                restaurant.secondary_currency_enabled === true
+              }
+              initialSecondaryCurrencyCode={
+                restaurant.secondary_currency_code ?? null
+              }
+              initialSecondaryExchangeRate={
+                restaurant.secondary_currency_exchange_rate != null
+                  ? Number(restaurant.secondary_currency_exchange_rate)
+                  : null
+              }
               initialMenuTitleAnimationEnabled={
                 restaurant.menu_title_animation_enabled === true
               }

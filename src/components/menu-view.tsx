@@ -7,6 +7,7 @@ import { Aref_Ruqaa, Playfair_Display } from "next/font/google";
 import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
+import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
 import { hasArabicScript } from "@/lib/detect-script";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -14,6 +15,7 @@ import {
   AddItemButton,
   MenuCartBar,
   MenuCheckoutDialog,
+  cartLineKey,
   type CartLine,
   type TableContext,
 } from "@/components/menu-ordering";
@@ -44,10 +46,16 @@ function PriceDisplay({
   item,
   unavailable,
   currencyCode,
+  secondaryCurrencyEnabled,
+  secondaryCurrencyCode,
+  exchangeRate,
 }: {
   item: MenuItem;
   unavailable: boolean;
   currencyCode: string;
+  secondaryCurrencyEnabled: boolean;
+  secondaryCurrencyCode: string | null;
+  exchangeRate: number | null;
 }) {
   const opts = item.price_options;
   const priceClass = unavailable
@@ -59,8 +67,30 @@ function PriceDisplay({
         {opts.map((o) => (
           <span key={o.label} className={priceClass}>
             <span className="font-medium text-stone-600 dark:text-stone-400">{o.label}:</span>{" "}
-            <span className="inline-block text-lg" dir="ltr" style={{ unicodeBidi: "isolate" }}>
-              {formatMenuPrice(o.price_cents, currencyCode)}
+            <span className="inline-flex flex-col align-top">
+              <span className="inline-block text-lg" dir="ltr" style={{ unicodeBidi: "isolate" }}>
+                {formatMenuPrice(o.price_cents, currencyCode)}
+              </span>
+              {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
+                (() => {
+                  const secondary = resolveSecondaryUnitCents(
+                    item,
+                    o.price_cents,
+                    o.label,
+                    exchangeRate
+                  );
+                  if (secondary == null) return null;
+                  return (
+                    <span
+                      className="inline-block text-xs font-medium text-stone-500 dark:text-stone-400"
+                      dir="ltr"
+                      style={{ unicodeBidi: "isolate" }}
+                    >
+                      {formatMenuPrice(secondary, secondaryCurrencyCode)}
+                    </span>
+                  );
+                })()
+              ) : null}
             </span>
           </span>
         ))}
@@ -68,11 +98,31 @@ function PriceDisplay({
     );
   }
   return (
-    <p className={`mt-2 text-lg font-bold tabular-nums ${priceClass}`}>
-      <span className="inline-block" dir="ltr" style={{ unicodeBidi: "isolate" }}>
+    <div className={`mt-2 flex flex-col tabular-nums ${priceClass}`}>
+      <span className="inline-block text-lg font-bold" dir="ltr" style={{ unicodeBidi: "isolate" }}>
         {formatMenuPrice(item.price, currencyCode)}
       </span>
-    </p>
+      {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
+        (() => {
+          const secondary = resolveSecondaryUnitCents(
+            item,
+            item.price,
+            null,
+            exchangeRate
+          );
+          if (secondary == null) return null;
+          return (
+            <span
+              className="inline-block text-xs font-medium text-stone-500 dark:text-stone-400"
+              dir="ltr"
+              style={{ unicodeBidi: "isolate" }}
+            >
+              {formatMenuPrice(secondary, secondaryCurrencyCode)}
+            </span>
+          );
+        })()
+      ) : null}
+    </div>
   );
 }
 
@@ -207,6 +257,12 @@ export function MenuView({
   publicTables = [],
 }: MenuViewProps) {
   const currencyCode = restaurant.currency_code ?? "SAR";
+  const secondaryCurrencyEnabled = restaurant.secondary_currency_enabled === true;
+  const secondaryCurrencyCode = restaurant.secondary_currency_code ?? null;
+  const exchangeRate =
+    restaurant.secondary_currency_exchange_rate != null
+      ? Number(restaurant.secondary_currency_exchange_rate)
+      : null;
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
@@ -218,10 +274,7 @@ export function MenuView({
 
   const mergeAdd = useCallback((line: CartLine) => {
     setCart((prev) => {
-      const i = prev.findIndex(
-        (l) =>
-          l.menuItemId === line.menuItemId && l.priceOptionLabel === line.priceOptionLabel
-      );
+      const i = prev.findIndex((l) => cartLineKey(l) === cartLineKey(line));
       if (i >= 0) {
         const copy = [...prev];
         copy[i] = {
@@ -485,7 +538,8 @@ export function MenuView({
                       transition={{ duration: 0.25, delay: idx * 0.05 }}
                       className="group relative flex w-56 shrink-0 snap-center flex-col overflow-hidden rounded-2xl border border-stone-200/90 bg-gradient-to-b from-white to-stone-100 shadow-sm shadow-stone-900/10 transition-shadow duration-200 hover:shadow-lg hover:shadow-stone-900/15 dark:border-stone-700/80 dark:from-stone-900/90 dark:to-stone-950/90 dark:shadow-black/40 dark:hover:shadow-black/30"
                     >
-                      <div className="relative w-full overflow-hidden rounded-[var(--radius-md)] bg-stone-100 dark:bg-stone-900" style={{ aspectRatio: "4/3" }}>
+                      {/* w-56 للبطاقة — ارتفاع صريح 14rem لضمان مربع حقيقي */}
+                      <div className="relative h-56 w-full shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-stone-100 dark:bg-stone-900">
                         {item.image_url ? (
                           <Image
                             src={item.image_url}
@@ -496,11 +550,49 @@ export function MenuView({
                             unoptimized
                           />
                         ) : (
-                          <MenuItemImagePlaceholder className="h-full w-full !aspect-auto" />
+                          <MenuItemImagePlaceholder className="h-full min-h-0 w-full" />
                         )}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-                        <div className="absolute bottom-2 right-2 rounded-full bg-black/65 px-3 py-1.5 text-sm font-bold tabular-nums text-[var(--success)] dark:bg-black/70" dir="ltr" style={{ unicodeBidi: "isolate" }}>
-                          {formatMenuPrice(getDisplayPrice(item), currencyCode)}
+                        <div className="absolute bottom-2 right-2 flex max-w-[min(100%,11rem)] flex-col items-end gap-0.5 rounded-2xl bg-black/65 px-3 py-1.5 dark:bg-black/70">
+                          <span
+                            className="text-sm font-bold tabular-nums text-[var(--success)]"
+                            dir="ltr"
+                            style={{ unicodeBidi: "isolate" }}
+                          >
+                            {formatMenuPrice(getDisplayPrice(item), currencyCode)}
+                          </span>
+                          {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
+                            (() => {
+                              const opts = item.price_options;
+                              let sec: number | null = null;
+                              if (opts && opts.length > 0) {
+                                const o = opts[0];
+                                sec = resolveSecondaryUnitCents(
+                                  item,
+                                  o.price_cents,
+                                  o.label,
+                                  exchangeRate
+                                );
+                              } else {
+                                sec = resolveSecondaryUnitCents(
+                                  item,
+                                  item.price,
+                                  null,
+                                  exchangeRate
+                                );
+                              }
+                              if (sec == null) return null;
+                              return (
+                                <span
+                                  className="text-[11px] font-semibold tabular-nums text-white/90"
+                                  dir="ltr"
+                                  style={{ unicodeBidi: "isolate" }}
+                                >
+                                  {formatMenuPrice(sec, secondaryCurrencyCode)}
+                                </span>
+                              );
+                            })()
+                          ) : null}
                         </div>
                       </div>
                       <div className="flex flex-1 flex-col px-3.5 pb-3 pt-2.5">
@@ -597,14 +689,14 @@ export function MenuView({
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.25, delay: index * 0.04 }}
-                        className={`group relative flex gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-3.5 shadow-sm ring-1 ring-stone-900/5 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-lg hover:shadow-stone-900/10 dark:border-stone-700/80 dark:bg-stone-900/80 dark:ring-white/5 dark:hover:shadow-black/30 sm:gap-3.5 ${
+                        className={`group relative flex items-start gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-3.5 shadow-sm ring-1 ring-stone-900/5 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-lg hover:shadow-stone-900/10 dark:border-stone-700/80 dark:bg-stone-900/80 dark:ring-white/5 dark:hover:shadow-black/30 sm:gap-3.5 ${
                           unavailable
                             ? "opacity-60 grayscale-[0.2]"
                             : ""
                         }`}
                       >
                         {item.image_url ? (
-                          <div className="relative w-20 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-stone-100 dark:bg-stone-900 sm:w-24" style={{ aspectRatio: "4/3" }}>
+                          <div className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-[var(--radius-md)] bg-stone-100 dark:bg-stone-900 sm:h-24 sm:w-24">
                             <Image
                               src={item.image_url}
                               alt={item.name}
@@ -616,7 +708,7 @@ export function MenuView({
                             <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-transparent" />
                           </div>
                         ) : (
-                          <MenuItemImagePlaceholder className="w-20 shrink-0 sm:w-24" />
+                          <MenuItemImagePlaceholder className="h-20 w-20 shrink-0 self-start sm:h-24 sm:w-24" />
                         )}
                         <div className="flex min-w-0 flex-1 flex-col">
                           <p
@@ -646,7 +738,14 @@ export function MenuView({
                               {item.description}
                             </p>
                           ) : null}
-                          <PriceDisplay item={item} unavailable={unavailable} currencyCode={currencyCode} />
+                          <PriceDisplay
+                            item={item}
+                            unavailable={unavailable}
+                            currencyCode={currencyCode}
+                            secondaryCurrencyEnabled={secondaryCurrencyEnabled}
+                            secondaryCurrencyCode={secondaryCurrencyCode}
+                            exchangeRate={exchangeRate}
+                          />
                           {item.calories ? (
                             <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-500">
                               {item.calories}
@@ -705,6 +804,9 @@ export function MenuView({
         setCart={setCart}
         menuById={menuById}
         currencyCode={currencyCode}
+        secondaryEnabled={secondaryCurrencyEnabled}
+        secondaryCurrencyCode={secondaryCurrencyCode}
+        secondaryExchangeRate={exchangeRate}
         onCheckout={() => setCheckoutOpen(true)}
       />
       <MenuCheckoutDialog

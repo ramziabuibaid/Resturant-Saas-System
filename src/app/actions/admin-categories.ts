@@ -59,11 +59,42 @@ export async function updateCategory(
 }
 
 export async function deleteCategory(
-  id: string
+  id: string,
+  restaurantId: string
 ): Promise<{ error: string | null }> {
   const supabase = await createClient();
-  const { error } = await supabase.from("categories").delete().eq("id", id);
+
+  const { data: row } = await supabase
+    .from("categories")
+    .select("id")
+    .eq("id", id)
+    .eq("restaurant_id", restaurantId)
+    .maybeSingle();
+  if (!row) {
+    return { error: "التصنيف غير موجود أو لا يتبع مطعمك." };
+  }
+
+  const { error: unlinkErr } = await supabase
+    .from("menu_items")
+    .update({ category_id: null })
+    .eq("category_id", id)
+    .eq("restaurant_id", restaurantId);
+  if (unlinkErr) return { error: unlinkErr.message };
+
+  const { data: deleted, error } = await supabase
+    .from("categories")
+    .delete()
+    .eq("id", id)
+    .eq("restaurant_id", restaurantId)
+    .select("id");
   if (error) return { error: error.message };
+  if (!deleted?.length) {
+    return {
+      error:
+        "لم يُحذف التصنيف. نفّذ في Supabase ملف supabase/rls-categories-owner.sql لمنح صاحب المطعم صلاحية الحذف.",
+    };
+  }
+
   revalidatePath("/owner/categories");
   revalidatePath("/owner/items");
   revalidatePath("/owner");

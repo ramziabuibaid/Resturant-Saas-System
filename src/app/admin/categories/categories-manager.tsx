@@ -104,7 +104,7 @@ export function CategoriesManager({
     if (!deleteCategoryId) return;
     setDeleting(true);
     setCategories((prev) => prev.filter((c) => c.id !== deleteCategoryId));
-    const { error } = await deleteCategory(deleteCategoryId);
+    const { error } = await deleteCategory(deleteCategoryId, restaurantId);
     setDeleting(false);
     setDeleteCategoryId(null);
     if (error) {

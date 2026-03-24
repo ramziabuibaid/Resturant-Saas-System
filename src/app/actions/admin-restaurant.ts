@@ -9,6 +9,10 @@ type RestaurantPublicContentPayload = {
   hero_background_url?: string | null;
   footer_note?: string | null;
   currency_code?: string | null;
+  secondary_currency_enabled?: boolean;
+  secondary_currency_code?: string | null;
+  /** وحدات العملة الثانية لكل 1 وحدة من الأساسية */
+  secondary_currency_exchange_rate?: number | null;
   menu_title_animation_enabled?: boolean;
   menu_banner_url?: string | null;
   menu_banner_kind?: "image" | "video" | null;
@@ -73,6 +77,18 @@ export async function updateRestaurantPublicContent(
       hero_background_url: payload.hero_background_url ?? null,
       footer_note: payload.footer_note ?? null,
       currency_code: payload.currency_code ?? null,
+      secondary_currency_enabled: payload.secondary_currency_enabled ?? false,
+      secondary_currency_code:
+        payload.secondary_currency_enabled === true
+          ? payload.secondary_currency_code ?? null
+          : null,
+      secondary_currency_exchange_rate:
+        payload.secondary_currency_enabled === true &&
+        typeof payload.secondary_currency_exchange_rate === "number" &&
+        Number.isFinite(payload.secondary_currency_exchange_rate) &&
+        payload.secondary_currency_exchange_rate > 0
+          ? payload.secondary_currency_exchange_rate
+          : null,
       menu_title_animation_enabled:
         payload.menu_title_animation_enabled ?? false,
       menu_banner_url: payload.menu_banner_url ?? null,

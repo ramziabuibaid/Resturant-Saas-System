@@ -66,6 +66,17 @@ export default async function AdminCustomersPage() {
           customers={customers}
           currencyCode={currencyCode}
           pointValueCents={pointValueCents}
+          secondaryCurrencyCode={
+            restaurant?.secondary_currency_enabled === true
+              ? restaurant.secondary_currency_code ?? null
+              : null
+          }
+          secondaryExchangeRate={
+            restaurant?.secondary_currency_enabled === true &&
+            restaurant.secondary_currency_exchange_rate != null
+              ? Number(restaurant.secondary_currency_exchange_rate)
+              : null
+          }
         />
       )}
     </div>

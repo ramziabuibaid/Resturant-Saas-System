@@ -29,7 +29,21 @@ export default async function AdminRestaurantOrdersPage() {
           <code className="rounded bg-muted px-1">supabase/orders-tables-customers.sql</code> إن لم يكن مفعّلاً.
         </p>
       ) : (
-        <OrdersClient initialOrders={orders} currencyCode={currencyCode} />
+        <OrdersClient
+          initialOrders={orders}
+          currencyCode={currencyCode}
+          secondaryCurrencyCode={
+            restaurant?.secondary_currency_enabled === true
+              ? restaurant.secondary_currency_code ?? null
+              : null
+          }
+          secondaryExchangeRate={
+            restaurant?.secondary_currency_enabled === true &&
+            restaurant.secondary_currency_exchange_rate != null
+              ? Number(restaurant.secondary_currency_exchange_rate)
+              : null
+          }
+        />
       )}
     </div>
   );

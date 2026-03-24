@@ -14,6 +14,12 @@ export type Restaurant = {
   footer_note?: string | null;
   /** رمز العملة لعرض الأسعار في المنيو (ISO 4217، مثل SAR، ILS، JOD) */
   currency_code?: string | null;
+  /** تفعيل عرض عملة ثانية في المنيو */
+  secondary_currency_enabled?: boolean | null;
+  /** رمز العملة الثانية (ISO 4217) */
+  secondary_currency_code?: string | null;
+  /** وحدات العملة الثانية لكل 1 وحدة من العملة الأساسية (مثال: 1 USD = 3.7 ILS) */
+  secondary_currency_exchange_rate?: number | null;
   /** عند التفعيل: تأثير لون وتوهج ووميض لاسم المطعم في المنيو العام */
   menu_title_animation_enabled?: boolean | null;
   /** بانر ترويجي (صورة أو فيديو) في أعلى صفحة المنيو */
@@ -54,8 +60,12 @@ export type MenuItem = {
   name: string;
   description: string | null;
   price: number;
+  /** السعر بالعملة الثانية (بالسنت) عند تفعيلها */
+  secondary_price?: number | null;
   /** عند وجوده يُعرض بدل السعر الواحد (أحجام متعددة) */
   price_options?: PriceOption[] | null;
+  /** خيارات أسعار بالعملة الثانية لنفس الأحجام */
+  secondary_price_options?: PriceOption[] | null;
   /** نص السعرات الحرارية */
   calories?: string | null;
   /** true = وجبة رئيسية، false = مقبلات/إضافة */
@@ -123,6 +133,8 @@ export type GuestOrderItem = {
   unit_price_cents: number;
   price_option_label: string | null;
   line_total_cents: number;
+  /** مكوّنات يطلب الزبون عدم إضافتها */
+  excluded_ingredients?: string[] | null;
   menu_item_name?: string;
 };
 

@@ -1,6 +1,9 @@
 import { redirect } from "next/navigation";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
-import { getProfileForRestaurantAdminOrRedirect } from "@/app/actions/auth";
+import {
+  getProfileForRestaurantAdminOrRedirect,
+  getRestaurantForProfile,
+} from "@/app/actions/auth";
 import { getCategories, getMenuItems } from "@/app/actions/admin-items";
 import { AdminItemsManager } from "@/app/admin/items/admin-items-manager";
 
@@ -16,9 +19,10 @@ export default async function AdminMenuPage() {
 
   const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
   const restaurantId = profile.restaurant_id!;
-  const [categories, items] = await Promise.all([
+  const [categories, items, restaurant] = await Promise.all([
     getCategories(restaurantId),
     getMenuItems(restaurantId),
+    getRestaurantForProfile(profile),
   ]);
 
   return (
@@ -32,6 +36,14 @@ export default async function AdminMenuPage() {
         restaurantId={restaurantId}
         initialCategories={categories}
         initialItems={items}
+        secondaryCurrencyEnabled={restaurant?.secondary_currency_enabled === true}
+        secondaryCurrencyCode={restaurant?.secondary_currency_code ?? null}
+        secondaryExchangeRate={
+          restaurant?.secondary_currency_exchange_rate != null
+            ? Number(restaurant.secondary_currency_exchange_rate)
+            : null
+        }
+        primaryCurrencyCode={restaurant?.currency_code ?? null}
       />
     </div>
   );
