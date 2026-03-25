@@ -8,6 +8,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { BellIcon, PanelLeftIcon } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { OrderNotificationsBell } from "@/components/orders/order-notifications-bell";
 
 export type NavItem = {
   href: string;
@@ -40,6 +41,8 @@ type DashboardLayoutProps = {
   logoUrl?: string | null;
   /** بيانات البروفايل في أسفل الـ Sidebar (اختياري) */
   profile?: DashboardProfile | null;
+  /** عند التمرير: جرس طلبات حي (Supabase Realtime) */
+  notificationRestaurantId?: string | null;
   children: React.ReactNode;
 };
 
@@ -165,6 +168,7 @@ export function DashboardLayout({
   previewUrl,
   logoUrl,
   profile,
+  notificationRestaurantId,
   children,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
@@ -237,13 +241,17 @@ export function DashboardLayout({
                 معاينة المنيو
               </a>
             )}
-            <button
-              type="button"
-              className="flex size-9 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-              aria-label="الإشعارات"
-            >
-              <BellIcon className="size-5" />
-            </button>
+            {notificationRestaurantId ? (
+              <OrderNotificationsBell restaurantId={notificationRestaurantId} variant="dashboard" />
+            ) : (
+              <button
+                type="button"
+                className="flex size-9 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
+                aria-label="الإشعارات"
+              >
+                <BellIcon className="size-5" />
+              </button>
+            )}
             <ThemeToggle />
             {headerRight}
           </div>

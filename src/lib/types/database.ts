@@ -122,6 +122,10 @@ export type GuestOrder = {
   delivery_address: string | null;
   customer_phone: string;
   status: OrderStatus;
+  /** رقم عرض للزبون والطاقم (متسلسل لكل مطعم) */
+  display_number: number;
+  /** رمز سري لصفحة التتبع العامة */
+  tracking_token: string;
   created_at: string;
 };
 

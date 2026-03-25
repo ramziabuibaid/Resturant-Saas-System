@@ -7,7 +7,7 @@ import { resolveUnitPriceCents } from "@/lib/order-pricing";
 import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
 import { createGuestOrder } from "@/app/actions/orders";
 import { parseExcludedIngredients } from "@/lib/order-exclusions";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 import { ShoppingBagIcon, PlusIcon, MinusIcon, Trash2Icon } from "lucide-react";
 
 export type CartLine = {
@@ -440,11 +441,16 @@ export function MenuCheckoutDialog({
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMeta, setSuccessMeta] = useState<{
+    displayNumber: number;
+    trackingToken: string;
+  } | null>(null);
 
   useEffect(() => {
     if (!open) {
       setSuccess(false);
       setMessage(null);
+      setSuccessMeta(null);
     }
   }, [open]);
 
@@ -537,6 +543,10 @@ export function MenuCheckoutDialog({
       setMessage(res.error);
       return;
     }
+    setSuccessMeta({
+      displayNumber: res.displayNumber,
+      trackingToken: res.trackingToken,
+    });
     setCart([]);
     setPhone("");
     setFulfillment(tableCtx.fromQr ? "dine_in" : null);
@@ -548,14 +558,36 @@ export function MenuCheckoutDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md" scrollable showCloseButton={!submitting}>
-        {success ? (
+        {success && successMeta ? (
           <>
             <DialogHeader className="p-4 pb-0">
               <DialogTitle>تم استلام طلبك</DialogTitle>
-              <DialogDescription>
-                سيصل الطلب إلى المطعم مباشرة. شكراً لثقتك بنا.
+              <DialogDescription className="sr-only">
+                تم تأكيد الطلب ورقم الطلب والتتبع أدناه.
               </DialogDescription>
             </DialogHeader>
+            <div className="space-y-3 px-4 text-start">
+              <p className="text-sm text-muted-foreground">
+                سيصل الطلب إلى المطعم مباشرة. شكراً لثقتك بنا.
+              </p>
+              <p className="font-mono text-2xl font-bold text-foreground tabular-nums" dir="ltr">
+                رقم الطلب: #{successMeta.displayNumber}
+              </p>
+              <p className="text-sm leading-relaxed text-muted-foreground">
+                يمكنك متابعة حالة الطلب من الصفحة التالية في أي وقت:
+              </p>
+              <Link
+                href={`/menu/${encodeURIComponent(subdomain)}/track/${successMeta.trackingToken}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={cn(
+                  buttonVariants({ variant: "secondary", size: "lg" }),
+                  "w-full justify-center"
+                )}
+              >
+                تتبّع الطلب
+              </Link>
+            </div>
             <DialogFooter className="p-4 pt-2">
               <Button
                 type="button"
@@ -563,6 +595,7 @@ export function MenuCheckoutDialog({
                 onClick={() => {
                   setCart([]);
                   setSuccess(false);
+                  setSuccessMeta(null);
                   onOpenChange(false);
                 }}
               >

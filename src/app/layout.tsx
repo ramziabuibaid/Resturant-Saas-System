@@ -3,6 +3,7 @@ import { Cairo, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { SessionHashHandler } from "@/components/auth/SessionHashHandler";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 /** DESIGN_SYSTEM: Cairo — كل النصوص العربية */
@@ -38,6 +39,7 @@ export default function RootLayout({
         <ThemeProvider>
           <TooltipProvider>
             {children}
+            <Toaster position="top-center" richColors closeButton />
             <SessionHashHandler />
           </TooltipProvider>
         </ThemeProvider>

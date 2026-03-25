@@ -11,7 +11,7 @@ export const metadata = {
 export default async function AdminRestaurantOrdersPage() {
   const profile = await getProfileOrRedirect();
   const restaurant = await getRestaurantForProfile(profile);
-  const { orders, error } = await listRestaurantOrders({ limit: 80 });
+  const { orders, error } = await listRestaurantOrders({ limit: 100 });
 
   const currencyCode = restaurant?.currency_code ?? "SAR";
 

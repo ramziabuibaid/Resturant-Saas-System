@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { OrderNotificationsBell } from "@/components/orders/order-notifications-bell";
 
 type OwnerShellProps = {
   restaurantName: string;
@@ -165,6 +166,7 @@ export function OwnerShell({
           <h1 className="text-lg font-semibold text-foreground truncate">{restaurantName}</h1>
           <span className="hidden text-sm text-muted-foreground sm:inline">لوحة المطعم</span>
           <div className="ml-auto flex items-center gap-1">
+            <OrderNotificationsBell restaurantId={restaurantId} variant="owner" />
             {livePreviewUrl && (
               <a
                 href={livePreviewUrl}

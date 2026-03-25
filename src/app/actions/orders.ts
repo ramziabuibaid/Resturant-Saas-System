@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
@@ -77,9 +78,13 @@ function normalizePhone(raw: string): string | null {
   return digits;
 }
 
+export type CreateGuestOrderResult =
+  | { ok: true; orderId: string; displayNumber: number; trackingToken: string }
+  | { ok: false; error: string };
+
 export async function createGuestOrder(
   input: CreateGuestOrderInput
-): Promise<{ ok: true; orderId: string } | { ok: false; error: string }> {
+): Promise<CreateGuestOrderResult> {
   const sub = input.subdomain.trim().toLowerCase();
   if (!sub) return { ok: false, error: "معرّف المطعم غير صالح" };
 
@@ -190,6 +195,20 @@ export async function createGuestOrder(
     });
   }
 
+  const trackingToken = randomBytes(32).toString("hex");
+  const { data: displayNumRaw, error: rpcErr } = await admin.rpc("next_order_display_number", {
+    p_restaurant_id: restaurantId,
+  });
+  const displayNumber = Number(displayNumRaw);
+  if (rpcErr || displayNumRaw == null || !Number.isFinite(displayNumber) || displayNumber < 1) {
+    return {
+      ok: false,
+      error:
+        rpcErr?.message ??
+        "تعذر تخصيص رقم الطلب. نفّذ ملف supabase/orders-display-tracking.sql في قاعدة البيانات.",
+    };
+  }
+
   const { data: orderRow, error: oErr } = await admin
     .from("orders")
     .insert({
@@ -199,6 +218,8 @@ export async function createGuestOrder(
       delivery_address: deliveryAddress,
       customer_phone: phone,
       status: "pending",
+      display_number: displayNumber,
+      tracking_token: trackingToken,
     })
     .select("id")
     .single();
@@ -280,7 +301,7 @@ export async function createGuestOrder(
   revalidatePath("/owner/orders");
   revalidatePath("/admin/orders");
 
-  return { ok: true, orderId };
+  return { ok: true, orderId, displayNumber, trackingToken };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "تعذر إرسال الطلب";
     return { ok: false, error: msg };
@@ -377,6 +398,8 @@ export async function listRestaurantOrders(options?: {
     delivery_address: o.delivery_address,
     customer_phone: o.customer_phone,
     status: o.status,
+    display_number: (o as GuestOrder).display_number,
+    tracking_token: (o as GuestOrder).tracking_token,
     created_at: o.created_at,
     table_label: o.table_id ? tableLabels.get(o.table_id) ?? null : null,
     items: itemsByOrder.get(o.id) ?? [],
@@ -401,4 +424,45 @@ export async function updateOrderStatus(
   revalidatePath("/owner/orders");
   revalidatePath("/admin/orders");
   return { error: null };
+}
+
+/** تتبّع عام للزبون — يُستدعى من صفحة التتبع فقط (بدون تسجيل دخول) */
+export type PublicOrderTracking = {
+  display_number: number;
+  status: OrderStatus;
+  created_at: string;
+  restaurant_name: string;
+};
+
+export async function getOrderTrackingByToken(
+  subdomain: string,
+  token: string
+): Promise<PublicOrderTracking | null> {
+  const t = token.trim();
+  const sub = subdomain.trim().toLowerCase();
+  if (!t || !sub) return null;
+  try {
+    const admin = createAdminClient();
+    const { data: restaurant, error: rErr } = await admin
+      .from("restaurants")
+      .select("id, name")
+      .ilike("subdomain", sub)
+      .maybeSingle();
+    if (rErr || !restaurant) return null;
+    const { data: order, error: oErr } = await admin
+      .from("orders")
+      .select("display_number, status, created_at, restaurant_id")
+      .eq("tracking_token", t)
+      .eq("restaurant_id", restaurant.id)
+      .maybeSingle();
+    if (oErr || !order) return null;
+    return {
+      display_number: Number(order.display_number),
+      status: order.status as OrderStatus,
+      created_at: order.created_at as string,
+      restaurant_name: (restaurant.name as string) ?? "",
+    };
+  } catch {
+    return null;
+  }
 }

@@ -14,6 +14,8 @@ import { DashboardLayout, type NavGroup } from "@/components/dashboard/Dashboard
 
 type AdminRestaurantShellProps = {
   restaurantName: string;
+  /** لاشتراك إشعارات الطلبات الفورية */
+  restaurantId: string | null;
   livePreviewUrl: string | null;
   logoUrl?: string | null;
   profile?: { name?: string; imageUrl?: string | null; role?: string } | null;
@@ -49,6 +51,7 @@ function getRestaurantNavGroups(): NavGroup[] {
 
 export function AdminRestaurantShell({
   restaurantName,
+  restaurantId,
   livePreviewUrl,
   logoUrl,
   profile,
@@ -58,6 +61,7 @@ export function AdminRestaurantShell({
     <DashboardLayout
       title={restaurantName}
       navGroups={getRestaurantNavGroups()}
+      notificationRestaurantId={restaurantId}
       previewUrl={livePreviewUrl}
       logoUrl={logoUrl}
       profile={profile}
