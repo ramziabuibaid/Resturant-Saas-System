@@ -32,9 +32,13 @@ type Props = {
   initialMenuBannerKind?: "image" | "video" | null;
   initialMenuBannerCaption?: string | null;
   initialPublicAddress?: string | null;
+  initialPublicMapsUrl?: string | null;
   initialPublicPhone1?: string | null;
   initialPublicPhone2?: string | null;
   initialPublicPhone3?: string | null;
+  initialSocialFacebookUrl?: string | null;
+  initialSocialInstagramUrl?: string | null;
+  initialSocialTiktokUrl?: string | null;
 };
 
 export function RestaurantPublicContentForm({
@@ -52,9 +56,13 @@ export function RestaurantPublicContentForm({
   initialMenuBannerKind = null,
   initialMenuBannerCaption = null,
   initialPublicAddress = null,
+  initialPublicMapsUrl = null,
   initialPublicPhone1 = null,
   initialPublicPhone2 = null,
   initialPublicPhone3 = null,
+  initialSocialFacebookUrl = null,
+  initialSocialInstagramUrl = null,
+  initialSocialTiktokUrl = null,
 }: Props) {
   const [headline, setHeadline] = useState(initialHeadline ?? "");
   const [subheadline, setSubheadline] = useState(initialSubheadline ?? "");
@@ -91,9 +99,21 @@ export function RestaurantPublicContentForm({
   const [publicAddress, setPublicAddress] = useState(
     initialPublicAddress ?? ""
   );
+  const [publicMapsUrl, setPublicMapsUrl] = useState(
+    initialPublicMapsUrl ?? ""
+  );
   const [publicPhone1, setPublicPhone1] = useState(initialPublicPhone1 ?? "");
   const [publicPhone2, setPublicPhone2] = useState(initialPublicPhone2 ?? "");
   const [publicPhone3, setPublicPhone3] = useState(initialPublicPhone3 ?? "");
+  const [socialFacebookUrl, setSocialFacebookUrl] = useState(
+    initialSocialFacebookUrl ?? ""
+  );
+  const [socialInstagramUrl, setSocialInstagramUrl] = useState(
+    initialSocialInstagramUrl ?? ""
+  );
+  const [socialTiktokUrl, setSocialTiktokUrl] = useState(
+    initialSocialTiktokUrl ?? ""
+  );
   const [loading, setLoading] = useState(false);
   const [heroUploading, setHeroUploading] = useState(false);
   const [heroError, setHeroError] = useState<string | null>(null);
@@ -137,9 +157,13 @@ export function RestaurantPublicContentForm({
       hero_background_url: heroBackgroundUrl.trim() || null,
       footer_note: footerNote.trim() || null,
       public_address: publicAddress.trim() || null,
+      public_maps_url: publicMapsUrl.trim() || null,
       public_phone_1: publicPhone1.trim() || null,
       public_phone_2: publicPhone2.trim() || null,
       public_phone_3: publicPhone3.trim() || null,
+      social_facebook_url: socialFacebookUrl.trim() || null,
+      social_instagram_url: socialInstagramUrl.trim() || null,
+      social_tiktok_url: socialTiktokUrl.trim() || null,
       currency_code: currencyCode || null,
       secondary_currency_enabled: secondaryCurrencyEnabled,
       secondary_currency_code: secondaryCurrencyEnabled
@@ -421,6 +445,25 @@ export function RestaurantPublicContentForm({
             dir="auto"
           />
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="public-maps-url">الموقع على الخريطة — Google Maps (اختياري)</Label>
+          <Input
+            id="public-maps-url"
+            type="url"
+            inputMode="url"
+            value={publicMapsUrl}
+            onChange={(e) => setPublicMapsUrl(e.target.value)}
+            placeholder="https://maps.google.com/… أو maps.app.goo.gl/…"
+            disabled={loading}
+            dir="ltr"
+            className="text-start"
+            autoComplete="off"
+          />
+          <p className="text-xs text-muted-foreground">
+            الصق رابط الموقع من تطبيق خرائط Google. عند التعبئة، يصبح نص العنوان في فوتر
+            المنيو وصفحة التتبع رابطاً يفتح الموقع على الخريطة.
+          </p>
+        </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="space-y-1.5">
             <Label htmlFor="public-phone-1">هاتف 1</Label>
@@ -467,6 +510,61 @@ export function RestaurantPublicContentForm({
               className="text-start"
             />
           </div>
+        </div>
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+        <div className="space-y-1">
+          <Label className="text-base">وسائل التواصل</Label>
+          <p className="text-xs text-muted-foreground">
+            فيسبوك وإنستغرام وتيك توك. تُعرض أيقونة المنصّة في فوتر المنيو وصفحة تتبع الطلب
+            فقط عند إدخال رابط. يمكنك لصق الرابط كاملاً أو بدون https://.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="social-facebook">فيسبوك</Label>
+          <Input
+            id="social-facebook"
+            type="url"
+            inputMode="url"
+            value={socialFacebookUrl}
+            onChange={(e) => setSocialFacebookUrl(e.target.value)}
+            placeholder="https://facebook.com/…"
+            disabled={loading}
+            dir="ltr"
+            className="text-start"
+            autoComplete="off"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="social-instagram">إنستغرام</Label>
+          <Input
+            id="social-instagram"
+            type="url"
+            inputMode="url"
+            value={socialInstagramUrl}
+            onChange={(e) => setSocialInstagramUrl(e.target.value)}
+            placeholder="https://instagram.com/…"
+            disabled={loading}
+            dir="ltr"
+            className="text-start"
+            autoComplete="off"
+          />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="social-tiktok">تيك توك</Label>
+          <Input
+            id="social-tiktok"
+            type="url"
+            inputMode="url"
+            value={socialTiktokUrl}
+            onChange={(e) => setSocialTiktokUrl(e.target.value)}
+            placeholder="https://tiktok.com/@…"
+            disabled={loading}
+            dir="ltr"
+            className="text-start"
+            autoComplete="off"
+          />
         </div>
       </div>
 

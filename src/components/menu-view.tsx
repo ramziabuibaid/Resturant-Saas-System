@@ -177,7 +177,7 @@ export type MenuViewProps = {
 const ALL_KEY = "__all__";
 
 const MENU_WELCOME_HINT =
-  "أضف الأصناف للسلة ثم أدخل جوالك لإرسال الطلب للمطعم مباشرة.";
+  "أضف الأصناف إلى طلبك ثم أدخل جوالك لإرسال الطلب للمطعم مباشرة.";
 
 function inferMenuBannerKind(url: string): "image" | "video" {
   const path = url.split("?")[0].toLowerCase();
@@ -281,6 +281,9 @@ export function MenuView({
     }),
     [tableFromQr, tableToken, publicTables]
   );
+
+  /** رابط ?t= صالح للطاولة → صياغة «إلى الطاولة»؛ وإلا زيارة عامة (سوشال، رابط مباشر…) */
+  const addItemOrderContext = tableFromQr ? "table_qr" : "remote";
 
   const grouped = useMemo(
     () => groupItemsByCategory(menuItems, categories),
@@ -529,6 +532,7 @@ export function MenuView({
                           item={item}
                           unavailable={item.is_available === false}
                           onAdd={mergeAdd}
+                          orderContext={addItemOrderContext}
                         />
                       </div>
                     </motion.article>
@@ -677,6 +681,7 @@ export function MenuView({
                               item={item}
                               unavailable={unavailable}
                               onAdd={mergeAdd}
+                              orderContext={addItemOrderContext}
                             />
                           </div>
                         </div>
@@ -695,9 +700,13 @@ export function MenuView({
         restaurantName={restaurant.name}
         footerNote={restaurant.footer_note ?? null}
         publicAddress={restaurant.public_address ?? null}
+        publicMapsUrl={restaurant.public_maps_url ?? null}
         publicPhone1={restaurant.public_phone_1 ?? null}
         publicPhone2={restaurant.public_phone_2 ?? null}
         publicPhone3={restaurant.public_phone_3 ?? null}
+        socialFacebookUrl={restaurant.social_facebook_url ?? null}
+        socialInstagramUrl={restaurant.social_instagram_url ?? null}
+        socialTiktokUrl={restaurant.social_tiktok_url ?? null}
       />
 
       <MenuCartBar
@@ -709,6 +718,10 @@ export function MenuView({
         secondaryCurrencyCode={secondaryCurrencyCode}
         secondaryExchangeRate={exchangeRate}
         onCheckout={() => setCheckoutOpen(true)}
+        onCancelOrder={() => {
+          setCart([]);
+          setCheckoutOpen(false);
+        }}
       />
       <MenuCheckoutDialog
         open={checkoutOpen}

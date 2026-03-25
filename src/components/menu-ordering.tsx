@@ -42,15 +42,26 @@ export function cartLineKey(line: CartLine): string {
   return `${line.menuItemId}::${line.priceOptionLabel ?? ""}::${ex}`;
 }
 
+/** سياق المنيو: طاولة عبر QR أو زيارة عامة (رابط/سوشال) */
+export type AddItemOrderContext = "table_qr" | "remote";
+
+function addItemButtonLabel(ctx: AddItemOrderContext): string {
+  return ctx === "table_qr" ? "أضف إلى الطاولة" : "أضف إلى طلبك";
+}
+
 export function AddItemButton({
   item,
   unavailable,
   onAdd,
+  orderContext = "remote",
 }: {
   item: MenuItem;
   unavailable: boolean;
   onAdd: (line: CartLine) => void;
+  /** من رمز QR للطاولة → صياغة الطاولة؛ غير ذلك → طلب طعام عام */
+  orderContext?: AddItemOrderContext;
 }) {
+  const addLabel = addItemButtonLabel(orderContext);
   const [open, setOpen] = useState(false);
   const [option, setOption] = useState<string>("");
   const [qty, setQty] = useState(1);
@@ -82,7 +93,10 @@ export function AddItemButton({
         type="button"
         size="sm"
         variant="default"
-        className="mt-2 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+        className={cn(
+          "mt-2 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500",
+          "text-xs leading-snug sm:text-sm"
+        )}
         onClick={() => {
           if (optionCount === 0) {
             onAdd({
@@ -105,8 +119,8 @@ export function AddItemButton({
           }
         }}
       >
-        <PlusIcon className="size-4" />
-        أضف للسلة
+        <PlusIcon className="size-4 shrink-0" />
+        {addLabel}
       </Button>
 
       <Dialog
@@ -178,7 +192,7 @@ export function AddItemButton({
               إلغاء
             </Button>
             <Button type="button" onClick={confirm} disabled={Boolean(needsSizeDialog && !option)}>
-              أضف للسلة
+              {addLabel}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -196,6 +210,7 @@ export function MenuCartBar({
   secondaryCurrencyCode,
   secondaryExchangeRate,
   onCheckout,
+  onCancelOrder,
 }: {
   cart: CartLine[];
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
@@ -205,6 +220,8 @@ export function MenuCartBar({
   secondaryCurrencyCode: string | null;
   secondaryExchangeRate: number | null;
   onCheckout: () => void;
+  /** إفراغ السلة وإغلاق أي خطوة إتمام (من لوحة السفلية) */
+  onCancelOrder: () => void;
 }) {
   const totalCents = useMemo(() => {
     let t = 0;
@@ -242,7 +259,7 @@ export function MenuCartBar({
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-stone-950/95">
-      <div className="mx-auto flex max-w-5xl items-center justify-between gap-3">
+      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="min-w-0">
           <p className="text-xs text-stone-500 dark:text-stone-400">
             {cart.reduce((s, l) => s + l.quantity, 0)} صنف في السلة
@@ -264,10 +281,26 @@ export function MenuCartBar({
             ) : null}
           </div>
         </div>
-        <Button type="button" size="lg" className="shrink-0 gap-2" onClick={onCheckout}>
-          <ShoppingBagIcon className="size-5" />
-          إتمام الطلب
-        </Button>
+        <div className="flex w-full min-w-0 items-stretch gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            className="min-w-0 flex-1 border-stone-300 text-stone-700 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-900 sm:flex-initial"
+            onClick={onCancelOrder}
+          >
+            إلغاء الطلب
+          </Button>
+          <Button
+            type="button"
+            size="lg"
+            className="min-w-0 flex-1 shrink-0 gap-2 sm:flex-initial"
+            onClick={onCheckout}
+          >
+            <ShoppingBagIcon className="size-5 shrink-0" />
+            إتمام الطلب
+          </Button>
+        </div>
       </div>
     </div>
   );

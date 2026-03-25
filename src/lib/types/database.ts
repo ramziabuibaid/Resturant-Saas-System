@@ -14,10 +14,16 @@ export type Restaurant = {
   footer_note?: string | null;
   /** عنوان المطعم في فوتر المنيو والتتبع */
   public_address?: string | null;
+  /** رابط Google Maps (أو خرائط) — الضغط على العنوان في الفوتر يفتح الموقع على الخريطة */
+  public_maps_url?: string | null;
   /** حتى 3 أرقام — يُعرض ما تم إدخاله فقط */
   public_phone_1?: string | null;
   public_phone_2?: string | null;
   public_phone_3?: string | null;
+  /** روابط وسائل التواصل — تُعرض الأيقونة في الفوتر فقط عند التعبئة */
+  social_facebook_url?: string | null;
+  social_instagram_url?: string | null;
+  social_tiktok_url?: string | null;
   /** رمز العملة لعرض الأسعار في المنيو (ISO 4217، مثل SAR، ILS، JOD) */
   currency_code?: string | null;
   /** تفعيل عرض عملة ثانية في المنيو */

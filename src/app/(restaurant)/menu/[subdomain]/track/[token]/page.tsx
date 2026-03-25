@@ -243,9 +243,13 @@ export default async function OrderTrackPage({ params }: Props) {
         restaurantName={data.restaurant_name}
         footerNote={data.footer_note}
         publicAddress={data.public_address}
+        publicMapsUrl={data.public_maps_url}
         publicPhone1={data.public_phone_1}
         publicPhone2={data.public_phone_2}
         publicPhone3={data.public_phone_3}
+        socialFacebookUrl={data.social_facebook_url}
+        socialInstagramUrl={data.social_instagram_url}
+        socialTiktokUrl={data.social_tiktok_url}
       />
     </div>
   );

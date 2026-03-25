@@ -1,14 +1,25 @@
 import type { CSSProperties } from "react";
 import { MapPinIcon, PhoneIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { normalizeSocialUrlForHref } from "@/lib/social-url";
+import {
+  FacebookBrandIcon,
+  InstagramBrandIcon,
+  TikTokBrandIcon,
+} from "@/components/social-brand-icons";
 
 export type MenuPublicFooterProps = {
   restaurantName: string;
   footerNote: string | null;
   publicAddress: string | null;
+  /** رابط Google Maps — الضغط على نص العنوان يفتح الخريطة */
+  publicMapsUrl?: string | null;
   publicPhone1: string | null;
   publicPhone2: string | null;
   publicPhone3: string | null;
+  socialFacebookUrl?: string | null;
+  socialInstagramUrl?: string | null;
+  socialTiktokUrl?: string | null;
   /** استخدم متغيرات التصميم كما في المنيو */
   variant?: "menu" | "track";
 };
@@ -37,15 +48,24 @@ export function MenuPublicFooter({
   restaurantName,
   footerNote,
   publicAddress,
+  publicMapsUrl = null,
   publicPhone1,
   publicPhone2,
   publicPhone3,
+  socialFacebookUrl = null,
+  socialInstagramUrl = null,
+  socialTiktokUrl = null,
   variant = "menu",
 }: MenuPublicFooterProps) {
   const phones = normalizePhones(publicPhone1, publicPhone2, publicPhone3);
+  const mapsHref = normalizeSocialUrlForHref(publicMapsUrl);
   const hasContactBlock = Boolean(
-    (publicAddress && publicAddress.trim()) || phones.length
+    (publicAddress && publicAddress.trim()) || phones.length || mapsHref
   );
+  const fbHref = normalizeSocialUrlForHref(socialFacebookUrl);
+  const igHref = normalizeSocialUrlForHref(socialInstagramUrl);
+  const ttHref = normalizeSocialUrlForHref(socialTiktokUrl);
+  const hasSocialIcons = Boolean(fbHref || igHref || ttHref);
   const year = new Date().getFullYear();
 
   const shell =
@@ -79,7 +99,9 @@ export function MenuPublicFooter({
         <div
           className={cn(
             "grid gap-8 sm:gap-10",
-            hasContactBlock || footerNote ? "md:grid-cols-2 lg:grid-cols-3" : "lg:grid-cols-1"
+            hasContactBlock || footerNote?.trim() || hasSocialIcons
+              ? "md:grid-cols-2 lg:grid-cols-3"
+              : "lg:grid-cols-1"
           )}
         >
           <div className="min-w-0">
@@ -98,9 +120,60 @@ export function MenuPublicFooter({
                 {footerNote.trim()}
               </p>
             ) : null}
+            {hasSocialIcons ? (
+              <div
+                className={cn(
+                  "mt-4 flex flex-wrap items-center gap-3",
+                  shell.sub
+                )}
+              >
+                {fbHref ? (
+                  <a
+                    href={fbHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "rounded-lg p-1.5 transition-opacity hover:opacity-80",
+                      shell.sub
+                    )}
+                    aria-label="فيسبوك"
+                  >
+                    <FacebookBrandIcon />
+                  </a>
+                ) : null}
+                {igHref ? (
+                  <a
+                    href={igHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "rounded-lg p-1.5 transition-opacity hover:opacity-80",
+                      shell.sub
+                    )}
+                    aria-label="إنستغرام"
+                  >
+                    <InstagramBrandIcon />
+                  </a>
+                ) : null}
+                {ttHref ? (
+                  <a
+                    href={ttHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "rounded-lg p-1.5 transition-opacity hover:opacity-80",
+                      shell.sub
+                    )}
+                    aria-label="تيك توك"
+                  >
+                    <TikTokBrandIcon />
+                  </a>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
-          {publicAddress?.trim() ? (
+          {publicAddress?.trim() || mapsHref ? (
             <div className="min-w-0">
               <h4
                 className={cn(
@@ -111,12 +184,47 @@ export function MenuPublicFooter({
                 <MapPinIcon className="size-4 shrink-0 opacity-80" aria-hidden />
                 العنوان
               </h4>
-              <p
-                className={cn("mt-2 text-sm leading-relaxed whitespace-pre-wrap", shell.sub)}
-                dir="auto"
-              >
-                {publicAddress.trim()}
-              </p>
+              {publicAddress?.trim() ? (
+                mapsHref ? (
+                  <a
+                    href={mapsHref}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={cn(
+                      "mt-2 block text-sm leading-relaxed whitespace-pre-wrap transition-opacity hover:opacity-90",
+                      shell.sub,
+                      shell.link,
+                      "underline-offset-4 hover:underline"
+                    )}
+                    dir="auto"
+                  >
+                    {publicAddress.trim()}
+                  </a>
+                ) : (
+                  <p
+                    className={cn(
+                      "mt-2 text-sm leading-relaxed whitespace-pre-wrap",
+                      shell.sub
+                    )}
+                    dir="auto"
+                  >
+                    {publicAddress.trim()}
+                  </p>
+                )
+              ) : mapsHref ? (
+                <a
+                  href={mapsHref}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={cn(
+                    "mt-2 inline-flex text-sm font-medium transition-opacity hover:opacity-90",
+                    shell.link,
+                    "underline-offset-4 hover:underline"
+                  )}
+                >
+                  عرض الموقع على الخريطة
+                </a>
+              ) : null}
             </div>
           ) : null}
 

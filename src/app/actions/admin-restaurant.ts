@@ -10,9 +10,13 @@ type RestaurantPublicContentPayload = {
   footer_note?: string | null;
   /** عنوان يظهر في فوتر المنيو وصفحة التتبع */
   public_address?: string | null;
+  public_maps_url?: string | null;
   public_phone_1?: string | null;
   public_phone_2?: string | null;
   public_phone_3?: string | null;
+  social_facebook_url?: string | null;
+  social_instagram_url?: string | null;
+  social_tiktok_url?: string | null;
   currency_code?: string | null;
   secondary_currency_enabled?: boolean;
   secondary_currency_code?: string | null;
@@ -41,6 +45,14 @@ async function assertRestaurantOwner(restaurantId: string) {
   }
 
   return { supabase, error: null as string | null };
+}
+
+function normalizeSocialUrl(raw: string | null | undefined): string | null {
+  const t = raw?.trim();
+  if (!t) return null;
+  if (t.length > 2000) return null;
+  if (/^https?:\/\//i.test(t)) return t;
+  return `https://${t}`;
 }
 
 /**
@@ -82,9 +94,13 @@ export async function updateRestaurantPublicContent(
       hero_background_url: payload.hero_background_url ?? null,
       footer_note: payload.footer_note ?? null,
       public_address: payload.public_address?.trim() ? payload.public_address.trim() : null,
+      public_maps_url: normalizeSocialUrl(payload.public_maps_url),
       public_phone_1: payload.public_phone_1?.trim() ? payload.public_phone_1.trim() : null,
       public_phone_2: payload.public_phone_2?.trim() ? payload.public_phone_2.trim() : null,
       public_phone_3: payload.public_phone_3?.trim() ? payload.public_phone_3.trim() : null,
+      social_facebook_url: normalizeSocialUrl(payload.social_facebook_url),
+      social_instagram_url: normalizeSocialUrl(payload.social_instagram_url),
+      social_tiktok_url: normalizeSocialUrl(payload.social_tiktok_url),
       currency_code: payload.currency_code ?? null,
       secondary_currency_enabled: payload.secondary_currency_enabled ?? false,
       secondary_currency_code:

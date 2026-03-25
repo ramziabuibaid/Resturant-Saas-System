@@ -447,9 +447,13 @@ export type PublicOrderTracking = {
   /** فوتر المنيو العام — نفس ما يظهر في صفحة المنيو */
   footer_note: string | null;
   public_address: string | null;
+  public_maps_url: string | null;
   public_phone_1: string | null;
   public_phone_2: string | null;
   public_phone_3: string | null;
+  social_facebook_url: string | null;
+  social_instagram_url: string | null;
+  social_tiktok_url: string | null;
   fulfillment: OrderFulfillment;
   delivery_address: string | null;
   table_label: string | null;
@@ -475,7 +479,7 @@ export async function getOrderTrackingByToken(
     const { data: restaurant, error: rErr } = await admin
       .from("restaurants")
       .select(
-        "id, name, logo_url, menu_title_animation_enabled, footer_note, public_address, public_phone_1, public_phone_2, public_phone_3, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate"
+        "id, name, logo_url, menu_title_animation_enabled, footer_note, public_address, public_maps_url, public_phone_1, public_phone_2, public_phone_3, social_facebook_url, social_instagram_url, social_tiktok_url, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate"
       )
       .ilike("subdomain", sub)
       .maybeSingle();
@@ -566,9 +570,13 @@ export async function getOrderTrackingByToken(
         restaurant.menu_title_animation_enabled === true,
       footer_note: (restaurant.footer_note as string | null) ?? null,
       public_address: (restaurant.public_address as string | null) ?? null,
+      public_maps_url: (restaurant.public_maps_url as string | null) ?? null,
       public_phone_1: (restaurant.public_phone_1 as string | null) ?? null,
       public_phone_2: (restaurant.public_phone_2 as string | null) ?? null,
       public_phone_3: (restaurant.public_phone_3 as string | null) ?? null,
+      social_facebook_url: (restaurant.social_facebook_url as string | null) ?? null,
+      social_instagram_url: (restaurant.social_instagram_url as string | null) ?? null,
+      social_tiktok_url: (restaurant.social_tiktok_url as string | null) ?? null,
       fulfillment: order.fulfillment as OrderFulfillment,
       delivery_address: (order.delivery_address as string | null) ?? null,
       table_label,

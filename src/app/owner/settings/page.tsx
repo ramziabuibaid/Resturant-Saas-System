@@ -109,9 +109,13 @@ export default async function OwnerSettingsPage() {
               }
               initialMenuBannerCaption={restaurant.menu_banner_caption ?? null}
               initialPublicAddress={restaurant.public_address ?? null}
+              initialPublicMapsUrl={restaurant.public_maps_url ?? null}
               initialPublicPhone1={restaurant.public_phone_1 ?? null}
               initialPublicPhone2={restaurant.public_phone_2 ?? null}
               initialPublicPhone3={restaurant.public_phone_3 ?? null}
+              initialSocialFacebookUrl={restaurant.social_facebook_url ?? null}
+              initialSocialInstagramUrl={restaurant.social_instagram_url ?? null}
+              initialSocialTiktokUrl={restaurant.social_tiktok_url ?? null}
             />
           )}
         </CardContent>
