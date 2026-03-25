@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { RestaurantLogoForm } from "@/app/admin/settings/restaurant-logo-form";
 import { RestaurantPublicContentForm } from "@/app/admin/settings/restaurant-public-content-form";
 import { RestaurantLoyaltySettingsForm } from "@/app/admin/settings/restaurant-loyalty-settings-form";
+import { RestaurantPhoneCountryForm } from "@/app/admin/settings/restaurant-phone-country-form";
 
 export const metadata = {
   title: "الإعدادات | لوحة المطعم",
@@ -54,6 +55,23 @@ export default async function OwnerSettingsPage() {
 
       <Card className="border-border/50 bg-card/80 backdrop-blur">
         <CardHeader>
+          <CardTitle>الجوال والواتساب (الطلبات)</CardTitle>
+          <CardDescription>
+            حدّد مقدمة الدولة لدمجها مع أرقام الزبائن في قائمة الطلبات — اتصال وواتساب برسالة جاهزة ورابط التتبع.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {restaurant && (
+            <RestaurantPhoneCountryForm
+              restaurantId={restaurant.id}
+              initialPrefix={restaurant.phone_country_prefix ?? null}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/80 backdrop-blur">
+        <CardHeader>
           <CardTitle>محتوى صفحة المنيو العامة</CardTitle>
           <CardDescription>
             تحكم في نصوص الهيرو والفوتر التي تظهر لعملائك في صفحة المنيو الرئيسية.
@@ -90,6 +108,10 @@ export default async function OwnerSettingsPage() {
                   : null
               }
               initialMenuBannerCaption={restaurant.menu_banner_caption ?? null}
+              initialPublicAddress={restaurant.public_address ?? null}
+              initialPublicPhone1={restaurant.public_phone_1 ?? null}
+              initialPublicPhone2={restaurant.public_phone_2 ?? null}
+              initialPublicPhone3={restaurant.public_phone_3 ?? null}
             />
           )}
         </CardContent>

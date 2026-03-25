@@ -8,6 +8,11 @@ type RestaurantPublicContentPayload = {
   subheadline?: string | null;
   hero_background_url?: string | null;
   footer_note?: string | null;
+  /** عنوان يظهر في فوتر المنيو وصفحة التتبع */
+  public_address?: string | null;
+  public_phone_1?: string | null;
+  public_phone_2?: string | null;
+  public_phone_3?: string | null;
   currency_code?: string | null;
   secondary_currency_enabled?: boolean;
   secondary_currency_code?: string | null;
@@ -76,6 +81,10 @@ export async function updateRestaurantPublicContent(
       subheadline: payload.subheadline ?? null,
       hero_background_url: payload.hero_background_url ?? null,
       footer_note: payload.footer_note ?? null,
+      public_address: payload.public_address?.trim() ? payload.public_address.trim() : null,
+      public_phone_1: payload.public_phone_1?.trim() ? payload.public_phone_1.trim() : null,
+      public_phone_2: payload.public_phone_2?.trim() ? payload.public_phone_2.trim() : null,
+      public_phone_3: payload.public_phone_3?.trim() ? payload.public_phone_3.trim() : null,
       currency_code: payload.currency_code ?? null,
       secondary_currency_enabled: payload.secondary_currency_enabled ?? false,
       secondary_currency_code:
@@ -158,5 +167,34 @@ export async function updateRestaurantLoyaltySettings(
   revalidatePath("/owner/settings");
   revalidatePath("/admin/customers");
   revalidatePath("/owner/customers");
+  return { error: null };
+}
+
+/**
+ * مقدمة الدولة لأرقام الزبائن (واتساب / اتصال). أرقام فقط بدون +، مثل 966.
+ */
+export async function updateRestaurantPhoneCountryPrefix(
+  restaurantId: string,
+  rawPrefix: string | null
+): Promise<{ error: string | null }> {
+  const { supabase, error } = await assertRestaurantOwner(restaurantId);
+  if (error) return { error };
+
+  const digits = (rawPrefix ?? "").replace(/\D/g, "");
+  if (digits.length > 6) {
+    return { error: "المقدمة الدولية طويلة جداً (استخدم أرقام الدولة فقط، مثل 966)" };
+  }
+
+  const { error: dbError } = await supabase
+    .from("restaurants")
+    .update({ phone_country_prefix: digits.length ? digits : null })
+    .eq("id", restaurantId);
+
+  if (dbError) return { error: dbError.message };
+
+  revalidatePath("/admin/settings");
+  revalidatePath("/owner/settings");
+  revalidatePath("/admin/orders");
+  revalidatePath("/owner/orders");
   return { error: null };
 }

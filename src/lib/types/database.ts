@@ -12,6 +12,12 @@ export type Restaurant = {
   hero_background_url?: string | null;
   /** ملاحظة بسيطة / حقوق أو روابط تظهر في فوتر صفحة المنيو */
   footer_note?: string | null;
+  /** عنوان المطعم في فوتر المنيو والتتبع */
+  public_address?: string | null;
+  /** حتى 3 أرقام — يُعرض ما تم إدخاله فقط */
+  public_phone_1?: string | null;
+  public_phone_2?: string | null;
+  public_phone_3?: string | null;
   /** رمز العملة لعرض الأسعار في المنيو (ISO 4217، مثل SAR، ILS، JOD) */
   currency_code?: string | null;
   /** تفعيل عرض عملة ثانية في المنيو */
@@ -33,6 +39,11 @@ export type Restaurant = {
   loyalty_spend_cents_per_point?: number | null;
   /** قيمة نقطة واحدة عند الخصم بالسنت */
   loyalty_point_value_cents?: number | null;
+  /**
+   * مقدمة الدولة للجوال (أرقام فقط بدون +)، مثل 966 أو 963.
+   * تُستخدم لبناء رقم دولي كامل للاتصال وواتساب من رقم الزبون المخزَّن.
+   */
+  phone_country_prefix?: string | null;
   status?: "active" | "suspended" | "trial" | null;
   created_at?: string;
   updated_at?: string;

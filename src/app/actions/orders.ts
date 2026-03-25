@@ -426,12 +426,41 @@ export async function updateOrderStatus(
   return { error: null };
 }
 
+/** بند طلب في صفحة التتبع العامة */
+export type PublicOrderTrackingItem = {
+  id: string;
+  menu_item_name: string;
+  quantity: number;
+  price_option_label: string | null;
+  line_total_cents: number;
+  excluded_ingredients?: string[];
+};
+
 /** تتبّع عام للزبون — يُستدعى من صفحة التتبع فقط (بدون تسجيل دخول) */
 export type PublicOrderTracking = {
   display_number: number;
   status: OrderStatus;
   created_at: string;
   restaurant_name: string;
+  logo_url: string | null;
+  menu_title_animation_enabled: boolean;
+  /** فوتر المنيو العام — نفس ما يظهر في صفحة المنيو */
+  footer_note: string | null;
+  public_address: string | null;
+  public_phone_1: string | null;
+  public_phone_2: string | null;
+  public_phone_3: string | null;
+  fulfillment: OrderFulfillment;
+  delivery_address: string | null;
+  table_label: string | null;
+  customer_phone: string;
+  items: PublicOrderTrackingItem[];
+  total_cents: number;
+  currency_code: string;
+  /** عرض العملة الثانية كما في المنيو عند التفعيل */
+  secondary_currency_enabled: boolean;
+  secondary_currency_code: string | null;
+  secondary_exchange_rate: number | null;
 };
 
 export async function getOrderTrackingByToken(
@@ -445,22 +474,112 @@ export async function getOrderTrackingByToken(
     const admin = createAdminClient();
     const { data: restaurant, error: rErr } = await admin
       .from("restaurants")
-      .select("id, name")
+      .select(
+        "id, name, logo_url, menu_title_animation_enabled, footer_note, public_address, public_phone_1, public_phone_2, public_phone_3, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate"
+      )
       .ilike("subdomain", sub)
       .maybeSingle();
     if (rErr || !restaurant) return null;
     const { data: order, error: oErr } = await admin
       .from("orders")
-      .select("display_number, status, created_at, restaurant_id")
+      .select(
+        "id, display_number, status, created_at, restaurant_id, fulfillment, delivery_address, table_id, customer_phone"
+      )
       .eq("tracking_token", t)
       .eq("restaurant_id", restaurant.id)
       .maybeSingle();
     if (oErr || !order) return null;
+
+    const orderId = order.id as string;
+    let table_label: string | null = null;
+    const tid = order.table_id as string | null;
+    if (tid) {
+      const { data: trow } = await admin
+        .from("restaurant_tables")
+        .select("label")
+        .eq("id", tid)
+        .maybeSingle();
+      table_label = (trow?.label as string) ?? null;
+    }
+
+    const { data: rawItems } = await admin
+      .from("order_items")
+      .select("*")
+      .eq("order_id", orderId);
+
+    const orderItemsRows = rawItems ?? [];
+    const menuIds = [
+      ...new Set(
+        orderItemsRows.map((r) => (r as { menu_item_id: string }).menu_item_id)
+      ),
+    ];
+    const { data: menuRows } = await admin
+      .from("menu_items")
+      .select("id, name")
+      .in("id", menuIds);
+    const nameById = new Map(
+      (menuRows ?? []).map((m) => [(m as { id: string }).id, (m as { name: string }).name])
+    );
+
+    const items: PublicOrderTrackingItem[] = [];
+    let total_cents = 0;
+    for (const row of orderItemsRows) {
+      const r = row as {
+        id: string;
+        menu_item_id: string;
+        quantity: number;
+        price_option_label: string | null;
+        line_total_cents: number;
+        excluded_ingredients?: unknown;
+      };
+      let excluded: string[] = [];
+      if (Array.isArray(r.excluded_ingredients)) {
+        excluded = r.excluded_ingredients.filter((x): x is string => typeof x === "string");
+      }
+      total_cents += r.line_total_cents;
+      items.push({
+        id: r.id,
+        menu_item_name: nameById.get(r.menu_item_id) ?? "صنف",
+        quantity: r.quantity,
+        price_option_label: r.price_option_label,
+        line_total_cents: r.line_total_cents,
+        excluded_ingredients: excluded.length ? excluded : undefined,
+      });
+    }
+
+    const currencyCode =
+      (restaurant.currency_code as string | null)?.trim() || "SAR";
+
+    const secEnabled = restaurant.secondary_currency_enabled === true;
+    const secCode = (restaurant.secondary_currency_code as string | null)?.trim() ?? null;
+    const secRateRaw = restaurant.secondary_currency_exchange_rate;
+    const secRate =
+      secEnabled && secRateRaw != null ? Number(secRateRaw) : NaN;
+
     return {
       display_number: Number(order.display_number),
       status: order.status as OrderStatus,
       created_at: order.created_at as string,
       restaurant_name: (restaurant.name as string) ?? "",
+      logo_url: (restaurant.logo_url as string | null) ?? null,
+      menu_title_animation_enabled:
+        restaurant.menu_title_animation_enabled === true,
+      footer_note: (restaurant.footer_note as string | null) ?? null,
+      public_address: (restaurant.public_address as string | null) ?? null,
+      public_phone_1: (restaurant.public_phone_1 as string | null) ?? null,
+      public_phone_2: (restaurant.public_phone_2 as string | null) ?? null,
+      public_phone_3: (restaurant.public_phone_3 as string | null) ?? null,
+      fulfillment: order.fulfillment as OrderFulfillment,
+      delivery_address: (order.delivery_address as string | null) ?? null,
+      table_label,
+      customer_phone: (order.customer_phone as string) ?? "",
+      items,
+      total_cents,
+      currency_code: currencyCode,
+      secondary_currency_enabled: secEnabled,
+      secondary_currency_code: secEnabled ? secCode : null,
+      secondary_exchange_rate:
+        secEnabled && secCode && Number.isFinite(secRate) && secRate > 0 ? secRate : null,
     };
   } catch {
     return null;

@@ -3,7 +3,7 @@
 import type { GuestOrderWithDetails, OrderStatus } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { secondaryCentsFromPrimaryCents } from "@/lib/secondary-currency";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import {
   ORDER_STATUS_LABELS,
   nextOperationalStatus,
@@ -11,7 +11,8 @@ import {
   orderStatusCardClasses,
 } from "@/lib/order-status-ui";
 import { cn } from "@/lib/utils";
-import { CalendarIcon, ChevronLeftIcon, PhoneIcon } from "lucide-react";
+import { CalendarIcon, ChevronLeftIcon } from "lucide-react";
+import { CustomerPhoneActions } from "./customer-phone-actions";
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   dine_in: "داخل المطعم",
@@ -28,6 +29,10 @@ type Props = {
   updating: boolean;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
   onOpenDetails: () => void;
+  phoneCountryPrefix: string | null;
+  subdomain: string;
+  publicBaseUrl: string;
+  restaurantName: string;
 };
 
 export function OrderCard({
@@ -39,6 +44,10 @@ export function OrderCard({
   updating,
   onStatusChange,
   onOpenDetails,
+  phoneCountryPrefix,
+  subdomain,
+  publicBaseUrl,
+  restaurantName,
 }: Props) {
   const total = o.items.reduce((s, i) => s + i.line_total_cents, 0);
   const next = nextOperationalStatus(o.status);
@@ -81,9 +90,16 @@ export function OrderCard({
             </span>
           </p>
           <div className="space-y-0.5 text-sm">
-            <p dir="ltr" className="font-medium text-foreground">
-              جوال: {o.customer_phone}
-            </p>
+            <p className="text-xs font-medium text-muted-foreground">جوال الزبون</p>
+            <CustomerPhoneActions
+              phoneCountryPrefix={phoneCountryPrefix}
+              customerPhone={o.customer_phone}
+              displayNumber={o.display_number}
+              trackingToken={o.tracking_token}
+              subdomain={subdomain}
+              publicBaseUrl={publicBaseUrl}
+              restaurantName={restaurantName}
+            />
             <p className="text-muted-foreground">
               {FULFILLMENT_LABELS[o.fulfillment] ?? o.fulfillment}
               {o.table_label ? ` — الطاولة: ${o.table_label}` : ""}
@@ -132,17 +148,9 @@ export function OrderCard({
               </Button>
             ) : null}
             {o.status === "ready" ? (
-              <a
-                href={`tel:${o.customer_phone}`}
-                dir="ltr"
-                className={cn(
-                  buttonVariants({ variant: "outline", size: "sm" }),
-                  "inline-flex w-full justify-center gap-2 sm:w-auto"
-                )}
-              >
-                <PhoneIcon className="size-4" />
-                اتصل بالعميل
-              </a>
+              <p className="text-center text-xs text-blue-200/90 sm:text-end">
+                الطلب جاهز — يمكن للعميل الاستلام أو التواصل عبر الأزرار أعلاه.
+              </p>
             ) : null}
             <label className="flex items-center gap-2 text-xs text-muted-foreground sm:flex-col sm:items-end">
               <span className="sr-only">تحديث الحالة</span>

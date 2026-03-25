@@ -14,6 +14,10 @@ type Props = {
   currencyCode: string;
   secondaryCurrencyCode?: string | null;
   secondaryExchangeRate?: number | null;
+  phoneCountryPrefix: string | null;
+  subdomain: string;
+  publicBaseUrl: string;
+  restaurantName: string;
 };
 
 function normalizeDigits(s: string): string {
@@ -25,6 +29,10 @@ export function OrdersClient({
   currencyCode,
   secondaryCurrencyCode = null,
   secondaryExchangeRate = null,
+  phoneCountryPrefix,
+  subdomain,
+  publicBaseUrl,
+  restaurantName,
 }: Props) {
   const [orders, setOrders] = useState(initialOrders);
   const [updating, setUpdating] = useState<string | null>(null);
@@ -92,8 +100,18 @@ export function OrdersClient({
           className="max-w-md"
           dir="ltr"
         />
-        <p className="text-sm text-muted-foreground">
-          {filtered.length} عرض من أصل {orders.length}
+        <p
+          dir="rtl"
+          className="text-sm text-muted-foreground"
+        >
+          <span className="text-foreground/80">المعروض من الطلبات:</span>{" "}
+          <span
+            dir="ltr"
+            className="inline-block tabular-nums font-medium text-foreground"
+            style={{ unicodeBidi: "isolate" }}
+          >
+            {filtered.length} / {orders.length}
+          </span>
         </p>
       </div>
 
@@ -114,6 +132,10 @@ export function OrdersClient({
                 updating={updating === o.id}
                 onStatusChange={setStatus}
                 onOpenDetails={() => setDetailId(o.id)}
+                phoneCountryPrefix={phoneCountryPrefix}
+                subdomain={subdomain}
+                publicBaseUrl={publicBaseUrl}
+                restaurantName={restaurantName}
               />
             </li>
           ))}
@@ -132,6 +154,10 @@ export function OrdersClient({
         secondaryCurrencyCode={secondaryCurrencyCode}
         updating={detailOrder ? updating === detailOrder.id : false}
         onStatusChange={setStatus}
+        phoneCountryPrefix={phoneCountryPrefix}
+        subdomain={subdomain}
+        publicBaseUrl={publicBaseUrl}
+        restaurantName={restaurantName}
       />
     </div>
   );

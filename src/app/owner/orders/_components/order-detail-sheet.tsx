@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sheet";
 import { ORDER_STATUS_LABELS, orderStatusBadgeClasses } from "@/lib/order-status-ui";
 import { cn } from "@/lib/utils";
+import { CustomerPhoneActions } from "./customer-phone-actions";
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   dine_in: "داخل المطعم",
@@ -29,6 +30,10 @@ type Props = {
   secondaryCurrencyCode: string | null;
   updating: boolean;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
+  phoneCountryPrefix: string | null;
+  subdomain: string;
+  publicBaseUrl: string;
+  restaurantName: string;
 };
 
 export function OrderDetailSheet({
@@ -41,6 +46,10 @@ export function OrderDetailSheet({
   secondaryCurrencyCode,
   updating,
   onStatusChange,
+  phoneCountryPrefix,
+  subdomain,
+  publicBaseUrl,
+  restaurantName,
 }: Props) {
   if (!order) return null;
   const total = order.items.reduce((s, i) => s + i.line_total_cents, 0);
@@ -74,9 +83,17 @@ export function OrderDetailSheet({
         </SheetHeader>
         <div className="space-y-4 p-4">
           <div className="text-sm">
-            <p dir="ltr" className="font-medium">
-              {order.customer_phone}
-            </p>
+            <p className="text-xs font-medium text-muted-foreground">جوال الزبون</p>
+            <CustomerPhoneActions
+              phoneCountryPrefix={phoneCountryPrefix}
+              customerPhone={order.customer_phone}
+              displayNumber={order.display_number}
+              trackingToken={order.tracking_token}
+              subdomain={subdomain}
+              publicBaseUrl={publicBaseUrl}
+              restaurantName={restaurantName}
+              className="mt-1"
+            />
             {order.delivery_address ? (
               <p className="mt-1 text-xs text-muted-foreground">العنوان: {order.delivery_address}</p>
             ) : null}

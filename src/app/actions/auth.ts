@@ -239,7 +239,7 @@ export async function getRestaurantForProfile(profile: Profile) {
   const { data } = await supabase
     .from("restaurants")
     .select(
-      "id, name, subdomain, logo_url, headline, subheadline, hero_background_url, footer_note, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate, menu_title_animation_enabled, menu_banner_url, menu_banner_kind, menu_banner_caption, loyalty_program_enabled, loyalty_spend_cents_per_point, loyalty_point_value_cents"
+      "id, name, subdomain, logo_url, headline, subheadline, hero_background_url, footer_note, public_address, public_phone_1, public_phone_2, public_phone_3, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate, menu_title_animation_enabled, menu_banner_url, menu_banner_kind, menu_banner_caption, loyalty_program_enabled, loyalty_spend_cents_per_point, loyalty_point_value_cents, phone_country_prefix"
     )
     .eq("id", profile.restaurant_id)
     .single();

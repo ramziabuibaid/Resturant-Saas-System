@@ -31,6 +31,10 @@ type Props = {
   initialMenuBannerUrl?: string | null;
   initialMenuBannerKind?: "image" | "video" | null;
   initialMenuBannerCaption?: string | null;
+  initialPublicAddress?: string | null;
+  initialPublicPhone1?: string | null;
+  initialPublicPhone2?: string | null;
+  initialPublicPhone3?: string | null;
 };
 
 export function RestaurantPublicContentForm({
@@ -47,6 +51,10 @@ export function RestaurantPublicContentForm({
   initialMenuBannerUrl = null,
   initialMenuBannerKind = null,
   initialMenuBannerCaption = null,
+  initialPublicAddress = null,
+  initialPublicPhone1 = null,
+  initialPublicPhone2 = null,
+  initialPublicPhone3 = null,
 }: Props) {
   const [headline, setHeadline] = useState(initialHeadline ?? "");
   const [subheadline, setSubheadline] = useState(initialSubheadline ?? "");
@@ -80,6 +88,12 @@ export function RestaurantPublicContentForm({
   const [menuBannerCaption, setMenuBannerCaption] = useState(
     initialMenuBannerCaption ?? ""
   );
+  const [publicAddress, setPublicAddress] = useState(
+    initialPublicAddress ?? ""
+  );
+  const [publicPhone1, setPublicPhone1] = useState(initialPublicPhone1 ?? "");
+  const [publicPhone2, setPublicPhone2] = useState(initialPublicPhone2 ?? "");
+  const [publicPhone3, setPublicPhone3] = useState(initialPublicPhone3 ?? "");
   const [loading, setLoading] = useState(false);
   const [heroUploading, setHeroUploading] = useState(false);
   const [heroError, setHeroError] = useState<string | null>(null);
@@ -122,6 +136,10 @@ export function RestaurantPublicContentForm({
       subheadline: subheadline.trim() || null,
       hero_background_url: heroBackgroundUrl.trim() || null,
       footer_note: footerNote.trim() || null,
+      public_address: publicAddress.trim() || null,
+      public_phone_1: publicPhone1.trim() || null,
+      public_phone_2: publicPhone2.trim() || null,
+      public_phone_3: publicPhone3.trim() || null,
       currency_code: currencyCode || null,
       secondary_currency_enabled: secondaryCurrencyEnabled,
       secondary_currency_code: secondaryCurrencyEnabled
@@ -381,6 +399,75 @@ export function RestaurantPublicContentForm({
           placeholder="مثال: أوقات العمل، رقم التواصل، أو حقوق النشر."
           disabled={loading}
         />
+      </div>
+
+      <div className="space-y-4 rounded-xl border border-border/60 bg-muted/20 p-4">
+        <div className="space-y-1">
+          <Label className="text-base">العنوان والاتصال (الفوتر العام)</Label>
+          <p className="text-xs text-muted-foreground">
+            يظهر في أسفل صفحة المنيو وصفحة تتبع الطلب. اترك الحقول فارغة لإخفائها —
+            يُعرض ما تم إدخاله فقط (حتى ثلاثة أرقام).
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="public-address">عنوان المطعم (اختياري)</Label>
+          <Textarea
+            id="public-address"
+            value={publicAddress}
+            onChange={(e) => setPublicAddress(e.target.value)}
+            rows={2}
+            placeholder="الحي، الشارع، المدينة…"
+            disabled={loading}
+            dir="auto"
+          />
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="public-phone-1">هاتف 1</Label>
+            <Input
+              id="public-phone-1"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={publicPhone1}
+              onChange={(e) => setPublicPhone1(e.target.value)}
+              placeholder="+966…"
+              disabled={loading}
+              dir="ltr"
+              className="text-start"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="public-phone-2">هاتف 2</Label>
+            <Input
+              id="public-phone-2"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={publicPhone2}
+              onChange={(e) => setPublicPhone2(e.target.value)}
+              placeholder="اختياري"
+              disabled={loading}
+              dir="ltr"
+              className="text-start"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="public-phone-3">هاتف 3</Label>
+            <Input
+              id="public-phone-3"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={publicPhone3}
+              onChange={(e) => setPublicPhone3(e.target.value)}
+              placeholder="اختياري"
+              disabled={loading}
+              dir="ltr"
+              className="text-start"
+            />
+          </div>
+        </div>
       </div>
 
       <div className="space-y-1.5">

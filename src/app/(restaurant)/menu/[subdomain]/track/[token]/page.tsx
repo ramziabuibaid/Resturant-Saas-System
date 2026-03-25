@@ -1,8 +1,18 @@
 import { getOrderTrackingByToken } from "@/app/actions/orders";
 import type { OrderStatus } from "@/lib/types/database";
+import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
 import { ORDER_STATUS_LABELS } from "@/lib/order-status-ui";
+import { formatMenuPrice } from "@/lib/currencies";
+import { secondaryCentsFromPrimaryCents } from "@/lib/secondary-currency";
 import { cn } from "@/lib/utils";
 import { notFound } from "next/navigation";
+import { MenuPublicFooter } from "@/components/menu-public-footer";
+
+const FULFILLMENT_LABELS: Record<string, string> = {
+  dine_in: "داخل المطعم",
+  pickup: "استلام من المطعم",
+  delivery: "توصيل",
+};
 
 type Props = {
   params: Promise<{ subdomain: string; token: string }>;
@@ -38,30 +48,154 @@ export default async function OrderTrackPage({ params }: Props) {
   const activeIdx = stepIndex(data.status);
   const cancelled = data.status === "cancelled";
 
+  const rateRaw =
+    data.secondary_exchange_rate != null ? Number(data.secondary_exchange_rate) : NaN;
+  const showSecondary =
+    data.secondary_currency_enabled === true &&
+    Boolean(data.secondary_currency_code) &&
+    Number.isFinite(rateRaw) &&
+    rateRaw > 0;
+  const secondaryRate = showSecondary ? rateRaw : NaN;
+  const secondaryCurrencyCode = data.secondary_currency_code;
+
   return (
-    <div className="min-h-svh bg-stone-950 px-4 py-10 text-stone-50">
-      <div className="mx-auto max-w-lg">
-        <header className="mb-8 text-center">
-          <p className="text-sm text-stone-400">{data.restaurant_name}</p>
-          <h1 className="mt-2 font-mono text-3xl font-bold tabular-nums" dir="ltr">
-            طلب #{data.display_number}
-          </h1>
-          <p className="mt-2 text-sm text-stone-400">
+    <div className="min-h-svh bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50">
+      <header className="border-b border-stone-200/90 bg-gradient-to-b from-white/95 via-stone-50/95 to-stone-100/90 backdrop-blur dark:border-white/5 dark:from-stone-950/80 dark:via-stone-950/90 dark:to-stone-900/90">
+        <div className="mx-auto max-w-5xl px-4 pt-5 pb-6 sm:pb-8">
+          <MenuRestaurantBrand
+            logoUrl={data.logo_url}
+            name={data.restaurant_name}
+            menuTitleAnimationEnabled={data.menu_title_animation_enabled}
+          />
+        </div>
+      </header>
+
+      <div className="mx-auto max-w-lg px-4 py-8">
+        <div className="mb-8 text-center">
+          <h2 className="font-mono text-3xl font-bold tabular-nums text-stone-900 dark:text-stone-50">
+            طلب{" "}
+            <span dir="ltr" className="tabular-nums">
+              #{data.display_number}
+            </span>
+          </h2>
+          <p className="mt-2 text-sm text-stone-600 dark:text-stone-400" dir="rtl">
             تم الإنشاء{" "}
             {new Date(data.created_at).toLocaleString("ar-SA", {
               dateStyle: "medium",
               timeStyle: "short",
+              numberingSystem: "latn",
             })}
           </p>
-        </header>
+        </div>
+
+        <section
+          className="mb-8 rounded-2xl border border-stone-200/90 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-stone-900/60"
+          aria-labelledby="order-details-heading"
+        >
+          <h3
+            id="order-details-heading"
+            className="mb-3 text-sm font-semibold text-stone-800 dark:text-stone-100"
+          >
+            تفاصيل الطلب
+          </h3>
+          <dl className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
+            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
+              <dt className="text-stone-500 dark:text-stone-400">حالة الطلب</dt>
+              <dd className="font-medium">{ORDER_STATUS_LABELS[data.status]}</dd>
+            </div>
+            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
+              <dt className="text-stone-500 dark:text-stone-400">نوع الطلب</dt>
+              <dd className="font-medium">
+                {FULFILLMENT_LABELS[data.fulfillment] ?? data.fulfillment}
+              </dd>
+            </div>
+            {data.table_label ? (
+              <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
+                <dt className="text-stone-500 dark:text-stone-400">الطاولة</dt>
+                <dd className="font-medium">{data.table_label}</dd>
+              </div>
+            ) : null}
+            {data.delivery_address ? (
+              <div className="border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
+                <dt className="text-stone-500 dark:text-stone-400">عنوان التوصيل</dt>
+                <dd className="mt-1 font-medium leading-relaxed">{data.delivery_address}</dd>
+              </div>
+            ) : null}
+            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
+              <dt className="text-stone-500 dark:text-stone-400">رقم الجوال</dt>
+              <dd dir="ltr" className="font-mono font-medium tabular-nums">
+                {data.customer_phone}
+              </dd>
+            </div>
+          </dl>
+
+          <ul className="mt-4 space-y-3 border-t border-stone-200/90 pt-4 dark:border-stone-700/80">
+            {data.items.map((line) => (
+              <li
+                key={line.id}
+                className="border-b border-stone-100 pb-3 last:border-0 last:pb-0 dark:border-stone-800/80"
+              >
+                <div className="flex justify-between gap-3 text-sm">
+                  <span className="min-w-0 flex-1 font-medium leading-snug text-stone-900 dark:text-stone-50">
+                    {line.menu_item_name}
+                    {line.price_option_label ? (
+                      <span className="text-stone-600 dark:text-stone-400">
+                        {" "}
+                        ({line.price_option_label})
+                      </span>
+                    ) : null}
+                    <span className="text-stone-500 dark:text-stone-400"> × {line.quantity}</span>
+                  </span>
+                  <span
+                    dir="ltr"
+                    className="flex shrink-0 flex-col items-end gap-0.5 text-end tabular-nums text-stone-700 dark:text-stone-300"
+                  >
+                    <span>{formatMenuPrice(line.line_total_cents, data.currency_code)}</span>
+                    {showSecondary && secondaryCurrencyCode ? (
+                      <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
+                        {formatMenuPrice(
+                          secondaryCentsFromPrimaryCents(line.line_total_cents, secondaryRate),
+                          secondaryCurrencyCode
+                        )}
+                      </span>
+                    ) : null}
+                  </span>
+                </div>
+                {line.excluded_ingredients && line.excluded_ingredients.length > 0 ? (
+                  <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">
+                    <span className="font-semibold">بدون: </span>
+                    {line.excluded_ingredients.join("، ")}
+                  </p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+
+          <div className="mt-4 flex items-center justify-between border-t border-stone-200/90 pt-4 dark:border-stone-700/80">
+            <span className="font-semibold text-stone-900 dark:text-stone-50">الإجمالي</span>
+            <div dir="ltr" className="flex flex-col items-end gap-0.5 text-end">
+              <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">
+                {formatMenuPrice(data.total_cents, data.currency_code)}
+              </span>
+              {showSecondary && secondaryCurrencyCode ? (
+                <span className="text-sm font-medium tabular-nums text-stone-600 dark:text-stone-400">
+                  {formatMenuPrice(
+                    secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate),
+                    secondaryCurrencyCode
+                  )}
+                </span>
+              ) : null}
+            </div>
+          </div>
+        </section>
 
         {cancelled ? (
-          <div className="rounded-2xl border border-red-500/45 bg-red-950/30 px-4 py-6 text-center">
-            <p className="text-lg font-semibold text-red-100">{ORDER_STATUS_LABELS.cancelled}</p>
-            <p className="mt-2 text-sm text-red-200/90">لم يعد هذا الطلب نشطاً.</p>
+          <div className="rounded-2xl border border-red-500/45 bg-red-950/30 px-4 py-6 text-center dark:bg-red-950/30">
+            <p className="text-lg font-semibold text-red-800 dark:text-red-100">{ORDER_STATUS_LABELS.cancelled}</p>
+            <p className="mt-2 text-sm text-red-700/90 dark:text-red-200/90">لم يعد هذا الطلب نشطاً.</p>
           </div>
         ) : (
-          <ol className="relative me-2 space-y-0 border-s-2 border-stone-700 ps-6">
+          <ol className="relative me-2 space-y-0 border-s-2 border-stone-300 ps-6 dark:border-stone-700">
             {TRACK_STEPS.map((step, i) => {
               const done = i < activeIdx;
               const current = i === activeIdx;
@@ -69,10 +203,10 @@ export default async function OrderTrackPage({ params }: Props) {
                 <li key={step.status} className="relative pb-8 last:pb-0">
                   <span
                     className={cn(
-                      "absolute -start-[21px] top-0 flex size-4 shrink-0 rounded-full border-2 border-stone-800",
+                      "absolute -start-[21px] top-0 flex size-4 shrink-0 rounded-full border-2 border-stone-400 dark:border-stone-800",
                       done && "bg-emerald-500",
                       current && !done && "scale-110 bg-amber-400 ring-4 ring-amber-400/30",
-                      !done && !current && "bg-stone-700"
+                      !done && !current && "bg-stone-400 dark:bg-stone-700"
                     )}
                     aria-hidden
                   />
@@ -80,15 +214,17 @@ export default async function OrderTrackPage({ params }: Props) {
                     className={cn(
                       "rounded-xl border px-4 py-3",
                       current
-                        ? "border-amber-500/60 bg-amber-950/40"
+                        ? "border-amber-500/50 bg-amber-500/10 dark:bg-amber-950/40"
                         : done
-                          ? "border-emerald-600/40 bg-emerald-950/20"
-                          : "border-stone-800 bg-stone-900/50 opacity-70"
+                          ? "border-emerald-600/40 bg-emerald-500/10 dark:bg-emerald-950/20"
+                          : "border-stone-200 bg-stone-100/80 opacity-90 dark:border-stone-800 dark:bg-stone-900/50 dark:opacity-70"
                     )}
                   >
-                    <p className="font-semibold">{step.label}</p>
+                    <p className="font-semibold text-stone-900 dark:text-stone-50">{step.label}</p>
                     {current ? (
-                      <p className="mt-1 text-xs text-stone-400">الحالة الحالية لطلبك</p>
+                      <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
+                        الحالة الحالية لطلبك
+                      </p>
                     ) : null}
                   </div>
                 </li>
@@ -97,10 +233,20 @@ export default async function OrderTrackPage({ params }: Props) {
           </ol>
         )}
 
-        <p className="mt-10 text-center text-xs text-stone-500">
+        <p className="mt-10 text-center text-xs text-stone-500 dark:text-stone-500">
           هذه الصفحة للاطلاع فقط. للاستفسار تواصل مع المطعم مباشرة.
         </p>
       </div>
+
+      <MenuPublicFooter
+        variant="track"
+        restaurantName={data.restaurant_name}
+        footerNote={data.footer_note}
+        publicAddress={data.public_address}
+        publicPhone1={data.public_phone_1}
+        publicPhone2={data.public_phone_2}
+        publicPhone3={data.public_phone_3}
+      />
     </div>
   );
 }

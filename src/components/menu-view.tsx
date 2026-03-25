@@ -3,12 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Aref_Ruqaa, Playfair_Display } from "next/font/google";
 import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
-import { hasArabicScript } from "@/lib/detect-script";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -19,20 +17,8 @@ import {
   type CartLine,
   type TableContext,
 } from "@/components/menu-ordering";
-
-/** خط زخرفي للاسم العربي في المنيو العام */
-const fontMenuRestaurantArabic = Aref_Ruqaa({
-  variable: "--font-menu-restaurant-ar",
-  subsets: ["arabic", "latin"],
-  weight: ["400", "700"],
-});
-
-/** خط عرض مميز للاسم الإنجليزي في المنيو العام */
-const fontMenuRestaurantEnglish = Playfair_Display({
-  variable: "--font-menu-restaurant-en",
-  subsets: ["latin"],
-  weight: ["600", "700"],
-});
+import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
+import { MenuPublicFooter } from "@/components/menu-public-footer";
 
 /** يعيد السعر المعروض للصنف (أول خيار أو السعر الواحد) */
 function getDisplayPrice(item: MenuItem): number {
@@ -322,7 +308,6 @@ export function MenuView({
     restaurant.subheadline ||
     "تصفّح قائمتنا واختر وجبتك المفضلة في ثوانٍ.";
 
-  const nameIsArabic = hasArabicScript(restaurant.name);
   const titleAnimationEnabled =
     restaurant.menu_title_animation_enabled === true;
 
@@ -337,80 +322,16 @@ export function MenuView({
 
   return (
     <div
-      className={`min-h-screen bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50 ${fontMenuRestaurantArabic.variable} ${fontMenuRestaurantEnglish.variable}`}
+      className="min-h-screen bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50"
     >
       <header className="border-b border-stone-200/90 bg-gradient-to-b from-white/95 via-stone-50/95 to-stone-100/90 backdrop-blur dark:border-white/5 dark:from-stone-950/80 dark:via-stone-950/90 dark:to-stone-900/90">
         <div className="mx-auto max-w-5xl px-4 pt-5 pb-6 sm:pb-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3 sm:gap-4">
-              {restaurant.logo_url ? (
-                <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-stone-200/90 bg-white/90 shadow-lg shadow-stone-900/10 dark:border-white/10 dark:bg-stone-900/60 dark:shadow-black/40 sm:h-16 sm:w-16">
-                  <Image
-                    src={restaurant.logo_url}
-                    alt={restaurant.name}
-                    fill
-                    className="object-contain object-center"
-                    sizes="64px"
-                    priority
-                    unoptimized
-                  />
-                </div>
-              ) : (
-                <div
-                  className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl border border-dashed border-stone-300 bg-stone-100/80 text-stone-500 dark:border-white/15 dark:bg-stone-900/50 sm:h-16 sm:w-16"
-                  aria-hidden
-                >
-                  <span className="text-xs font-medium">Logo</span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.2em] text-amber-700/90 dark:text-amber-300/80">
-                  MENU
-                </p>
-                {nameIsArabic ? (
-                  <div className="mt-2 flex flex-col items-stretch gap-1">
-                    <div
-                      className="flex max-w-[min(100%,28rem)] items-center gap-2"
-                      dir="rtl"
-                      aria-hidden
-                    >
-                      <span className="h-px min-w-[1.5rem] flex-1 bg-gradient-to-l from-amber-400/55 to-transparent" />
-                      <span className="text-[11px] leading-none text-amber-400/90">
-                        ✦
-                      </span>
-                      <span className="h-px min-w-[1.5rem] flex-1 bg-gradient-to-r from-amber-400/55 to-transparent" />
-                    </div>
-                    <h1
-                      dir="auto"
-                      className={cn(
-                        "[font-family:var(--font-menu-restaurant-ar)] text-2xl font-bold leading-snug tracking-wide sm:text-[1.85rem]",
-                        titleAnimationEnabled
-                          ? "menu-restaurant-title-animate"
-                          : "text-stone-900 drop-shadow-[0_1px_8px_rgba(0,0,0,0.08)] dark:text-stone-50 dark:drop-shadow-[0_2px_14px_rgba(0,0,0,0.45)]"
-                      )}
-                    >
-                      {restaurant.name}
-                    </h1>
-                    <div
-                      aria-hidden
-                      className="mt-0.5 h-[2px] w-28 max-w-full rounded-full bg-gradient-to-r from-transparent via-amber-400/50 to-transparent"
-                    />
-                  </div>
-                ) : (
-                  <h1
-                    dir="ltr"
-                    className={cn(
-                      "mt-1 [font-family:var(--font-menu-restaurant-en)] text-2xl font-semibold tracking-tight sm:text-3xl sm:tracking-[0.02em]",
-                      titleAnimationEnabled
-                        ? "menu-restaurant-title-animate"
-                        : "text-stone-900 dark:text-stone-50"
-                    )}
-                  >
-                    {restaurant.name}
-                  </h1>
-                )}
-              </div>
-            </div>
+            <MenuRestaurantBrand
+              logoUrl={restaurant.logo_url ?? null}
+              name={restaurant.name}
+              menuTitleAnimationEnabled={titleAnimationEnabled}
+            />
             <div className="flex min-w-0 items-center gap-3 text-xs text-stone-600 sm:text-sm dark:text-stone-400">
               <ThemeToggle />
               <div className="flex min-w-0 flex-1 flex-col items-end sm:max-w-md sm:items-start">
@@ -769,35 +690,15 @@ export function MenuView({
         )}
       </main>
 
-      <footer
-        className="border-t p-6"
-        style={{
-          background: "var(--bg-surface)",
-          borderColor: "var(--border)",
-        }}
-      >
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <p
-            className="text-[13px]"
-            style={{ color: "var(--text-muted)" }}
-          >
-            {restaurant.footer_note ||
-              `© ${new Date().getFullYear()} ${restaurant.name} — جميع الحقوق محفوظة`}
-          </p>
-          <a
-            href="https://resturant.app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[13px] font-semibold transition-opacity hover:opacity-90"
-            style={{ color: "var(--brand)" }}
-          >
-            <span className="font-normal" style={{ color: "var(--text-muted)" }}>
-              مدعوم بـ{" "}
-            </span>
-            <strong>منيو</strong>
-          </a>
-        </div>
-      </footer>
+      <MenuPublicFooter
+        variant="menu"
+        restaurantName={restaurant.name}
+        footerNote={restaurant.footer_note ?? null}
+        publicAddress={restaurant.public_address ?? null}
+        publicPhone1={restaurant.public_phone_1 ?? null}
+        publicPhone2={restaurant.public_phone_2 ?? null}
+        publicPhone3={restaurant.public_phone_3 ?? null}
+      />
 
       <MenuCartBar
         cart={cart}

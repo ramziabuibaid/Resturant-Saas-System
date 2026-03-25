@@ -1,3 +1,4 @@
+import { headers } from "next/headers";
 import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getRestaurantForProfile } from "@/app/actions/auth";
 import { listRestaurantOrders } from "@/app/actions/orders";
@@ -12,6 +13,11 @@ export default async function AdminRestaurantOrdersPage() {
   const profile = await getProfileOrRedirect();
   const restaurant = await getRestaurantForProfile(profile);
   const { orders, error } = await listRestaurantOrders({ limit: 100 });
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const publicBaseUrl = host ? `${proto}://${host}` : "";
 
   const currencyCode = restaurant?.currency_code ?? "SAR";
 
@@ -43,6 +49,10 @@ export default async function AdminRestaurantOrdersPage() {
               ? Number(restaurant.secondary_currency_exchange_rate)
               : null
           }
+          phoneCountryPrefix={restaurant?.phone_country_prefix ?? null}
+          subdomain={restaurant?.subdomain ?? ""}
+          publicBaseUrl={publicBaseUrl}
+          restaurantName={restaurant?.name ?? "المطعم"}
         />
       )}
     </div>
