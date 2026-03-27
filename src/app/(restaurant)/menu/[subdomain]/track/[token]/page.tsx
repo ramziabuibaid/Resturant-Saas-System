@@ -171,22 +171,78 @@ export default async function OrderTrackPage({ params }: Props) {
             ))}
           </ul>
 
-          <div className="mt-4 flex items-center justify-between border-t border-stone-200/90 pt-4 dark:border-stone-700/80">
-            <span className="font-semibold text-stone-900 dark:text-stone-50">الإجمالي</span>
-            <div dir="ltr" className="flex flex-col items-end gap-0.5 text-end">
-              <span className="text-lg font-bold tabular-nums text-stone-900 dark:text-stone-50">
-                {formatMenuPrice(data.total_cents, data.currency_code)}
+          <div className="mt-4 space-y-2 border-t border-stone-200/90 pt-4 text-sm dark:border-stone-700/80">
+            {data.loyalty_discount_cents > 0 || data.owner_discount_cents > 0 ? (
+              <>
+                <div className="flex items-center justify-between gap-2 text-stone-700 dark:text-stone-300">
+                  <span>مجموع الأصناف</span>
+                  <span dir="ltr" className="tabular-nums">
+                    {formatMenuPrice(data.items_subtotal_cents, data.currency_code)}
+                  </span>
+                </div>
+                {data.owner_discount_cents > 0 ? (
+                  <div className="flex items-center justify-between gap-2 text-sky-800 dark:text-sky-300/90">
+                    <span>خصم من المطعم</span>
+                    <span dir="ltr" className="tabular-nums">
+                      −{formatMenuPrice(data.owner_discount_cents, data.currency_code)}
+                    </span>
+                  </div>
+                ) : null}
+                {data.loyalty_discount_cents > 0 ? (
+                  <div className="flex items-center justify-between gap-2 text-emerald-800 dark:text-emerald-300/90">
+                    <span>
+                      خصم نقاط الولاء
+                      {data.loyalty_points_used > 0 ? (
+                        <span className="ms-1 tabular-nums" dir="ltr">
+                          ({data.loyalty_points_used} نقطة)
+                        </span>
+                      ) : null}
+                    </span>
+                    <span dir="ltr" className="tabular-nums">
+                      −{formatMenuPrice(data.loyalty_discount_cents, data.currency_code)}
+                    </span>
+                  </div>
+                ) : null}
+              </>
+            ) : null}
+            <div className="flex items-center justify-between gap-2 font-semibold text-stone-900 dark:text-stone-50">
+              <span>
+                {data.loyalty_discount_cents > 0 || data.owner_discount_cents > 0
+                  ? "المستحق"
+                  : "الإجمالي"}
               </span>
-              {showSecondary && secondaryCurrencyCode ? (
-                <span className="text-sm font-medium tabular-nums text-stone-600 dark:text-stone-400">
-                  {formatMenuPrice(
-                    secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate),
-                    secondaryCurrencyCode
-                  )}
+              <div dir="ltr" className="flex flex-col items-end gap-0.5 text-end">
+                <span className="text-lg font-bold tabular-nums">
+                  {formatMenuPrice(data.total_cents, data.currency_code)}
                 </span>
-              ) : null}
+                {showSecondary && secondaryCurrencyCode ? (
+                  <span className="text-sm font-medium tabular-nums text-stone-600 dark:text-stone-400">
+                    {formatMenuPrice(
+                      secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate),
+                      secondaryCurrencyCode
+                    )}
+                  </span>
+                ) : null}
+              </div>
             </div>
           </div>
+
+          {data.loyalty_points_earned_on_order > 0 ? (
+            <div
+              className="mt-4 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-center dark:border-emerald-500/25 dark:bg-emerald-950/40"
+              role="status"
+            >
+              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
+                <span dir="ltr" className="tabular-nums">
+                  +{data.loyalty_points_earned_on_order}
+                </span>{" "}
+                نقطة مكتسبة من هذا الطلب ضمن برنامج الولاء
+              </p>
+              <p className="mt-1 text-[11px] text-emerald-800/90 dark:text-emerald-200/80">
+                تمت إضافة النقاط إلى رصيدك المرتبط بهذا الجوال بعد اكتمال الطلب.
+              </p>
+            </div>
+          ) : null}
         </section>
 
         {cancelled ? (

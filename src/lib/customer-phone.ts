@@ -63,3 +63,21 @@ export function buildTelHref(phoneDigits: string): string {
   if (!d) return "#";
   return `tel:+${d}`;
 }
+
+/** رسالة واتساب لإبلاغ الزبون برصيد النقاط ورابط صفحة الولاء */
+export function buildWhatsAppLoyaltyPointsMessage(params: {
+  restaurantName: string;
+  customerName?: string | null;
+  pointsBalance: number;
+  loyaltyPageUrl: string;
+}): string {
+  const place = params.restaurantName.trim() || "المطعم";
+  const who = params.customerName?.trim() || "مرحباً";
+  return [
+    `${who}،`,
+    `رصيد نقاطك في برنامج ولاء ${place}: ${params.pointsBalance} نقطة.`,
+    "",
+    "🔗 لمتابعة نقاطك وسجلّك:",
+    params.loyaltyPageUrl,
+  ].join("\n");
+}

@@ -3,8 +3,12 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import type { RestaurantTable } from "@/lib/types/database";
-import { createRestaurantTable, deleteRestaurantTable } from "@/app/actions/tables";
+import type { RestaurantTable, RestaurantWaiter } from "@/lib/types/database";
+import {
+  createRestaurantTable,
+  deleteRestaurantTable,
+  setRestaurantTableWaiter,
+} from "@/app/actions/tables";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -13,14 +17,22 @@ import { PrinterIcon, QrCodeIcon, Trash2Icon } from "lucide-react";
 type Props = {
   initialTables: RestaurantTable[];
   menuBaseUrl: string;
+  waitersSystemEnabled: boolean;
+  waiters: RestaurantWaiter[];
 };
 
-export function TablesClient({ initialTables, menuBaseUrl }: Props) {
+export function TablesClient({
+  initialTables,
+  menuBaseUrl,
+  waitersSystemEnabled,
+  waiters,
+}: Props) {
   const router = useRouter();
   const [tables, setTables] = useState(initialTables);
   const [label, setLabel] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [assigningTableId, setAssigningTableId] = useState<string | null>(null);
 
   useEffect(() => {
     setTables(initialTables);
@@ -37,6 +49,22 @@ export function TablesClient({ initialTables, menuBaseUrl }: Props) {
       return;
     }
     setLabel("");
+    router.refresh();
+  }
+
+  async function assignWaiter(tableId: string, waiterId: string) {
+    const next = waiterId === "" ? null : waiterId;
+    setAssigningTableId(tableId);
+    setError(null);
+    const res = await setRestaurantTableWaiter(tableId, next);
+    setAssigningTableId(null);
+    if (res.error) {
+      setError(res.error);
+      return;
+    }
+    setTables((prev) =>
+      prev.map((x) => (x.id === tableId ? { ...x, waiter_id: next } : x))
+    );
     router.refresh();
   }
 
@@ -120,6 +148,29 @@ export function TablesClient({ initialTables, menuBaseUrl }: Props) {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
+                {waitersSystemEnabled ? (
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-muted-foreground">الويتر المسؤول</label>
+                    <select
+                      className="w-full rounded-lg border border-input bg-background px-2 py-2 text-sm"
+                      value={t.waiter_id ?? ""}
+                      disabled={assigningTableId === t.id}
+                      onChange={(e) => void assignWaiter(t.id, e.target.value)}
+                    >
+                      <option value="">— بدون —</option>
+                      {waiters.map((w) => (
+                        <option key={w.id} value={w.id}>
+                          {w.name}
+                        </option>
+                      ))}
+                    </select>
+                    {waiters.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground">
+                        أضف أسماء الويترز من الإعدادات أولاً.
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
                 <div className="relative mx-auto aspect-square w-48 overflow-hidden rounded-lg border bg-white">
                   <Image src={qrSrc} alt="" fill className="object-contain p-2" unoptimized />
                 </div>

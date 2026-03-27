@@ -8,6 +8,8 @@ import type { RestaurantTable } from "@/lib/types/database";
 function revalidateRestaurantPaths() {
   revalidatePath("/owner/tables");
   revalidatePath("/admin/tables");
+  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
 }
 
 export async function listRestaurantTables(): Promise<{
@@ -57,6 +59,35 @@ export async function deleteRestaurantTable(tableId: string): Promise<{ error: s
   const { error } = await supabase
     .from("restaurant_tables")
     .delete()
+    .eq("id", tableId)
+    .eq("restaurant_id", rid);
+  if (error) return { error: error.message };
+  revalidateRestaurantPaths();
+  return { error: null };
+}
+
+/** ربط طاولة بويتر (أو إلغاء الربط بـ null) — يتطلب عمود waiter_id بعد تشغيل waiters-system.sql */
+export async function setRestaurantTableWaiter(
+  tableId: string,
+  waiterId: string | null
+): Promise<{ error: string | null }> {
+  const profile = await getProfileOrRedirect();
+  const rid = profile.restaurant_id!;
+  const supabase = await createClient();
+
+  if (waiterId) {
+    const { data: w } = await supabase
+      .from("restaurant_waiters")
+      .select("id")
+      .eq("id", waiterId)
+      .eq("restaurant_id", rid)
+      .maybeSingle();
+    if (!w) return { error: "الويتر غير موجود" };
+  }
+
+  const { error } = await supabase
+    .from("restaurant_tables")
+    .update({ waiter_id: waiterId })
     .eq("id", tableId)
     .eq("restaurant_id", rid);
   if (error) return { error: error.message };

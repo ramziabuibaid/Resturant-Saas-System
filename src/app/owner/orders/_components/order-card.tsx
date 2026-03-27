@@ -33,6 +33,14 @@ type Props = {
   subdomain: string;
   publicBaseUrl: string;
   restaurantName: string;
+  /** تطبيق خصم النقاط من لوحة المالك */
+  onOwnerApplyLoyaltyRedeem?: (orderId: string) => void | Promise<void>;
+  ownerRedeeming?: boolean;
+  /** عند التفعيل: اختيار الويتر المسؤول من البطاقة */
+  waitersSystemEnabled?: boolean;
+  waitersForFilter?: { id: string; name: string }[];
+  onAssignWaiter?: (orderId: string, waiterId: string | null) => void | Promise<void>;
+  assigningWaiterOrderId?: string | null;
 };
 
 export function OrderCard({
@@ -48,8 +56,18 @@ export function OrderCard({
   subdomain,
   publicBaseUrl,
   restaurantName,
+  onOwnerApplyLoyaltyRedeem,
+  ownerRedeeming = false,
+  waitersSystemEnabled = false,
+  waitersForFilter = [],
+  onAssignWaiter,
+  assigningWaiterOrderId = null,
 }: Props) {
-  const total = o.items.reduce((s, i) => s + i.line_total_cents, 0);
+  const subtotal = o.items.reduce((s, i) => s + i.line_total_cents, 0);
+  const loyaltyDisc = o.loyalty_discount_cents ?? 0;
+  const ownerDisc = o.owner_discount_cents ?? 0;
+  const payable = Math.max(0, subtotal - loyaltyDisc - ownerDisc);
+  const pointsEarnedOnOrder = o.loyalty_points_earned_on_order ?? 0;
   const next = nextOperationalStatus(o.status);
   const previewItems = o.items.slice(0, 3);
   const more = o.items.length - previewItems.length;
@@ -104,6 +122,35 @@ export function OrderCard({
               {FULFILLMENT_LABELS[o.fulfillment] ?? o.fulfillment}
               {o.table_label ? ` — الطاولة: ${o.table_label}` : ""}
             </p>
+            {waitersSystemEnabled && o.fulfillment === "dine_in" ? (
+              <div className="space-y-1.5 pt-1">
+                <p className="text-xs font-medium text-muted-foreground">الويتر المسؤول</p>
+                {waitersForFilter.length > 0 ? (
+                  <select
+                    className="w-full max-w-xs rounded-lg border border-input bg-background px-2 py-2 text-sm font-medium"
+                    value={o.table_waiter_id ?? ""}
+                    disabled={assigningWaiterOrderId === o.id || !onAssignWaiter}
+                    onChange={(e) =>
+                      onAssignWaiter?.(o.id, e.target.value ? e.target.value : null)
+                    }
+                    aria-label="تعيين الويتر"
+                  >
+                    <option value="">
+                      — تلقائي (ويتر الطاولة إن وُجد) —
+                    </option>
+                    {waitersForFilter.map((w) => (
+                      <option key={w.id} value={w.id}>
+                        {w.name}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  <p className="text-xs text-amber-800 dark:text-amber-200">
+                    أضف أسماء الويترز من الإعدادات لتعيينهم هنا.
+                  </p>
+                )}
+              </div>
+            ) : null}
             {o.delivery_address ? (
               <p className="text-xs leading-relaxed text-muted-foreground">العنوان: {o.delivery_address}</p>
             ) : null}
@@ -124,13 +171,89 @@ export function OrderCard({
         </div>
 
         <div className="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
-          <div className="text-end">
-            <p dir="ltr" className="text-xl font-bold tabular-nums text-foreground">
-              {formatMenuPrice(total, currencyCode)}
+          <div
+            className="w-full min-w-[200px] rounded-xl border border-border/90 bg-muted/35 px-3 py-2.5 sm:max-w-[240px]"
+            dir="rtl"
+          >
+            <p className="text-center text-[10px] font-semibold tracking-wide text-muted-foreground">
+              ملخص المبلغ
             </p>
+            <div className="mt-2 space-y-1.5 text-[12px]">
+              <div className="flex w-full items-center justify-between gap-2">
+                <span className="text-muted-foreground">مجموع الأصناف</span>
+                <span dir="ltr" className="shrink-0 tabular-nums text-foreground">
+                  {formatMenuPrice(subtotal, currencyCode)}
+                </span>
+              </div>
+              {ownerDisc > 0 ? (
+                <div className="flex w-full items-center justify-between gap-2 text-sky-800 dark:text-sky-300/95">
+                  <span>خصم خاص</span>
+                  <span dir="ltr" className="shrink-0 tabular-nums">
+                    −{formatMenuPrice(ownerDisc, currencyCode)}
+                  </span>
+                </div>
+              ) : null}
+              {loyaltyDisc > 0 ? (
+                <div className="flex w-full items-center justify-between gap-2 text-emerald-700 dark:text-emerald-400">
+                  <span>
+                    خصم نقاط الولاء
+                    <span className="ms-1 tabular-nums" dir="ltr">
+                      ({o.loyalty_points_used ?? 0})
+                    </span>
+                  </span>
+                  <span dir="ltr" className="shrink-0 tabular-nums">
+                    −{formatMenuPrice(loyaltyDisc, currencyCode)}
+                  </span>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {o.customer_loyalty_points_balance > 0 ? (
+                    <p className="text-center text-[10px] text-muted-foreground">
+                      رصيد نقاط الزبون:{" "}
+                      <span className="font-semibold tabular-nums text-foreground" dir="ltr">
+                        {o.customer_loyalty_points_balance}
+                      </span>
+                    </p>
+                  ) : (
+                    <p className="text-center text-[10px] text-muted-foreground">
+                      لا يوجد رصيد نقاط للزبون حالياً.
+                    </p>
+                  )}
+                  {o.owner_can_apply_loyalty_redeem && onOwnerApplyLoyaltyRedeem ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="secondary"
+                      className="h-auto w-full whitespace-normal py-2 text-[11px] leading-snug"
+                      disabled={ownerRedeeming}
+                      onClick={() => void onOwnerApplyLoyaltyRedeem(o.id)}
+                    >
+                      {ownerRedeeming
+                        ? "جاري تطبيق الخصم…"
+                        : `تطبيق خصم النقاط على الطلب (حتى −${formatMenuPrice(o.owner_redeem_max_discount_cents, currencyCode)})`}
+                    </Button>
+                  ) : loyaltyDisc === 0 && o.customer_loyalty_points_balance > 0 ? (
+                    <p className="text-center text-[10px] leading-relaxed text-muted-foreground">
+                      لا يمكن تطبيق خصم على هذا الطلب (مثلاً مبلغ أصناف أقل من قيمة نقطة، أو طلب ملغى).
+                    </p>
+                  ) : null}
+                  {pointsEarnedOnOrder > 0 ? (
+                    <p className="text-center text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+                      +{pointsEarnedOnOrder} نقطة مكتسبة من هذا الطلب
+                    </p>
+                  ) : null}
+                </div>
+              )}
+              <div className="flex w-full items-center justify-between gap-2 border-t border-border/70 pt-2 text-sm font-bold text-foreground">
+                <span>المستحق</span>
+                <span dir="ltr" className="shrink-0 tabular-nums text-base">
+                  {formatMenuPrice(payable, currencyCode)}
+                </span>
+              </div>
+            </div>
             {showSecondary && secondaryCurrencyCode ? (
-              <p dir="ltr" className="text-xs font-medium tabular-nums text-muted-foreground">
-                {formatMenuPrice(secondaryCentsFromPrimaryCents(total, rate), secondaryCurrencyCode)}
+              <p dir="ltr" className="mt-1.5 text-center text-[10px] font-medium tabular-nums text-muted-foreground">
+                {formatMenuPrice(secondaryCentsFromPrimaryCents(payable, rate), secondaryCurrencyCode)}
               </p>
             ) : null}
           </div>

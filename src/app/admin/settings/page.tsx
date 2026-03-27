@@ -4,6 +4,7 @@ import {
   getProfileForRestaurantAdminOrRedirect,
   getRestaurantForProfile,
 } from "@/app/actions/auth";
+import { listRestaurantWaiters } from "@/app/actions/waiters";
 import {
   Card,
   CardContent,
@@ -15,6 +16,7 @@ import { RestaurantLogoForm } from "./restaurant-logo-form";
 import { RestaurantPublicContentForm } from "./restaurant-public-content-form";
 import { RestaurantLoyaltySettingsForm } from "./restaurant-loyalty-settings-form";
 import { RestaurantPhoneCountryForm } from "./restaurant-phone-country-form";
+import { RestaurantWaitersSettingsForm } from "./restaurant-waiters-settings-form";
 
 export const metadata = {
   title: "الإعدادات | لوحة المطعم",
@@ -28,6 +30,7 @@ export default async function AdminSettingsPage() {
 
   const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
   const restaurant = await getRestaurantForProfile(profile);
+  const { waiters: restaurantWaiters } = await listRestaurantWaiters();
 
   return (
     <div className="space-y-6">
@@ -131,6 +134,25 @@ export default async function AdminSettingsPage() {
               initialSocialFacebookUrl={restaurant.social_facebook_url ?? null}
               initialSocialInstagramUrl={restaurant.social_instagram_url ?? null}
               initialSocialTiktokUrl={restaurant.social_tiktok_url ?? null}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-border/50 bg-card/80 backdrop-blur">
+        <CardHeader>
+          <CardTitle>الويترز والطاولات</CardTitle>
+          <CardDescription>
+            فعّل نظام الويترز لإضافة أسماء الموظفين المسؤولين عن خدمة الطاولات، ثم اربط كل طاولة بويتر
+            من صفحة الطاولات. يظهر اسم الويتر في الطلبات وتتوفر فلاتر حسب الطاولة والويتر.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {restaurant && (
+            <RestaurantWaitersSettingsForm
+              restaurantId={restaurant.id}
+              initialEnabled={restaurant.waiters_system_enabled === true}
+              initialWaiters={restaurantWaiters}
             />
           )}
         </CardContent>

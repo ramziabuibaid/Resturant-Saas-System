@@ -1,7 +1,14 @@
+import { headers } from "next/headers";
 import { getProfileOrRedirect, getRestaurantForProfile } from "@/app/actions/auth";
-import { listRestaurantCustomers } from "@/app/actions/customers";
+import {
+  listLoyaltyDashboardCustomers,
+  listRestaurantCustomers,
+  listRestaurantRewards,
+} from "@/app/actions/customers";
+import { listRecentOutboundNotifications } from "@/app/actions/notifications";
+import { CustomersClient } from "@/components/loyalty/customers-client";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CustomersClient } from "./customers-client";
+import { LoyaltyDashboardClient } from "@/components/loyalty/loyalty-dashboard-client";
 
 export const metadata = {
   title: "العملاء والولاء | لوحة المطعم",
@@ -12,9 +19,19 @@ export default async function OwnerCustomersPage() {
   const profile = await getProfileOrRedirect();
   const restaurant = await getRestaurantForProfile(profile);
   const { customers, error, loyaltyColumnsMissing } = await listRestaurantCustomers();
+  const [dashboardRes, rewardsRes, notificationsRes] = await Promise.all([
+    listLoyaltyDashboardCustomers(),
+    listRestaurantRewards(),
+    listRecentOutboundNotifications(),
+  ]);
 
   const currencyCode = restaurant?.currency_code ?? "SAR";
   const pointValueCents = Number(restaurant?.loyalty_point_value_cents ?? 10);
+
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  const publicBaseUrl = host ? `${proto}://${host}`.replace(/\/$/, "") : "";
 
   return (
     <div className="space-y-8">
@@ -57,22 +74,56 @@ export default async function OwnerCustomersPage() {
           تعذر تحميل العملاء: {error}. تأكد من تنفيذ ملفات SQL للطلبات والعملاء والولاء في Supabase.
         </p>
       ) : (
-        <CustomersClient
-          customers={customers}
-          currencyCode={currencyCode}
-          pointValueCents={pointValueCents}
-          secondaryCurrencyCode={
-            restaurant?.secondary_currency_enabled === true
-              ? restaurant.secondary_currency_code ?? null
-              : null
-          }
-          secondaryExchangeRate={
-            restaurant?.secondary_currency_enabled === true &&
-            restaurant.secondary_currency_exchange_rate != null
-              ? Number(restaurant.secondary_currency_exchange_rate)
-              : null
-          }
-        />
+        <div className="space-y-6">
+          {dashboardRes.error || rewardsRes.error || notificationsRes.error ? (
+            <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              تعذر تحميل لوحة الولاء الاحترافية:{" "}
+              {dashboardRes.error ?? rewardsRes.error ?? notificationsRes.error}
+            </p>
+          ) : (
+            <LoyaltyDashboardClient
+              customers={dashboardRes.customers}
+              rewards={rewardsRes.rewards}
+              notifications={notificationsRes.rows}
+              phoneCountryPrefix={restaurant?.phone_country_prefix ?? null}
+              subdomain={restaurant?.subdomain ?? ""}
+              publicBaseUrl={publicBaseUrl}
+              restaurantName={restaurant?.name ?? "المطعم"}
+              currencyCode={currencyCode}
+              pointValueCents={pointValueCents}
+              secondaryCurrencyCode={
+                restaurant?.secondary_currency_enabled === true
+                  ? restaurant.secondary_currency_code ?? null
+                  : null
+              }
+              secondaryExchangeRate={
+                restaurant?.secondary_currency_enabled === true &&
+                restaurant.secondary_currency_exchange_rate != null
+                  ? Number(restaurant.secondary_currency_exchange_rate)
+                  : null
+              }
+            />
+          )}
+          <div>
+            <h2 className="mb-2 text-lg font-semibold">ملخص المشتريات (العرض السابق)</h2>
+            <CustomersClient
+              customers={customers}
+              currencyCode={currencyCode}
+              pointValueCents={pointValueCents}
+              secondaryCurrencyCode={
+                restaurant?.secondary_currency_enabled === true
+                  ? restaurant.secondary_currency_code ?? null
+                  : null
+              }
+              secondaryExchangeRate={
+                restaurant?.secondary_currency_enabled === true &&
+                restaurant.secondary_currency_exchange_rate != null
+                  ? Number(restaurant.secondary_currency_exchange_rate)
+                  : null
+              }
+            />
+          </div>
+        </div>
       )}
     </div>
   );

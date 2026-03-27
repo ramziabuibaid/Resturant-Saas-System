@@ -50,6 +50,8 @@ export type Restaurant = {
    * تُستخدم لبناء رقم دولي كامل للاتصال وواتساب من رقم الزبون المخزَّن.
    */
   phone_country_prefix?: string | null;
+  /** عند التفعيل: إدارة أسماء الويترز وربطهم بالطاولات وفلترة الطلبات */
+  waiters_system_enabled?: boolean | null;
   status?: "active" | "suspended" | "trial" | null;
   created_at?: string;
   updated_at?: string;
@@ -111,6 +113,15 @@ export type Profile = {
   updated_at?: string;
 };
 
+/** موظف خدمة طاولات (ويتر) — الاسم فقط دون حساب دخول */
+export type RestaurantWaiter = {
+  id: string;
+  restaurant_id: string;
+  name: string;
+  sort_order: number | null;
+  created_at?: string;
+};
+
 /** طاولة في المطعم — الرمز العام يُستخدم في رابط الـ QR */
 export type RestaurantTable = {
   id: string;
@@ -118,6 +129,8 @@ export type RestaurantTable = {
   label: string;
   public_token: string;
   sort_order: number | null;
+  /** مسند من إعدادات الويترز — من يخدم هذه الطاولة */
+  waiter_id?: string | null;
   created_at?: string;
 };
 
@@ -135,6 +148,8 @@ export type GuestOrder = {
   id: string;
   restaurant_id: string;
   table_id: string | null;
+  /** لقطة من ويتر الطاولة عند إنشاء الطلب (اختياري) */
+  waiter_id?: string | null;
   fulfillment: OrderFulfillment;
   delivery_address: string | null;
   customer_phone: string;
@@ -144,6 +159,18 @@ export type GuestOrder = {
   /** رمز سري لصفحة التتبع العامة */
   tracking_token: string;
   created_at: string;
+  /** نقاط مُستبدَلة نقدياً ضمن هذا الطلب */
+  loyalty_points_used: number;
+  /** قيمة خصم النقاط بالسنت */
+  loyalty_discount_cents: number;
+  /** نقاط مكتسبة من هذا الطلب (سجل earn_order) — لا علاقة لها باستبدال النقاط */
+  loyalty_points_earned_on_order: number;
+  /** تم احتساب الإنفاق والولاء عند أول اكتمال (يتطلب عموداً في قاعدة البيانات) */
+  completion_accounting_done?: boolean;
+  /** ملاحظات داخلية للطاقم — لا تُعرض في تتبّع الزبون */
+  staff_notes?: string | null;
+  /** خصم يدوي من المالك بالسنت */
+  owner_discount_cents?: number | null;
 };
 
 export type GuestOrderItem = {
@@ -161,7 +188,19 @@ export type GuestOrderItem = {
 
 export type GuestOrderWithDetails = GuestOrder & {
   table_label: string | null;
+  /** مسند الطاولة وقت الطلب — للفلترة حسب الويتر */
+  table_waiter_id?: string | null;
+  /** اسم الويتر المسند للطاولة (إن وُجد) */
+  waiter_name?: string | null;
   items: GuestOrderItem[];
+  /** رصيد نقاط الزبون حالياً (لوحة الطلبات) */
+  customer_loyalty_points_balance: number;
+  /** يمكن للمالك تطبيق خصم بالنقاط من لوحة الطلبات */
+  owner_can_apply_loyalty_redeem: boolean;
+  /** أقصى نقاط مسموحة لهذا الطلب (حسب المبلغ والرصيد) */
+  owner_redeem_max_points: number;
+  /** قيمة أقصى خصم بالسنت عند أقصى استبدال */
+  owner_redeem_max_discount_cents: number;
 };
 
 /** ملف زبون لكل مطعم حسب رقم الجوال — مشتريات، نقاط، ولاء */
@@ -194,5 +233,90 @@ export type LoyaltyPointLedgerEntry = {
   delta_points: number;
   reason: LoyaltyPointReason;
   note: string | null;
+  created_at: string;
+};
+
+export type CustomerProfile = {
+  id: string;
+  restaurant_id: string;
+  phone_normalized: string;
+  name: string | null;
+  email: string | null;
+  preferred_channel: "sms" | "whatsapp" | "email";
+  marketing_opt_in: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoyaltyAccount = {
+  id: string;
+  restaurant_id: string;
+  customer_id: string;
+  points_balance: number;
+  lifetime_earned: number;
+  lifetime_redeemed: number;
+  updated_at: string;
+};
+
+export type LoyaltyTransactionType =
+  | "earn"
+  | "redeem_cash"
+  | "redeem_reward"
+  | "adjustment"
+  | "expiry"
+  | "bonus";
+
+export type LoyaltyTransaction = {
+  id: string;
+  restaurant_id: string;
+  customer_id: string;
+  order_id: string | null;
+  tx_type: LoyaltyTransactionType;
+  points_delta: number;
+  money_value_cents: number;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export type LoyaltyReward = {
+  id: string;
+  restaurant_id: string;
+  title: string;
+  description: string | null;
+  points_cost: number;
+  active: boolean;
+  optional_stock: number | null;
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type LoyaltyRewardRedemption = {
+  id: string;
+  restaurant_id: string;
+  customer_id: string;
+  reward_id: string;
+  order_id: string | null;
+  loyalty_transaction_id: string;
+  points_spent: number;
+  created_at: string;
+};
+
+export type OutboundNotificationChannel = "sms" | "whatsapp" | "email";
+export type OutboundNotificationStatus = "queued" | "processing" | "sent" | "failed";
+
+export type OutboundNotification = {
+  id: string;
+  restaurant_id: string;
+  customer_id: string;
+  channel: OutboundNotificationChannel;
+  template_key: string;
+  payload: Record<string, unknown>;
+  status: OutboundNotificationStatus;
+  provider_message_id: string | null;
+  error: string | null;
+  scheduled_at: string;
+  sent_at: string | null;
   created_at: string;
 };
