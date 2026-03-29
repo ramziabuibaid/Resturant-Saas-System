@@ -33,6 +33,7 @@ export default async function OwnerTablesPage() {
       <TablesClient
         initialTables={tables}
         menuBaseUrl={menuBaseUrl}
+        restaurantSubdomain={restaurant?.subdomain?.trim() ?? ""}
         waitersSystemEnabled={restaurant?.waiters_system_enabled === true}
         waiters={restaurantWaiters}
       />
