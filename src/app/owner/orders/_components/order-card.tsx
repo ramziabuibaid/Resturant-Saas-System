@@ -13,6 +13,7 @@ import {
 import { cn } from "@/lib/utils";
 import { CalendarIcon, ChevronLeftIcon } from "lucide-react";
 import { CustomerPhoneActions } from "./customer-phone-actions";
+import { OrderThermalPrintButton } from "./order-thermal-print-button";
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   dine_in: "داخل المطعم",
@@ -290,13 +291,22 @@ export function OrderCard({
                 ))}
               </select>
             </label>
-            <button
-              type="button"
-              onClick={onOpenDetails}
-              className="text-sm font-medium text-primary underline-offset-4 hover:underline"
-            >
-              عرض التفاصيل
-            </button>
+            <div className="flex w-full flex-col gap-2 sm:max-w-[240px] sm:items-end">
+              <OrderThermalPrintButton
+                order={o}
+                restaurantName={restaurantName}
+                currencyCode={currencyCode}
+                compact
+                className="w-full"
+              />
+              <button
+                type="button"
+                onClick={onOpenDetails}
+                className="text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                عرض التفاصيل
+              </button>
+            </div>
           </div>
         </div>
       </div>

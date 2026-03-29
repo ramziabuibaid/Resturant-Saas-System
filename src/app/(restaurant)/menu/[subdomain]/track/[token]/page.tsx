@@ -1,3 +1,4 @@
+import { getRestaurantBySubdomain } from "@/app/actions/menu";
 import { getOrderTrackingByToken } from "@/app/actions/orders";
 import { notFound } from "next/navigation";
 import { OrderTrackClient } from "./order-track-client";
@@ -8,8 +9,21 @@ type Props = {
 
 export async function generateMetadata({ params }: Props) {
   const { subdomain } = await params;
+  const decoded = decodeURIComponent(subdomain);
+  const { data: restaurant } = await getRestaurantBySubdomain(decoded);
+  const logoUrl = restaurant?.logo_url?.trim();
   return {
-    title: `تتبّع الطلب — ${decodeURIComponent(subdomain)}`,
+    title: restaurant
+      ? `تتبّع الطلب — ${restaurant.name}`
+      : `تتبّع الطلب — ${decoded}`,
+    ...(logoUrl
+      ? {
+          icons: {
+            icon: logoUrl,
+            apple: logoUrl,
+          },
+        }
+      : {}),
   };
 }
 

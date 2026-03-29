@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { CustomerPhoneActions } from "./customer-phone-actions";
 import { Button } from "@/components/ui/button";
 import { OrderStaffEditor } from "./order-staff-editor";
+import { OrderThermalPrintButton } from "./order-thermal-print-button";
 
 const FULFILLMENT_LABELS: Record<string, string> = {
   dine_in: "داخل المطعم",
@@ -135,6 +136,13 @@ export function OrderDetailSheet({
             — {FULFILLMENT_LABELS[order.fulfillment] ?? order.fulfillment}
             {order.table_label ? ` — الطاولة: ${order.table_label}` : ""}
           </DialogDescription>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <OrderThermalPrintButton
+              order={order}
+              restaurantName={restaurantName}
+              currencyCode={currencyCode}
+            />
+          </div>
         </DialogHeader>
 
         <div className="flex min-h-0 flex-1 flex-col lg:flex-row">

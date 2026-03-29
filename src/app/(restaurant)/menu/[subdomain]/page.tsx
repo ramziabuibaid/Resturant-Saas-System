@@ -16,8 +16,17 @@ export async function generateMetadata({ params }: Props) {
   const { restaurant } = await getMenuItemsBySubdomain(
     decodeURIComponent(subdomain)
   );
+  const logoUrl = restaurant?.logo_url?.trim();
   return {
     title: restaurant ? `${restaurant.name} – Menu` : "Menu",
+    ...(logoUrl
+      ? {
+          icons: {
+            icon: logoUrl,
+            apple: logoUrl,
+          },
+        }
+      : {}),
   };
 }
 

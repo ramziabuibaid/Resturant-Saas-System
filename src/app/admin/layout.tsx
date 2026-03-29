@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { getRestaurantBySubdomain } from "@/app/actions/menu";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
 import {
   getSuperAdminProfileOrRedirectWithLoginMode,
@@ -10,10 +12,29 @@ import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";
 import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
 
-export const metadata = {
-  title: "لوحة التحكم",
-  description: "إدارة النظام أو المطعم",
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const tenant = await resolveAdminTenant();
+  if (!tenant) {
+    return {
+      title: "لوحة التحكم",
+      description: "إدارة النظام أو المطعم",
+    };
+  }
+  const { data: restaurant } = await getRestaurantBySubdomain(tenant.subdomain);
+  const logoUrl = restaurant?.logo_url?.trim();
+  return {
+    title: restaurant ? `لوحة التحكم — ${restaurant.name}` : "لوحة التحكم",
+    description: "إدارة النظام أو المطعم",
+    ...(logoUrl
+      ? {
+          icons: {
+            icon: logoUrl,
+            apple: logoUrl,
+          },
+        }
+      : {}),
+  };
+}
 
 /**
  * توجيه /admin حسب الـ subdomain (حسب SYSTEM_CONTEXT.md):

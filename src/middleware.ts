@@ -56,12 +56,23 @@ export async function middleware(request: NextRequest) {
     const supabase = createEdgeSupabaseClient();
     const { data: restaurant, error } = await supabase
       .from("restaurants")
-      .select("id, subdomain")
+      .select("id, subdomain, logo_url")
       .ilike("subdomain", subdomain.toLowerCase())
       .maybeSingle();
 
     if (error || !restaurant) {
       return NextResponse.next();
+    }
+
+    const logoUrl =
+      typeof restaurant.logo_url === "string" ? restaurant.logo_url.trim() : "";
+    if (
+      logoUrl &&
+      (pathname === "/favicon.ico" ||
+        pathname === "/apple-touch-icon.png" ||
+        pathname === "/apple-touch-icon-precomposed.png")
+    ) {
+      return NextResponse.redirect(logoUrl, 302);
     }
 
     const requestHeaders = new Headers(request.headers);
@@ -111,6 +122,6 @@ export const config = {
     /*
      * Match all paths except static files and api routes.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    "/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };
