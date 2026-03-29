@@ -445,6 +445,81 @@
   }
 }
 
+/* ========== لوحة الطلبات — وميض خفيف للحالات النشطة (مستجد / مقبول / تحضير) ========== */
+@keyframes orderCardPulsePending {
+  0%,
+  100% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(16, 185, 129, 0.55),
+      0 0 0 0 rgba(16, 185, 129, 0);
+  }
+  50% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(16, 185, 129, 0.88),
+      0 0 26px 0 rgba(16, 185, 129, 0.32);
+  }
+}
+
+@keyframes orderCardPulseAccepted {
+  0%,
+  100% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(14, 165, 233, 0.5),
+      0 0 0 0 rgba(14, 165, 233, 0);
+  }
+  50% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(14, 165, 233, 0.82),
+      0 0 24px 0 rgba(14, 165, 233, 0.28);
+  }
+}
+
+@keyframes orderCardPulsePreparing {
+  0%,
+  100% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(245, 158, 11, 0.55),
+      0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    box-shadow:
+      inset 4px 0 0 0 rgba(245, 158, 11, 0.9),
+      0 0 28px 0 rgba(245, 158, 11, 0.34);
+  }
+}
+
+.order-card-pulse-pending {
+  animation: orderCardPulsePending 2.35s ease-in-out infinite;
+}
+
+.order-card-pulse-accepted {
+  animation: orderCardPulseAccepted 2.75s ease-in-out infinite;
+}
+
+.order-card-pulse-preparing {
+  animation: orderCardPulsePreparing 2.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .order-card-pulse-pending,
+  .order-card-pulse-accepted,
+  .order-card-pulse-preparing {
+    animation: none;
+  }
+
+  .order-card-pulse-pending {
+    box-shadow: inset 4px 0 0 0 rgba(16, 185, 129, 0.65);
+  }
+
+  .order-card-pulse-accepted {
+    box-shadow: inset 4px 0 0 0 rgba(14, 165, 233, 0.55);
+  }
+
+  .order-card-pulse-preparing {
+    box-shadow: inset 4px 0 0 0 rgba(245, 158, 11, 0.65);
+  }
+}
+
 /* ========== Theme transition ========== */
 html {
   transition: background-color 0.3s ease, color 0.3s ease;

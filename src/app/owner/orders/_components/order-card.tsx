@@ -76,7 +76,7 @@ export function OrderCard({
   return (
     <article
       className={cn(
-        "rounded-2xl border p-4 transition-shadow hover:shadow-md md:p-5",
+        "relative rounded-2xl border p-4 transition-[box-shadow,ring] hover:ring-2 hover:ring-border/35 md:p-5",
         orderStatusCardClasses(o.status)
       )}
     >

@@ -23,11 +23,11 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
 export function orderStatusCardClasses(status: OrderStatus): string {
   switch (status) {
     case "pending":
-      return "border-emerald-500/50 bg-emerald-950/25 shadow-[inset_4px_0_0_0_rgba(16,185,129,0.65)]";
+      return "border-emerald-500/50 bg-emerald-950/25 order-card-pulse-pending";
     case "accepted":
-      return "border-sky-500/40 bg-sky-950/20 shadow-[inset_4px_0_0_0_rgba(14,165,233,0.55)]";
+      return "border-sky-500/40 bg-sky-950/20 order-card-pulse-accepted";
     case "preparing":
-      return "border-amber-500/50 bg-amber-950/25 shadow-[inset_4px_0_0_0_rgba(245,158,11,0.65)]";
+      return "border-amber-500/50 bg-amber-950/25 order-card-pulse-preparing";
     case "ready":
       return "border-blue-500/50 bg-blue-950/25 shadow-[inset_4px_0_0_0_rgba(59,130,246,0.65)]";
     case "completed":
