@@ -133,6 +133,33 @@ export function TablesClient({
     w.document.close();
   }
 
+  function printGeneralQr(homeUrl: string, qrSrc: string) {
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const safeTitle = escapeHtmlForPrint("الصفحة الرئيسية للمطعم");
+    const safeUrl = escapeHtmlForPrint(homeUrl);
+    w.document.write(`<!DOCTYPE html><html dir="rtl"><head><meta charset="utf-8"/><title>QR — ${safeTitle}</title>
+      <style>
+        body { font-family: system-ui; text-align: center; padding: 2rem; }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        img { width: 280px; height: 280px; }
+        p { color: #555; margin-top: 1rem; font-size: 14px; }
+        .subdomain-label { margin-top: 1.25rem; margin-bottom: 0.25rem; font-size: 13px; color: #333; }
+        .subdomain-value { font-size: 1.1rem; font-weight: 700; font-family: ui-monospace, monospace; letter-spacing: 0.02em; color: #111; margin-top: 0; word-break: break-all; }
+      </style></head><body>
+      <h1>${safeTitle}</h1>
+      <img src="${qrSrc}" alt="QR" />
+      <p class="subdomain-label">رابط المطعم (للدخول اليدوي إن لم يعمل المسح)</p>
+      <p class="subdomain-value" dir="ltr">${safeUrl}</p>
+      <script>window.onload = () => { window.print(); }</script>
+      </body></html>`);
+    w.document.close();
+  }
+
+  const homeUrl = menuBaseUrl.trim().replace(/\/$/, "");
+  const generalQrSrc =
+    homeUrl.length > 0 ? `/api/qr?data=${encodeURIComponent(homeUrl)}` : "";
+
   return (
     <div className="space-y-8">
       <div>
@@ -142,6 +169,53 @@ export function TablesClient({
           ويُرسَم الطلب على هذه الطاولة دون إدخال يدوي.
         </p>
       </div>
+
+      <Card className="border-primary/20 bg-primary/[0.03]">
+        <CardHeader>
+          <CardTitle>رمز QR عام — الصفحة الرئيسية</CardTitle>
+          <CardDescription>
+            للواجهة أو المدخل أو الإعلانات: يفتح الزبون صفحة المطعم والمنيو مباشرة دون ربط بطاولة محددة.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {homeUrl.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              عيّن النطاق الفرعي للمطعم في الإعدادات حتى يظهر رابط المنيو العام ورمز QR.
+            </p>
+          ) : (
+            <>
+              <p className="break-all text-xs text-muted-foreground" dir="ltr">
+                {homeUrl}
+              </p>
+              <div className="relative mx-auto aspect-square w-48 overflow-hidden rounded-lg border bg-white">
+                <Image src={generalQrSrc} alt="" fill className="object-contain p-2" unoptimized />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => printGeneralQr(homeUrl, generalQrSrc)}
+                >
+                  <PrinterIcon className="size-4" />
+                  طباعة QR العام
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                  onClick={() => window.open(generalQrSrc, "_blank")}
+                >
+                  <QrCodeIcon className="size-4" />
+                  صورة QR
+                </Button>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

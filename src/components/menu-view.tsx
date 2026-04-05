@@ -20,6 +20,7 @@ import {
 import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
 import { MenuPublicFooter } from "@/components/menu-public-footer";
 import { MenuFeaturedStoriesBanner } from "@/components/menu-featured-stories-banner";
+import { MenuPromoBanner } from "@/components/menu-promo-banner";
 
 /** يعيد السعر المعروض للصنف (أول خيار أو السعر الواحد) */
 function getDisplayPrice(item: MenuItem): number {
@@ -258,6 +259,21 @@ export function MenuView({
   const titleAnimationEnabled =
     restaurant.menu_title_animation_enabled === true;
 
+  const menuBannerUrl = restaurant.menu_banner_url?.trim() ?? "";
+  let menuBannerKind: "image" | "video" | null = null;
+  if (menuBannerUrl) {
+    if (
+      restaurant.menu_banner_kind === "video" ||
+      restaurant.menu_banner_kind === "image"
+    ) {
+      menuBannerKind = restaurant.menu_banner_kind;
+    } else if (/\.(mp4|webm)(\?|$)/i.test(menuBannerUrl)) {
+      menuBannerKind = "video";
+    } else {
+      menuBannerKind = "image";
+    }
+  }
+
   return (
     <div
       className="min-h-screen bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50"
@@ -280,6 +296,18 @@ export function MenuView({
               </p>
             </div>
           </div>
+
+          {menuBannerUrl && menuBannerKind ? (
+            <MenuPromoBanner
+              url={menuBannerUrl}
+              kind={menuBannerKind}
+              caption={restaurant.menu_banner_caption}
+              alt={
+                restaurant.menu_banner_caption?.trim() ||
+                `بانر ترويجي — ${restaurant.name}`
+              }
+            />
+          ) : null}
 
           {featuredItems.length > 0 ? (
             <MenuFeaturedStoriesBanner
