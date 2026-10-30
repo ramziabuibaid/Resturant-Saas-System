@@ -55,7 +55,7 @@
 | M5 ✅ | الزبائن والولاء (تصميم موحّد) | النقاط والاستبدال يعملان |
 | M6 ✅ | حذف Supabase بالكامل + بناء standalone للسيرفر | حذف كل اعتماد على `@supabase/*` |
 | M7 ✅ | Docker للإنتاج + نشر على storeserver + Tunnel + نسخ احتياطي يومي | الموقع يعمل من المحل |
-| M8 | نقل DNS لـ `resturant.app` + إيقاف Vercel و Supabase | الانتقال الكامل |
+| M8 ✅ | نقل DNS لـ `resturant.app` + إيقاف Vercel و Supabase | الانتقال الكامل |
 
 ## 5. المطلوب منك (فقط عند الخطوة M7–M8، ليس الآن)
 
@@ -162,3 +162,14 @@
 - **لم يُختبر:** الدخول على نسخة السيرفر — كلمات المرور المولّدة هناك حقيقية ولم أقرأها.
 
 **تنبيه:** لا تدمج هذه الفروع في `main` قبل M8 — Vercel ينشر `main` تلقائياً، والكود الجديد لا يعمل بدون `DATABASE_URL`.
+
+### M8 ✅ (2026-10-30) — الانتقال الكامل
+- DNS لـ `resturant.app` في Cloudflare؛ سجلات Vercel حُذفت.
+- Tunnel `resturantapp` يخدم `resturant.app` و `www` و `*.resturant.app` ← `http://app:3000` على storeserver.
+- Vercel متوقف؛ Supabase لم يعد مستخدماً (يمكن حذفه).
+- **اختُبر من الإنترنت:** الصفحة الرئيسية، `/api/health`، صفحات الدخول، تحويل `/admin` إلى الدخول، منيو `demo` بأصنافه وصوره،
+  ونقطة debug القديمة مغلقة (404).
+
+**بعد الانتقال:**
+- جدّد رمز الـ Tunnel (ظهر في المحادثة): Cloudflare ← Tunnel ← Refresh token، ثم احفظه بالأمر في deploy/README.md.
+- غيّر كلمة مرور مالك النظام: `docker compose run --rm tools npx tsx scripts/set-password.ts admin@resturant.app`.

@@ -62,7 +62,15 @@ ssh -N -L 3100:127.0.0.1:3100 storeserver
 
 ---
 
-## M8 — ربط الدومين `resturant.app` (يحتاج تدخلك)
+## تجديد رمز الـ Tunnel
+
+بعد Refresh token في Cloudflare، شغّل من جهازك (يطلب الرمز دون أن يظهر):
+
+```bash
+ssh -t storeserver 'read -rsp "Token: " t; echo; cd ~/restaurant-saas && sed -i "/^CLOUDFLARE_TUNNEL_TOKEN=/d" .env && echo "CLOUDFLARE_TUNNEL_TOKEN=$t" >> .env && docker compose --profile tunnel up -d --force-recreate tunnel'
+```
+
+## M8 — ربط الدومين `resturant.app` ✅ (تم 2026-10-30 — للمرجع)
 
 حالياً `resturant.app` يشير إلى Vercel، و DNS عند Vercel. الـ Tunnel يحتاج الدومين في Cloudflare.
 
