@@ -64,7 +64,7 @@
 - حذف `api/check-env` و `api/debug-menu`.
 - `/admin` واحد لكل الأدوار (`src/lib/admin-context.ts`)، وتحويل دائم من `/owner` و `/super-admin` و `/super_admin`، وصفحة `/forbidden` بدل حلقة التوجيه.
 - **ثغرات حرجة أُغلقت في الكود:** دوال تغيير كلمة مرور المالك، حذف المطعم، وقراءة أسماء المستخدمين كانت قابلة للاستدعاء من أي زائر؛ وحُذفت `setProfileRestaurant` التي تسمح لأي مسجّل بربط نفسه بأي مطعم.
-- **ثغرات في قاعدة البيانات:** `migrations/0034_security-hardening.sql` — ⚠️ **يجب تشغيله يدوياً في Supabase**.
+- **ثغرات في قاعدة البيانات:** `migrations/0034_security-hardening.sql` (نُفّذ على Supabase؛ لم يعد مستخدماً بعد المرحلة M — الصلاحيات الآن في الخادم) — ⚠️ **يجب تشغيله يدوياً في Supabase**.
 - صفر أخطاء/تحذيرات ESLint، ثيم عبر next-themes (بلا وميض).
 - ترقية Next.js 16.1.6 → 16.4.3 (الإصدار القديم يفشل في البناء بسبب تغيير روابط Google Fonts — كان سيكسر النشر على Vercel).
 - `middleware.ts` → `proxy.ts` مع cache 60 ثانية، دعم `NEXT_PUBLIC_ROOT_DOMAIN`، الدومينات الخاصة، ومعاينات Vercel؛ وإصلاح `/loyalty` و `/auth/signout` على نطاق المطعم (كانا يعرضان المنيو).

@@ -47,3 +47,6 @@ next-env.d.ts
 
 # uploaded files (local dev; on the server this is a Docker volume)
 /uploads
+
+# original Nano Banana exports (copies live in public/images)
+/nanobanana

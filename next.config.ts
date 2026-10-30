@@ -1,12 +1,28 @@
 import type { NextConfig } from "next";
 
-const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
-  ? new URL(process.env.NEXT_PUBLIC_SUPABASE_URL).hostname
-  : null;
-// Fallback so images work on Vercel even if env isn't available at build time (استبدله بـ host مشروعك إن لزم)
-const supabaseStorageHost = supabaseHost ?? "zhucpdyylouircudctct.supabase.co";
-
 const nextConfig: NextConfig = {
+  // نسخة قائمة بذاتها للنشر في Docker على السيرفر (M7)
+  output: "standalone",
+  // رفع الصور يقرأ مساراً متغيراً من القرص، فيظن التتبّع أنه يحتاج كل المشروع.
+  // نستبعد صراحةً كل ما لا يلزم التشغيل — وأهمها ملفات الأسرار و .git.
+  outputFileTracingExcludes: {
+    "*": [
+      ".env*",
+      ".git/**",
+      ".pgdata/**",
+      ".seed-credentials.local",
+      "uploads/**",
+      "nanobanana/**",
+      "docs/**",
+      "scripts/**",
+      "drizzle/**",
+      "*.md",
+      "src/**",
+      ".claude/**",
+      "**/.DS_Store",
+      "tsconfig.tsbuildinfo",
+    ],
+  },
   // مسارات قديمة دُمجت في /admin (المرحلة 0)
   async redirects() {
     return [
@@ -15,15 +31,6 @@ const nextConfig: NextConfig = {
       { source: "/super-admin/:path*", destination: "/admin/:path*", permanent: true },
       { source: "/super_admin/:path*", destination: "/admin/:path*", permanent: true },
     ];
-  },
-  images: {
-    remotePatterns: [
-      {
-        protocol: "https",
-        hostname: supabaseStorageHost,
-        pathname: "/storage/v1/object/public/**",
-      },
-    ],
   },
 };
 
