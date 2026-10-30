@@ -11,25 +11,25 @@
   /* ===== LIGHT MODE ===== */
 
   /* Backgrounds */
-  --bg-base: #f8f7f4;
+  --bg-base: #faf8f5;
   --bg-surface: #ffffff;
-  --bg-surface-2: #f1eff9;
-  --bg-overlay: #eceaf6;
+  --bg-surface-2: #f4efe9;
+  --bg-overlay: #ffffff;
 
-  /* Brand — لون رئيسي واحد فقط */
-  --brand: #5b4cf5;
-  --brand-light: #ede9ff;
-  --brand-dark: #4035c8;
+  /* Brand — برتقالي جمري (تباين كافٍ مع النص الأبيض) */
+  --brand: #d9440f;
+  --brand-light: #fdebe3;
+  --brand-dark: #b5370a;
 
   /* Text — Slate-900 titles, Slate-500 descriptions */
-  --text-primary: #0f172a;
-  --text-secondary: #64748b;
-  --text-muted: #94a3b8;
+  --text-primary: #1c1714;
+  --text-secondary: #5f544c;
+  --text-muted: #958a81;
   --text-inverse: #ffffff;
 
   /* Borders */
-  --border: #e2e0ee;
-  --border-strong: #c8c5df;
+  --border: #ebe3db;
+  --border-strong: #d9cdc2;
 
   /* Status */
   --success: #16a34a;
@@ -42,9 +42,9 @@
   --info-bg: #dbeafe;
 
   /* Shadows */
-  --shadow-sm: 0 1px 3px rgba(15, 14, 23, 0.06), 0 1px 2px rgba(15, 14, 23, 0.04);
-  --shadow-md: 0 4px 12px rgba(15, 14, 23, 0.08), 0 2px 4px rgba(15, 14, 23, 0.04);
-  --shadow-lg: 0 8px 24px rgba(15, 14, 23, 0.1), 0 4px 8px rgba(15, 14, 23, 0.06);
+  --shadow-sm: 0 1px 2px rgba(28, 23, 20, 0.05), 0 1px 3px rgba(28, 23, 20, 0.06);
+  --shadow-md: 0 6px 16px rgba(28, 23, 20, 0.07), 0 2px 4px rgba(28, 23, 20, 0.04);
+  --shadow-lg: 0 18px 40px rgba(28, 23, 20, 0.10), 0 4px 10px rgba(28, 23, 20, 0.05);
 
   /* Spacing */
   --space-1: 4px;
@@ -59,18 +59,21 @@
   --space-16: 64px;
 
   /* Border Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
 
   /* Layout */
   --sidebar-width: 240px;
   --sidebar-collapsed: 64px;
   --header-height: 60px;
 
+  /* لون ذهبي مساعد للتمييز (نجوم، شارات) */
+  --gold: #f5b33e;
+
   /* Typography */
-  --font-sans: "Cairo", sans-serif;
+  --font-sans: "IBM Plex Sans Arabic", sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
   /* Shadcn compat — map from design system */
@@ -89,7 +92,6 @@
   --accent: var(--brand-light);
   --accent-foreground: var(--brand);
   --destructive: var(--danger);
-  --border: var(--border);
   --input: var(--border);
   --ring: var(--brand);
   --sidebar: var(--bg-surface);
@@ -111,32 +113,32 @@
 }
 
 [data-theme="dark"] {
-  /* ===== DARK MODE — خلفيات عميقة Slate-950 لمظهر Premium ===== */
+  /* ===== DARK MODE — أسود دافئ (ليس أزرق) ===== */
 
-  /* Backgrounds — Slate-950 deep, not pure black */
-  --bg-base: #020617;
-  --bg-surface: #0f172a;
-  --bg-surface-2: #1e293b;
-  --bg-overlay: #334155;
+  /* Backgrounds */
+  --bg-base: #0e0d0c;
+  --bg-surface: #171513;
+  --bg-surface-2: #211e1b;
+  --bg-overlay: #2a2622;
 
-  /* Brand — بنفسجي للعناصر الرئيسية (Dashboard، أزرار CTA) */
-  --brand: #8b5cf6;
-  --brand-light: #2e1065;
-  --brand-dark: #a78bfa;
+  /* Brand — برتقالي جمري (أفتح قليلاً في الداكن) */
+  --brand: #f2541b;
+  --brand-light: #3a1a0e;
+  --brand-dark: #ff7a45;
 
   /* لون العنصر النشط في القائمة (صفحة محددة مثل المنتجات) — أخضر مريح */
   --sidebar-active: #10b981;
   --sidebar-active-bg: #064e3b;
 
   /* Text — أبيض ناعم ورمادي فاتح */
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-inverse: #0f172a;
+  --text-primary: #f6f1ec;
+  --text-secondary: #c9beb4;
+  --text-muted: #8f847a;
+  --text-inverse: #ffffff;
 
   /* Borders — حدود خفيفة غير مزعجة */
-  --border: #334155;
-  --border-strong: #475569;
+  --border: #2e2a26;
+  --border-strong: #3f3933;
 
   /* Status */
   --success: #34d399;
@@ -149,9 +151,9 @@
   --info-bg: #0c4a6e;
 
   /* Shadows — ظلال ناعمة */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35);
-  --shadow-lg: 0 10px 28px rgba(0, 0, 0, 0.4);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 6px 16px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 18px 40px rgba(0, 0, 0, 0.5);
 
   --background: var(--bg-base);
   --foreground: var(--text-primary);
@@ -168,7 +170,6 @@
   --accent: var(--brand-light);
   --accent-foreground: var(--text-primary);
   --destructive: var(--danger);
-  --border: var(--border);
   --input: var(--border-strong);
   --ring: var(--brand);
   --sidebar: var(--bg-surface);
@@ -235,8 +236,10 @@
   --color-danger-bg: var(--danger-bg);
   --color-info: var(--info);
   --color-info-bg: var(--info-bg);
+  --color-gold: var(--gold);
 
   --font-sans: var(--font-sans);
+  --font-display: var(--font-display);
   --font-mono: var(--font-mono);
 
   --radius-sm: var(--radius-sm);

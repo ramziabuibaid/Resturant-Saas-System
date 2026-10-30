@@ -1,526 +1,464 @@
-"use client";
-
+import Image from "next/image";
 import Link from "next/link";
-import { useState } from "react";
-import { motion } from "framer-motion";
 import {
+  ArrowLeft,
+  BellRing,
+  Check,
+  ChefHat,
+  Coins,
+  Flame,
+  Gift,
+  Languages,
+  MapPin,
+  Moon,
+  Palette,
+  Printer,
   QrCode,
-  LayoutDashboard,
-  Globe,
-  UtensilsCrossed,
+  ScanLine,
+  ShoppingBag,
+  Smartphone,
   Sparkles,
   Store,
-  ChevronLeft,
-  Check,
+  Timer,
+  UtensilsCrossed,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { PricingSection } from "@/components/landing/pricing-section";
 
-const fadeUp = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.4 },
-};
+/*
+ * الصفحة الرئيسية للمنصة. مكوّن خادم بالكامل ما عدا الأسعار (تبديل شهري/سنوي) وزر الثيم.
+ * الصور من Nano Banana في public/images.
+ */
 
-export function LandingPage() {
-  const [yearly, setYearly] = useState(true);
+const btnPrimary =
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full bg-brand px-6 text-[15px] font-semibold text-white shadow-[0_10px_30px_-10px_var(--brand)] transition hover:bg-brand-dark active:scale-[0.98]";
+const btnGhost =
+  "inline-flex h-12 items-center justify-center gap-2 rounded-full border border-border-strong bg-bg-surface/70 px-6 text-[15px] font-semibold text-text-primary backdrop-blur transition hover:bg-bg-surface-2";
 
+export function LandingPage({ demoUrl }: { demoUrl: string }) {
   return (
-    <div className="min-h-screen bg-bg-base" dir="rtl">
+    <div className="min-h-screen overflow-x-clip bg-bg-base text-text-primary" dir="rtl">
+      <Nav />
+      <Hero demoUrl={demoUrl} />
+      <Highlights />
+      <TableSection />
+      <HowItWorks />
+      <Features />
+      <PricingSection />
+      <Faq />
+      <FinalCta demoUrl={demoUrl} />
+      <Footer />
+    </div>
+  );
+}
 
-      {/* Nav */}
-      <motion.header
-        initial={{ opacity: 0, y: -12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        className="fixed top-0 left-0 right-0 z-50 border-b border-border/60 bg-bg-base/80 backdrop-blur-md"
-      >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-          <span className="flex items-center gap-2 font-semibold text-text-primary">
-            <span className="flex size-8 items-center justify-center rounded-lg bg-brand text-white">
-              <UtensilsCrossed className="size-4" />
-            </span>
-            منيو
-          </span>
-          <nav className="flex items-center gap-4">
-            <a
-              href="#features"
-              className="text-sm text-text-secondary hover:text-text-primary"
-            >
-              الميزات
-            </a>
-            <a
-              href="#pricing"
-              className="text-sm text-text-secondary hover:text-text-primary"
-            >
-              الأسعار
-            </a>
-            <Link href="/login">
-              <Button variant="ghost" size="sm">
-                تسجيل الدخول
-              </Button>
-            </Link>
-            <Link href="/login">
-              <Button size="sm">ابدأ الآن</Button>
-            </Link>
-          </nav>
+/* ------------------------------------------------------------------ */
+
+function Logo() {
+  return (
+    <span className="flex items-center gap-2.5 font-display text-xl font-bold">
+      <span className="flex size-9 items-center justify-center rounded-xl bg-brand text-white shadow-[0_6px_18px_-6px_var(--brand)]">
+        <Flame className="size-5" />
+      </span>
+      منيو
+    </span>
+  );
+}
+
+function Nav() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-border/70 bg-bg-base/80 backdrop-blur-xl">
+      <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
+        <Link href="/" aria-label="منيو — الرئيسية">
+          <Logo />
+        </Link>
+        <nav className="hidden items-center gap-7 text-sm font-medium text-text-secondary md:flex">
+          <a href="#how" className="hover:text-text-primary">كيف يعمل</a>
+          <a href="#features" className="hover:text-text-primary">الميزات</a>
+          <a href="#pricing" className="hover:text-text-primary">الأسعار</a>
+          <a href="#faq" className="hover:text-text-primary">الأسئلة</a>
+        </nav>
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          <Link href="/login" className="hidden h-9 items-center rounded-full px-4 text-sm font-semibold text-text-secondary hover:text-text-primary sm:inline-flex">
+            تسجيل الدخول
+          </Link>
+          <Link href="/signup" className="inline-flex h-9 items-center rounded-full bg-brand px-4 text-sm font-semibold text-white hover:bg-brand-dark">
+            ابدأ مجاناً
+          </Link>
         </div>
-      </motion.header>
+      </div>
+    </header>
+  );
+}
 
-      {/* Hero */}
-      <section className="relative overflow-hidden pt-28 pb-20 md:pt-36 md:pb-28">
-        <div className="absolute inset-0 bg-gradient-to-b from-brand/8 via-transparent to-transparent" />
-        <div className="absolute top-1/4 left-1/4 h-72 w-72 rounded-full bg-brand/10 blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 h-96 w-96 rounded-full bg-brand/5 blur-3xl" />
-        <div className="relative mx-auto max-w-4xl px-4 text-center">
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.4 }}
-            className="mb-4 inline-flex items-center gap-2 rounded-full border border-brand/30 bg-brand/10 px-4 py-1.5 text-sm font-medium text-brand"
-          >
+/* ------------------------------------------------------------------ */
+
+function Hero({ demoUrl }: { demoUrl: string }) {
+  return (
+    <section className="relative isolate">
+      {/* خلفية: توهج جمري — وصورة Nano Banana في الوضع الداكن */}
+      <div className="absolute inset-0 -z-10 hidden dark:block">
+        <Image src="/images/landing/hero-bg-dark.png" alt="" fill priority className="object-cover opacity-70" sizes="100vw" />
+        <div className="absolute inset-0 bg-gradient-to-b from-bg-base/30 via-bg-base/60 to-bg-base" />
+      </div>
+      <div className="absolute inset-x-0 top-0 -z-10 h-[620px] bg-[radial-gradient(60%_60%_at_25%_20%,color-mix(in_oklab,var(--brand)_18%,transparent),transparent_70%)] dark:hidden" />
+
+      <div className="mx-auto grid max-w-6xl items-center gap-14 px-4 pb-20 pt-14 md:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:pb-28">
+        <div className="animate-in fade-in slide-in-from-bottom-3 duration-700">
+          <p className="mb-6 inline-flex items-center gap-2 rounded-full border border-brand/25 bg-brand-light px-3.5 py-1.5 text-[13px] font-semibold text-brand">
             <Sparkles className="size-4" />
-            منصة استضافة المطاعم والمنيو الرقمي
-          </motion.p>
-          <motion.h1
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2, duration: 0.45 }}
-            className="text-4xl font-bold leading-tight tracking-tight text-text-primary md:text-5xl lg:text-6xl"
-          >
-            منيو مطعمك على الهواء
+            منيو رقمي · طلب من الطاولة · نقاط ولاء
+          </p>
+          <h1 className="font-display text-[40px] font-bold leading-[1.15] tracking-tight sm:text-5xl lg:text-[58px]">
+            منيو مطعمك الرقمي،
             <br />
-            <span className="text-brand">كود QR واحد. زبائن أكثر.</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.4 }}
-            className="mx-auto mt-6 max-w-2xl text-lg text-text-secondary"
-          >
-            استضف صفحة المنيو، لوحة تحكم بسيطة، ورمز QR يفتح المنيو أمام زبائنك فوراً. ابدأ من اليوم بدون تعقيد.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5, duration: 0.4 }}
-            className="mt-10 flex flex-wrap items-center justify-center gap-4"
-          >
-            <Link href="/signup">
-              <Button size="lg" className="gap-2">
-                <ChevronLeft className="size-4" />
-                إنشاء حساب المطعم
-              </Button>
+            <span className="text-brand">جاهز خلال دقائق.</span>
+          </h1>
+          <p className="mt-6 max-w-xl text-lg leading-8 text-text-secondary">
+            الزبون يمسح رمز QR على الطاولة، يتصفح أطباقك بالصور، ويرسل طلبه مباشرة إلى لوحتك —
+            بدون تطبيق وبدون انتظار النادل.
+          </p>
+          <div className="mt-9 flex flex-wrap gap-3">
+            <Link href="/signup" className={btnPrimary}>
+              ابدأ تجربتك المجانية
+              <ArrowLeft className="size-4" />
             </Link>
-            <Link href="#pricing">
-              <Button variant="outline" size="lg">
-                عرض الخطط والأسعار
-              </Button>
-            </Link>
-          </motion.div>
+            <a href={demoUrl} target="_blank" rel="noopener" className={btnGhost}>
+              <Smartphone className="size-4" />
+              شاهد منيو تجريبي
+            </a>
+          </div>
+          <ul className="mt-8 flex flex-wrap gap-x-6 gap-y-2 text-sm text-text-secondary">
+            {["أول شهر مجاناً", "بدون بطاقة بنكية", "عربي بالكامل"].map((t) => (
+              <li key={t} className="flex items-center gap-1.5">
+                <Check className="size-4 text-brand" />
+                {t}
+              </li>
+            ))}
+          </ul>
         </div>
-      </section>
 
-      {/* Features */}
-      <section id="features" className="border-t border-border/60 py-20 md:py-28">
-        <div className="mx-auto max-w-6xl px-4">
-          <motion.h2
-            {...fadeUp}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={fadeUp}
-            className="text-center text-3xl font-bold text-text-primary md:text-4xl"
-          >
-            كل ما تحتاجه لإدارة منيو مطعمك
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.4 }}
-            className="mx-auto mt-4 max-w-2xl text-center text-text-secondary"
-          >
-            من صفحة منيو واحدة إلى نظام كامل للطاولات والطلبات والولاء — اختر ما يناسب حجم مطعمك.
-          </motion.p>
-          <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              {
-                icon: QrCode,
-                title: "رمز QR للمطعم",
-                desc: "كود واحد يفتح المنيو للزبائن من هواتفهم دون تطبيقات.",
-              },
-              {
-                icon: LayoutDashboard,
-                title: "لوحة تحكم أساسية",
-                desc: "إدارة المنيو، التصنيفات، والأصناف من مكان واحد.",
-              },
-              {
-                icon: Globe,
-                title: "دومين خاص (الخطة الاحترافية)",
-                desc: "عنوانك الخاص مثل menu.restaurant.com لتعزيز الهوية.",
-              },
-              {
-                icon: Store,
-                title: "للسلاسل (الخطة الأعلى)",
-                desc: "إدارة عدة فروع، منيو متقدم، وتعقيدات احترافية.",
-              },
-            ].map((item, i) => (
-              <motion.div
-                key={item.title}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ delay: i * 0.08, duration: 0.4 }}
-                className="rounded-xl border border-border bg-bg-surface p-6 shadow-sm transition hover:border-brand/30 hover:shadow-md"
-              >
-                <div className="mb-4 flex size-12 items-center justify-center rounded-lg bg-brand/15 text-brand">
-                  <item.icon className="size-6" />
-                </div>
-                <h3 className="font-semibold text-text-primary">{item.title}</h3>
-                <p className="mt-2 text-sm text-text-secondary">{item.desc}</p>
-              </motion.div>
+        <PhoneMockup />
+      </div>
+    </section>
+  );
+}
+
+const MOCK_ITEMS = [
+  { name: "مشاوي مشكلة", desc: "كفتة وشيش طاووق على الفحم", price: "75", img: "/images/demo/mixed-grill.png" },
+  { name: "شاورما دجاج", desc: "صاج، ثومية ومخلل", price: "20", img: "/images/demo/chicken-shawarma.png" },
+  { name: "كنافة نابلسية", desc: "بالجبنة والفستق الحلبي", price: "25", img: "/images/demo/kunafa.png" },
+];
+
+/** هاتف بواجهة منيو حقيقية (HTML وليس صورة) */
+function PhoneMockup() {
+  return (
+    <div className="relative mx-auto w-full max-w-[340px] animate-in fade-in zoom-in-95 duration-700 lg:max-w-[360px]">
+      <div className="absolute -inset-10 -z-10 rounded-full bg-brand/20 blur-3xl" />
+
+      <div className="rounded-[44px] border border-white/10 bg-[#141210] p-2.5 shadow-[0_40px_80px_-30px_rgba(0,0,0,0.6)]">
+        <div className="overflow-hidden rounded-[36px] bg-[#0e0d0c] text-[#f6f1ec]">
+          <div className="relative h-28">
+            <Image src="/images/demo/cover.png" alt="" fill className="object-cover" sizes="360px" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d0c] via-[#0e0d0c]/40 to-transparent" />
+            <div className="absolute inset-x-4 bottom-2 flex items-end justify-between">
+              <div>
+                <p className="font-display text-lg font-bold">مطعم الديوان</p>
+                <p className="flex items-center gap-1 text-[11px] text-[#c9beb4]">
+                  <MapPin className="size-3" /> رام الله · مفتوح الآن
+                </p>
+              </div>
+              <span className="rounded-full bg-[#f2541b] px-2.5 py-1 text-[10px] font-bold">طاولة 3</span>
+            </div>
+          </div>
+
+          <div className="flex gap-1.5 overflow-hidden px-4 py-3 text-[11px] font-semibold">
+            {["الكل", "المشاوي", "السندويشات", "الحلويات"].map((c, i) => (
+              <span key={c} className={i === 0 ? "rounded-full bg-[#f2541b] px-3 py-1" : "rounded-full bg-white/8 px-3 py-1 text-[#c9beb4]"}>
+                {c}
+              </span>
             ))}
           </div>
-        </div>
-      </section>
 
-      {/* Pricing */}
-      <section id="pricing" className="border-t border-border/60 bg-bg-surface/50 py-20 md:py-28">
-        <div className="mx-auto max-w-6xl px-4">
-          <motion.h2
-            {...fadeUp}
-            initial="initial"
-            whileInView="animate"
-            viewport={{ once: true, margin: "-80px" }}
-            variants={fadeUp}
-            className="text-center text-3xl font-bold text-text-primary md:text-4xl"
-          >
-            خطط اشتراك تناسب كل مطعم
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="mx-auto mt-4 max-w-xl text-center text-text-secondary"
-          >
-            أول شهر مجاناً للخطة الأساسية والاحترافية — دون إدخال فيزا أو بطاقة بنكية. ادفع شهرياً أو وفر مع الاشتراك السنوي.
-          </motion.p>
-
-          {/* Toggle */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            whileInView={{ opacity: 1 }}
-            viewport={{ once: true }}
-            className="mt-10 flex justify-center"
-          >
-            <div className="inline-flex rounded-xl border border-border bg-bg-base p-1">
-              <button
-                type="button"
-                onClick={() => setYearly(false)}
-                className={cn(
-                  "min-w-[7rem] rounded-lg px-5 py-2.5 text-sm font-medium transition",
-                  !yearly
-                    ? "bg-brand text-white"
-                    : "text-text-secondary hover:text-text-primary"
-                )}
-              >
-                شهري
-              </button>
-              <button
-                type="button"
-                onClick={() => setYearly(true)}
-                className={cn(
-                  "flex min-w-[7rem] flex-col items-center gap-0.5 rounded-lg px-5 py-2.5 text-sm font-medium transition",
-                  yearly
-                    ? "bg-brand text-white"
-                    : "text-text-secondary hover:text-text-primary"
-                )}
-              >
-                <span>سنوي</span>
-                <span className="rounded bg-brand/20 px-1.5 py-0.5 text-xs">
-                  توفير
-                </span>
-              </button>
-            </div>
-          </motion.div>
-
-          <div className="mt-12 grid gap-6 md:grid-cols-3">
-            {/* Basic */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.1 }}
-              className="flex flex-col rounded-2xl border border-border bg-bg-base p-6 shadow-sm"
-            >
-              <h3 className="text-lg font-semibold text-text-primary">
-                الأساسية
-              </h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                للمطاعم الصغيرة — منيو ولوحة تحكم و QR
-              </p>
-              <div className="mt-6">
-                <p className="rounded-lg bg-success-bg px-2 py-1 text-sm font-medium text-success">
-                  أول شهر مجاناً — دون إدخال فيزا أو بطاقة بنكية
-                </p>
-                <p className="mt-2 flex items-baseline gap-1 text-text-secondary">
-                  <span className="text-3xl font-bold text-text-primary">
-                    ${yearly ? "5" : "8"}
-                  </span>
-                  <span className="text-text-muted">/شهر</span>
-                  {yearly && (
-                    <span className="mr-2 text-xs text-text-muted">
-                      (بعد التجربة — مدفوعة سنوياً)
-                    </span>
-                  )}
-                  {!yearly && (
-                    <span className="mr-2 text-xs text-text-muted">
-                      بعد انتهاء الشهر المجاني
-                    </span>
-                  )}
-                </p>
+          <div className="space-y-2.5 px-4 pb-4">
+            {MOCK_ITEMS.map((it) => (
+              <div key={it.name} className="flex items-center gap-3 rounded-2xl bg-white/[0.04] p-2.5 ring-1 ring-white/[0.06]">
+                <div className="relative size-16 shrink-0 overflow-hidden rounded-xl">
+                  <Image src={it.img} alt={it.name} fill className="object-cover" sizes="64px" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[13px] font-bold">{it.name}</p>
+                  <p className="truncate text-[11px] text-[#8f847a]">{it.desc}</p>
+                  <p className="mt-1 text-[13px] font-bold text-[#f5b33e]" dir="ltr">₪ {it.price}</p>
+                </div>
+                <span className="flex size-7 items-center justify-center rounded-full bg-[#f2541b] text-base leading-none">+</span>
               </div>
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-text-secondary">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  صفحة المنيو الرقمية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  لوحة تحكم أساسية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  استخراج QR للمطعم وتصفحه من الزبائن
-                </li>
-              </ul>
-              <Link href="/signup" className="mt-6 block">
-                <Button variant="outline" className="w-full">
-                  ابدأ بالأساسية
-                </Button>
-              </Link>
-            </motion.div>
+            ))}
+          </div>
 
-            {/* Pro - highlighted */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.15 }}
-              className="relative flex flex-col rounded-2xl border-2 border-brand bg-bg-base p-6 shadow-lg ring-2 ring-brand/20"
-            >
-              <span className="absolute -top-3 right-1/2 translate-x-1/2 rounded-full bg-brand px-3 py-1 text-xs font-medium text-white">
-                الأكثر طلباً
-              </span>
-              <h3 className="text-lg font-semibold text-text-primary">
-                الاحترافية
-              </h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                دومين خاص، QR للطاولات، طلب أونلاين، ولاء وزبائن
-              </p>
-              <div className="mt-6">
-                <p className="rounded-lg bg-success-bg px-2 py-1 text-sm font-medium text-success">
-                  أول شهر مجاناً — دون إدخال فيزا أو بطاقة بنكية
-                </p>
-                <p className="mt-2 flex items-baseline gap-1 text-text-secondary">
-                  <span className="text-3xl font-bold text-brand">
-                    ${yearly ? "10" : "15"}
-                  </span>
-                  <span className="text-text-muted">/شهر</span>
-                  {yearly && (
-                    <span className="mr-2 text-xs text-text-muted">
-                      (بعد التجربة — مدفوعة سنوياً)
-                    </span>
-                  )}
-                  {!yearly && (
-                    <span className="mr-2 text-xs text-text-muted">
-                      بعد انتهاء الشهر المجاني
-                    </span>
-                  )}
-                </p>
-              </div>
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-text-secondary">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  صفحة المنيو الرقمية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  لوحة تحكم أساسية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  استخراج QR للمطعم وتصفحه من الزبائن
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  دومين خاص
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  QR لكل طاولة
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  طلب الطلبات من الصفحة للزبون
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  نظام ولاء للزبائن
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  قاعدة بيانات للزبائن المحتملين
-                  <span className="text-xs text-text-muted">(قريباً)</span>
-                </li>
-              </ul>
-              <Link href="/signup" className="mt-6 block">
-                <Button className="w-full">اختر الاحترافية</Button>
-              </Link>
-            </motion.div>
-
-            {/* Enterprise / Chains */}
-            <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: 0.2 }}
-              className="flex flex-col rounded-2xl border border-border bg-bg-base p-6 shadow-sm"
-            >
-              <h3 className="text-lg font-semibold text-text-primary">
-                السلاسل
-              </h3>
-              <p className="mt-1 text-sm text-text-secondary">
-                للسلاسل والفروع — تعقيدات أكثر ومنيو متقدم
-              </p>
-              <div className="mt-6 flex items-baseline gap-1">
-                <span className="text-3xl font-bold text-text-primary">
-                  ${yearly ? "20" : "30"}
-                </span>
-                <span className="text-text-muted">/شهر</span>
-                {yearly && (
-                  <span className="mr-2 text-xs text-text-muted">
-                    (مدفوعة سنوياً)
-                  </span>
-                )}
-              </div>
-              <ul className="mt-6 flex-1 space-y-3 text-sm text-text-secondary">
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  صفحة المنيو الرقمية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  لوحة تحكم أساسية
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  استخراج QR للمطعم وتصفحه من الزبائن
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  دومين خاص
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  QR لكل طاولة
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  طلب الطلبات من الصفحة للزبون
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  نظام ولاء للزبائن
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  قاعدة بيانات للزبائن المحتملين
-                  <span className="text-xs text-text-muted">(قريباً)</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  موجه للسلاسل والفروع
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  تعقيدات وإعدادات متقدمة
-                </li>
-                <li className="flex items-start gap-2">
-                  <Check className="mt-0.5 size-4 shrink-0 text-brand" />
-                  تصاميم منيو متقدمة
-                </li>
-              </ul>
-              <Link href="/signup" className="mt-6 block">
-                <Button variant="outline" className="w-full">
-                  للسلاسل
-                </Button>
-              </Link>
-            </motion.div>
+          <div className="mx-3 mb-3 flex items-center justify-between rounded-2xl bg-[#f2541b] px-4 py-3 text-sm font-bold">
+            <span className="flex items-center gap-2">
+              <ShoppingBag className="size-4" /> إرسال الطلب
+            </span>
+            <span dir="ltr">₪ 95</span>
           </div>
         </div>
-      </section>
+      </div>
 
-      {/* CTA */}
-      <section className="border-t border-border/60 py-20 md:py-28">
-        <div className="mx-auto max-w-3xl px-4 text-center">
-          <motion.h2
-            initial={{ opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-3xl font-bold text-text-primary md:text-4xl"
-          >
-            جاهز لرفع منيو مطعمك؟
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.1 }}
-            className="mt-4 text-text-secondary"
-          >
-            أنشئ حسابك في دقائق وابدأ باستقبال الطلبات عبر QR.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ delay: 0.2 }}
-            className="mt-8 flex flex-wrap justify-center gap-4"
-          >
-            <Link href="/signup">
-              <Button size="lg" className="gap-2">
-                <ChevronLeft className="size-4" />
-                إنشاء حساب المطعم
-              </Button>
-            </Link>
-            <Link href="/menu/albaraka">
-              <Button variant="outline" size="lg">
-                معاينة منيو تجريبي
-              </Button>
-            </Link>
-          </motion.div>
-        </div>
-      </section>
-
-      {/* Footer */}
-      <footer className="border-t border-border bg-bg-surface/50 py-10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 sm:flex-row">
-          <span className="flex items-center gap-2 text-sm text-text-muted">
-            <UtensilsCrossed className="size-4" />
-            منيو — منصة استضافة المطاعم والمنيو الرقمي
-          </span>
-          <div className="flex gap-6 text-sm text-text-muted">
-            <Link href="/login" className="hover:text-text-primary">
-              تسجيل الدخول
-            </Link>
-            <a href="#pricing" className="hover:text-text-primary">
-              الأسعار
-            </a>
-          </div>
-        </div>
-      </footer>
+      {/* بطاقات عائمة */}
+      <div className="absolute -start-6 top-24 hidden rounded-2xl border border-border bg-bg-surface/95 p-3 shadow-lg backdrop-blur sm:block lg:-start-14">
+        <p className="flex items-center gap-2 text-xs font-bold">
+          <BellRing className="size-4 text-brand" /> طلب جديد #24
+        </p>
+        <p className="mt-0.5 text-[11px] text-text-muted">طاولة 3 · قبل لحظات</p>
+      </div>
+      <div className="absolute -end-4 bottom-28 hidden rounded-2xl border border-border bg-bg-surface/95 p-3 shadow-lg backdrop-blur sm:block lg:-end-10">
+        <p className="flex items-center gap-2 text-xs font-bold">
+          <Gift className="size-4 text-gold" /> +95 نقطة ولاء
+        </p>
+        <p className="mt-0.5 text-[11px] text-text-muted">أُضيفت لرصيد الزبون</p>
+      </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function Highlights() {
+  const items = [
+    { icon: QrCode, title: "QR لكل طاولة", text: "رقم الطاولة يصل مع الطلب" },
+    { icon: Smartphone, title: "بدون تطبيق", text: "يفتح من كاميرا الجوال" },
+    { icon: Languages, title: "عربي بالكامل", text: "من اليمين لليسار" },
+    { icon: Moon, title: "فاتح وداكن", text: "حسب جهاز الزبون" },
+  ];
+  return (
+    <section className="border-y border-border bg-bg-surface">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-px bg-border md:grid-cols-4">
+        {items.map(({ icon: Icon, title, text }) => (
+          <div key={title} className="flex items-center gap-3 bg-bg-surface px-4 py-6 sm:px-6">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand-light text-brand">
+              <Icon className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold">{title}</p>
+              <p className="text-xs text-text-muted">{text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SectionTitle({ eyebrow, title, text }: { eyebrow: string; title: string; text?: string }) {
+  return (
+    <div className="mx-auto max-w-2xl text-center">
+      <p className="text-sm font-bold text-brand">{eyebrow}</p>
+      <h2 className="mt-3 font-display text-3xl font-bold leading-tight sm:text-4xl">{title}</h2>
+      {text ? <p className="mt-4 text-lg leading-8 text-text-secondary">{text}</p> : null}
+    </div>
+  );
+}
+
+function TableSection() {
+  return (
+    <section className="mx-auto max-w-6xl px-4 py-20 md:py-28">
+      <div className="grid items-center gap-12 lg:grid-cols-2">
+        <div className="relative overflow-hidden rounded-[28px] shadow-lg">
+          <Image
+            src="/images/landing/hero-table-qr.png"
+            alt="زبون يمسح رمز QR على طاولة مطعم"
+            width={1200}
+            height={896}
+            className="h-full w-full object-cover"
+            sizes="(min-width: 1024px) 560px, 100vw"
+          />
+          {/* شاشة الهاتف في الصورة بيضاء — نضع عليها لقطة منيو بنفس زاوية الهاتف */}
+          <div
+            aria-hidden
+            className="absolute overflow-hidden rounded-[7%] bg-[#0e0d0c]"
+            style={{
+              left: "21.2%",
+              top: "33.6%",
+              width: "21%",
+              height: "44.4%",
+              transform: "rotate(1.6deg) skewX(-10.8deg)",
+              transformOrigin: "50% 50%",
+            }}
+          >
+            <div className="relative h-[30%]">
+              <Image src="/images/demo/cover.png" alt="" fill className="object-cover" sizes="120px" />
+              <div className="absolute inset-0 bg-gradient-to-t from-[#0e0d0c] to-transparent" />
+            </div>
+            <div className="space-y-[6%] px-[8%] pt-[4%]">
+              {MOCK_ITEMS.map((it) => (
+                <div key={it.name} className="flex items-center gap-[6%]">
+                  <div className="relative aspect-square w-[30%] overflow-hidden rounded-[18%]">
+                    <Image src={it.img} alt="" fill className="object-cover" sizes="40px" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="h-1.5 w-[80%] rounded bg-white/70" />
+                    <div className="h-1.5 w-[45%] rounded bg-[#f5b33e]" />
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="absolute inset-x-[8%] bottom-[5%] h-[9%] rounded-full bg-[#f2541b]" />
+          </div>
+        </div>
+        <div>
+          <p className="text-sm font-bold text-brand">من الطاولة إلى المطبخ</p>
+          <h2 className="mt-3 font-display text-3xl font-bold leading-tight sm:text-4xl">
+            الزبون يمسح، يطلب،
+            <br />
+            ومطبخك يستلم فوراً.
+          </h2>
+          <ul className="mt-8 space-y-5">
+            {[
+              { icon: ScanLine, t: "رمز QR خاص بكل طاولة", d: "اطبع البطاقات من لوحتك — الطلب يصل ومعه رقم الطاولة." },
+              { icon: BellRing, t: "تنبيه فوري في لوحة الطلبات", d: "صوت وإشعار لكل طلب جديد، وتغيير الحالة بنقرة." },
+              { icon: Timer, t: "الزبون يتابع طلبه", d: "صفحة تتبع: مستجد ← قيد التحضير ← جاهز." },
+            ].map(({ icon: Icon, t, d }) => (
+              <li key={t} className="flex gap-4">
+                <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white">
+                  <Icon className="size-5" />
+                </span>
+                <div>
+                  <p className="font-bold">{t}</p>
+                  <p className="mt-1 text-text-secondary">{d}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function HowItWorks() {
+  const steps = [
+    { n: "١", icon: Store, title: "أنشئ مطعمك", text: "اسم المطعم ورابطه — جاهز خلال دقيقة واحدة." },
+    { n: "٢", icon: UtensilsCrossed, title: "أضف المنيو", text: "التصنيفات والأصناف والصور والأحجام والأسعار." },
+    { n: "٣", icon: QrCode, title: "اطبع رموز QR", text: "ضعها على الطاولات وابدأ باستقبال الطلبات.", img: "/images/landing/how-step-3-scan.png" },
+  ];
+  return (
+    <section id="how" className="scroll-mt-20 bg-bg-surface py-20 md:py-28">
+      <div className="mx-auto max-w-6xl px-4">
+        <SectionTitle eyebrow="كيف يعمل" title="ثلاث خطوات وتبدأ" text="لا تحتاج خبرة تقنية ولا أجهزة خاصة — جوالك يكفي." />
+        <div className="mt-14 grid gap-5 md:grid-cols-3">
+          {steps.map(({ n, icon: Icon, title, text, img }) => (
+            <div key={title} className="relative overflow-hidden rounded-[24px] border border-border bg-bg-base p-6">
+              <span className="font-display text-5xl font-bold text-brand/15">{n}</span>
+              <div className="mt-2 flex size-12 items-center justify-center rounded-2xl bg-brand-light text-brand">
+                <Icon className="size-6" />
+              </div>
+              <h3 className="mt-5 text-xl font-bold">{title}</h3>
+              <p className="mt-2 text-text-secondary">{text}</p>
+              {img ? (
+                <Image src={img} alt="" width={160} height={160} className="absolute -bottom-4 -start-4 opacity-90" />
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Features() {
+  const items = [
+    { icon: ShoppingBag, title: "طلب من الطاولة أو استلام", text: "داخل المطعم، استلام، أو توصيل — مع ملاحظات «بدون بصل»." },
+    { icon: BellRing, title: "لوحة طلبات حيّة", text: "تنبيه لكل طلب، تعديل الأصناف والخصم، وتعيين النادل." },
+    { icon: Gift, title: "نقاط ولاء ومكافآت", text: "الزبون يكسب نقاطاً من كل طلب ويستبدلها بخصم أو مكافأة." },
+    { icon: Coins, title: "عملتان في المنيو", text: "اعرض الشيكل والدينار أو الدولار معاً بسعر صرف تحدده." },
+    { icon: Printer, title: "طباعة فاتورة حرارية", text: "اطبع الطلب للمطبخ أو للزبون بنقرة." },
+    { icon: Palette, title: "منيو بهويتك", text: "شعارك، صورة الغلاف، بانر العروض، وروابط التواصل." },
+    { icon: ChefHat, title: "إدارة سهلة للمنيو", text: "أوقف صنفاً نفد بنقرة، وعدّل الأسعار في أي وقت." },
+    { icon: Moon, title: "فاتح وداكن", text: "المنيو يتبع إعداد جوال الزبون تلقائياً." },
+  ];
+  return (
+    <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-4 py-20 md:py-28">
+      <SectionTitle eyebrow="الميزات" title="كل ما يحتاجه مطعمك في مكان واحد" />
+      <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {items.map(({ icon: Icon, title, text }) => (
+          <div key={title} className="group rounded-[22px] border border-border bg-bg-surface p-6 transition hover:-translate-y-0.5 hover:border-brand/40 hover:shadow-md">
+            <span className="flex size-11 items-center justify-center rounded-xl bg-brand-light text-brand transition group-hover:bg-brand group-hover:text-white">
+              <Icon className="size-5" />
+            </span>
+            <h3 className="mt-5 font-bold">{title}</h3>
+            <p className="mt-2 text-sm leading-6 text-text-secondary">{text}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function Faq() {
+  const qs = [
+    { q: "هل يحتاج الزبون تحميل تطبيق؟", a: "لا. يمسح رمز QR بكاميرا الجوال فيفتح المنيو مباشرة في المتصفح." },
+    { q: "هل أستطيع استعمال دومين خاص بمطعمي؟", a: "نعم في الخطة الاحترافية — مثل menu.yourrestaurant.com. وكل مطعم يحصل تلقائياً على رابط مثل yourname.resturant.app." },
+    { q: "كيف أعرف بوصول طلب جديد؟", a: "تظهر الطلبات في لوحة التحكم مع تنبيه فوري، ويمكنك طباعتها على طابعة حرارية." },
+    { q: "هل أستطيع تعديل المنيو بنفسي؟", a: "نعم، من لوحة التحكم: إضافة الأصناف والصور والأحجام والأسعار، وإيقاف أي صنف نفد بنقرة." },
+    { q: "ماذا يحدث بعد الشهر المجاني؟", a: "تختار الخطة المناسبة وتستمر بنفس المنيو والبيانات. لا نطلب بطاقة بنكية للتجربة." },
+  ];
+  return (
+    <section id="faq" className="scroll-mt-20 bg-bg-surface py-20 md:py-28">
+      <div className="mx-auto max-w-3xl px-4">
+        <SectionTitle eyebrow="الأسئلة الشائعة" title="أسئلة يطرحها أصحاب المطاعم" />
+        <div className="mt-12 space-y-3">
+          {qs.map(({ q, a }) => (
+            <details key={q} className="group rounded-2xl border border-border bg-bg-base px-5 py-4 open:shadow-sm">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-4 font-bold">
+                {q}
+                <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-bg-surface-2 text-text-secondary transition group-open:rotate-45">+</span>
+              </summary>
+              <p className="mt-3 leading-7 text-text-secondary">{a}</p>
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FinalCta({ demoUrl }: { demoUrl: string }) {
+  return (
+    <section className="px-4 py-20 md:py-28">
+      <div className="relative isolate mx-auto max-w-6xl overflow-hidden rounded-[32px] px-6 py-16 text-center text-white sm:px-12 md:py-24">
+        <Image src="/images/demo/cover.png" alt="" fill className="-z-10 object-cover" sizes="(min-width: 1152px) 1152px, 100vw" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-t from-[#0e0d0c] via-[#0e0d0c]/80 to-[#0e0d0c]/50" />
+        <h2 className="font-display text-3xl font-bold leading-tight sm:text-5xl">جاهز تنقل منيو مطعمك إلى الجوال؟</h2>
+        <p className="mx-auto mt-5 max-w-xl text-lg text-white/80">أنشئ حسابك الآن — أول شهر مجاناً وبدون بطاقة بنكية.</p>
+        <div className="mt-9 flex flex-wrap justify-center gap-3">
+          <Link href="/signup" className={btnPrimary}>
+            إنشاء حساب المطعم
+            <ArrowLeft className="size-4" />
+          </Link>
+          <a href={demoUrl} target="_blank" rel="noopener" className="inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/30 bg-white/10 px-6 text-[15px] font-semibold text-white backdrop-blur hover:bg-white/20">
+            <Smartphone className="size-4" />
+            جرّب المنيو التجريبي
+          </a>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Footer() {
+  return (
+    <footer className="border-t border-border">
+      <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-10 text-sm text-text-muted sm:flex-row">
+        <Logo />
+        <nav className="flex gap-6">
+          <a href="#features" className="hover:text-text-primary">الميزات</a>
+          <a href="#pricing" className="hover:text-text-primary">الأسعار</a>
+          <Link href="/login" className="hover:text-text-primary">تسجيل الدخول</Link>
+        </nav>
+        <p>© {new Date().getFullYear()} منيو — جميع الحقوق محفوظة</p>
+      </div>
+    </footer>
   );
 }

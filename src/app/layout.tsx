@@ -1,15 +1,24 @@
 import type { Metadata } from "next";
-import { Cairo, JetBrains_Mono } from "next/font/google";
+import { IBM_Plex_Sans_Arabic, JetBrains_Mono, Readex_Pro } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { Toaster } from "sonner";
 import "./globals.css";
 
-/** DESIGN_SYSTEM: Cairo — كل النصوص العربية */
-const cairo = Cairo({
+/** نص الواجهة — عربي واضح ومريح للقراءة الطويلة */
+const plexArabic = IBM_Plex_Sans_Arabic({
   variable: "--font-sans",
   subsets: ["arabic", "latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
+});
+
+/** العناوين الكبيرة */
+const readex = Readex_Pro({
+  variable: "--font-display",
+  subsets: ["arabic", "latin"],
+  weight: ["500", "600", "700"],
+  display: "swap",
 });
 
 /** DESIGN_SYSTEM: JetBrains Mono — أرقام، كود، IDs */
@@ -20,8 +29,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Restaurant SaaS",
-  description: "Multi-tenant restaurant menu",
+  title: "منيو — منيو رقمي وطلب من الطاولة لمطعمك",
+  description: "منيو رقمي بكود QR، طلب من الطاولة، نقاط ولاء، ولوحة تحكم لمطعمك.",
 };
 
 export default function RootLayout({
@@ -32,7 +41,7 @@ export default function RootLayout({
   return (
     <html lang="ar" suppressHydrationWarning className="transition-colors duration-300">
       <body
-        className={`${cairo.variable} ${jetbrainsMono.variable} antialiased`}
+        className={`${plexArabic.variable} ${readex.variable} ${jetbrainsMono.variable} antialiased`}
         style={{ fontFamily: "var(--font-sans)" }}
       >
         <ThemeProvider>
