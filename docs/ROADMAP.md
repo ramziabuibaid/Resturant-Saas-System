@@ -75,6 +75,9 @@
 - **المنيو (المرحلة 3):** المحتوى يظهر بعد أكثر من 3 ثوانٍ بسبب حركات الدخول والصور.
 - لا يوجد حد لعدد الطلبات (rate limit) على `createGuestOrder`.
 
+### المرحلة M — النقل إلى سيرفر محلي (storeserver) والاستغناء عن Supabase
+الخطة الكاملة: [MIGRATION-SELF-HOSTED.md](MIGRATION-SELF-HOSTED.md). تُنفّذ قبل المرحلة 1.
+
 ### المرحلة 1 — نظام التصميم v2 ⏱️ جلسة 1
 1. Tokens جديدة في `globals.css` (فاتح/داكن) + إزالة ازدواج `tailwind.config.js` مع Tailwind 4.
 2. توحيد مزودي الثيم (يوجد `ThemeProvider.tsx` و `theme-provider.tsx` و `ThemeToggle` و `theme-toggle`).
