@@ -66,7 +66,7 @@ export async function deleteRestaurantTable(tableId: string): Promise<{ error: s
   return { error: null };
 }
 
-/** ربط طاولة بويتر (أو إلغاء الربط بـ null) — يتطلب عمود waiter_id بعد تشغيل waiters-system.sql */
+/** ربط طاولة بويتر (أو إلغاء الربط بـ null) — يتطلب عمود waiter_id بعد تشغيل supabase/migrations/0031_waiters-system.sql */
 export async function setRestaurantTableWaiter(
   tableId: string,
   waiterId: string | null

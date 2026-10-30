@@ -91,7 +91,7 @@ export async function deleteCategory(
   if (!deleted?.length) {
     return {
       error:
-        "لم يُحذف التصنيف. نفّذ في Supabase ملف supabase/rls-categories-owner.sql لمنح صاحب المطعم صلاحية الحذف.",
+        "لم يُحذف التصنيف. نفّذ في Supabase ملف supabase/migrations/0021_rls-categories-owner.sql لمنح صاحب المطعم صلاحية الحذف.",
     };
   }
 

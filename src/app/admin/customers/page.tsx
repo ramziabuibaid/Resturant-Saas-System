@@ -54,7 +54,7 @@ export default async function AdminCustomersPage() {
           <p className="mt-2 text-xs leading-relaxed opacity-90">
             Supabase → SQL — نفّذ الملف{" "}
             <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px]">
-              supabase/FIX-customer-phones-loyalty-columns.sql
+              supabase/migrations/0017_FIX-customer-phones-loyalty-columns.sql
             </code>
           </p>
         </div>

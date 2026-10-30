@@ -301,7 +301,7 @@ export async function createGuestOrder(
       ok: false,
       error:
         rpcErr?.message ??
-        "تعذر تخصيص رقم الطلب. نفّذ ملف supabase/orders-display-tracking.sql في قاعدة البيانات.",
+        "تعذر تخصيص رقم الطلب. نفّذ ملف supabase/migrations/0023_orders-display-tracking.sql في قاعدة البيانات.",
     };
   }
 
@@ -594,7 +594,7 @@ async function finalizeLoyaltyOnOrderCompleted(orderId: string, restaurantId: st
     .update({ completion_accounting_done: true })
     .eq("id", orderId);
   if (flagErr) {
-    /* يتطلب عمود completion_accounting_done — supabase/loyalty-earn-on-order-completed.sql */
+    /* يتطلب عمود completion_accounting_done — supabase/migrations/0030_loyalty-earn-on-order-completed.sql */
   }
 }
 
