@@ -48,7 +48,7 @@
 
 | # | الخطوة | النتيجة |
 |---|---|---|
-| M1 | Postgres محلي (Docker) + مخطط Drizzle كامل + migration أولى | قاعدة جديدة تعمل على جهازك |
+| M1 ✅ | Postgres محلي + مخطط Drizzle كامل + migration أولى | قاعدة جديدة تعمل على جهازك |
 | M2 | نظام الدخول الجديد (مالك النظام بالبريد، صاحب المطعم باسم المستخدم) + بذرة: مالك نظام + مطعم تجريبي | تسجيل دخول يعمل بلا Supabase |
 | M3 | تحويل المنيو العام + التصنيفات والأصناف + إعدادات المطعم | المنيو ولوحة المنيو تعمل |
 | M4 | الطاولات، النُدُل، الطلبات، التتبع، الطباعة | الطلب من الطاولة يعمل كاملاً |
@@ -64,3 +64,21 @@
 2. **صلاحية sudo مرة واحدة** لإضافة الدومين إلى ملف الـ Tunnel، أو أنشئ Tunnel جديداً من لوحة Cloudflare وأعطني الـ token في ملف على السيرفر.
 
 كل ما قبل ذلك أنفّذه وحدي.
+
+## سجل التنفيذ
+
+### M1 ✅ (2026-10-30)
+- قاعدة تطوير محلية: PostgreSQL 17 في `.pgdata/` على المنفذ 5442 — `npm run db:start` / `db:stop` / `db:psql`.
+  (Docker غير مثبت على الجهاز؛ على السيرفر سنستخدم Docker في M7.)
+- المخطط: [`src/db/schema.ts`](../src/db/schema.ts) — 15 جدولاً. الـ migration: `drizzle/0000_init.sql`.
+- الاتصال: [`src/db/index.ts`](../src/db/index.ts) (`db` من drizzle-orm + postgres.js).
+- فحص: `npm run db:smoke` (ينشئ بيانات داخل معاملة ثم يتراجع).
+
+**قرارات في المخطط:**
+- `users` + `sessions` بدل Supabase Auth و `profiles`. اسم المستخدم فريد داخل المطعم.
+- `customers` يدمج `customer_profiles` + `restaurant_customer_phones` + `loyalty_accounts`.
+- `loyalty_transactions` يدمج السجلّين القديمين، مع منع منح نقاط الطلب مرتين (فهرس فريد).
+- `restaurants.last_order_number` بدل جدول العدادات.
+- `order_items.item_name` يحفظ اسم الصنف وقت الطلب، فحذف الصنف لاحقاً لا يكسر الطلبات القديمة.
+- الحالات والأنواع enums في Postgres (`order_status`، `user_role`، ...) بدل نص حر.
+- مطعم جديد يبدأ بحالة `trial` والعملة الافتراضية `ILS`.
