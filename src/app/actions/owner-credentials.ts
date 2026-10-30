@@ -1,5 +1,7 @@
 "use server";
 
+import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth-guards";
+
 import { ensureEnvLoaded } from "@/lib/load-env";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
@@ -32,6 +34,7 @@ export async function createOrUpdateOwnerCredentials(
   username: string,
   password: string
 ): Promise<{ error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
   const uname = username.trim().toLowerCase();
   if (!uname) return { error: "اسم المستخدم مطلوب" };
   if (!password || password.length < 6) return { error: "كلمة المرور 6 أحرف على الأقل" };
@@ -109,6 +112,7 @@ export async function updateOwnerPassword(
   restaurantId: string,
   newPassword: string
 ): Promise<{ error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
   if (!newPassword || newPassword.length < 6) return { error: "كلمة المرور 6 أحرف على الأقل" };
 
   const missing = getMissingEnv();
@@ -142,6 +146,7 @@ export async function getOwnerByRestaurantId(restaurantId: string): Promise<{
   username: string | null;
   profileId: string | null;
 } | null> {
+  if (!(await isSuperAdminRequest())) return null;
   if (!hasServiceRoleKey()) return null;
   const admin = createAdminClient();
   const { data } = await admin
@@ -160,6 +165,7 @@ export async function getOwnerByRestaurantId(restaurantId: string): Promise<{
 export async function getOwnersByRestaurantIds(
   restaurantIds: string[]
 ): Promise<Record<string, string | null>> {
+  if (!(await isSuperAdminRequest())) return {};
   if (restaurantIds.length === 0) return {};
   if (getMissingEnv() !== null) return Object.fromEntries(restaurantIds.map((id) => [id, null]));
   const admin = createAdminClient();

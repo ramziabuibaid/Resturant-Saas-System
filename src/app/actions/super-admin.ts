@@ -1,5 +1,7 @@
 "use server";
 
+import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth-guards";
+
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Restaurant } from "@/lib/types/database";
@@ -8,6 +10,7 @@ import { revalidatePath } from "next/cache";
 export type RestaurantWithOwner = Restaurant & { owner_username?: string | null };
 
 export async function getAllRestaurants(): Promise<RestaurantWithOwner[]> {
+  if (!(await isSuperAdminRequest())) return [];
   const supabase = await createClient();
   const { data: restaurants, error } = await supabase
     .from("restaurants")
@@ -47,6 +50,7 @@ export async function updateRestaurantSubdomain(
   restaurantId: string,
   newSubdomain: string
 ): Promise<{ error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
   const subRaw = newSubdomain?.trim().toLowerCase().replace(/\s+/g, "-") ?? "";
   if (!subRaw) return { error: "النطاق الفرعي مطلوب" };
   if (subRaw.length < SUBDOMAIN_MIN || subRaw.length > SUBDOMAIN_MAX) {
@@ -80,6 +84,7 @@ export async function updateRestaurantSubdomain(
 export async function createRestaurant(
   input: CreateRestaurantInput
 ): Promise<{ data: Restaurant | null; error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { data: null, error: UNAUTHORIZED };
   const subdomain = input.subdomain.trim().toLowerCase().replace(/\s+/g, "-");
   if (!subdomain) return { data: null, error: "Subdomain is required" };
 
@@ -109,6 +114,7 @@ export async function createRestaurant(
 export async function deleteRestaurant(
   id: string
 ): Promise<{ error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
   // Super admin: احذف التبعيات أولاً لتجنب مشاكل قيود المفاتيح الأجنبية
   const admin = createAdminClient();
 

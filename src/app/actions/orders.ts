@@ -18,7 +18,7 @@ import { enqueuePointsBalanceNotification } from "@/lib/notifications";
 import {
   mirrorLoyaltyAccountToLegacyPhoneRow,
   syncLoyaltyProfileForPhoneFromLegacy,
-} from "@/app/actions/customers";
+} from "@/lib/loyalty-sync";
 
 export async function getRestaurantTableByToken(
   restaurantId: string,

@@ -50,11 +50,14 @@ export async function processQueuedNotifications(batchSize = 25): Promise<{
   failed: number;
   error: string | null;
 }> {
+  // يُستدعى من لوحة المطعم: يعالج إشعارات مطعم المستخدم فقط
+  const profile = await getProfileOrRedirect();
   const admin = createAdminClient();
   const nowIso = new Date().toISOString();
   const { data: queued, error } = await admin
     .from("outbound_notifications")
     .select("id, payload, template_key")
+    .eq("restaurant_id", profile.restaurant_id!)
     .eq("status", "queued")
     .lte("scheduled_at", nowIso)
     .order("scheduled_at", { ascending: true })
