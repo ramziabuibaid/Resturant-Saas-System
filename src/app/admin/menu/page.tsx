@@ -1,7 +1,5 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
-import {
-  getRestaurantForProfile,
-} from "@/app/actions/auth";
+import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { getCategories, getMenuItems } from "@/app/actions/admin-items";
 import { AdminItemsManager } from "@/app/admin/items/admin-items-manager";
 

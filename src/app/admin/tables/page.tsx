@@ -1,5 +1,5 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
-import { getRestaurantForProfile } from "@/app/actions/auth";
+import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { listRestaurantTables } from "@/app/actions/tables";
 import { listRestaurantWaiters } from "@/app/actions/waiters";
 import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";

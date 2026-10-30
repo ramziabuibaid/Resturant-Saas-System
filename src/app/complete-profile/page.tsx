@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
-import { getSession, getProfile } from "@/app/actions/auth";
+import { getProfile } from "@/lib/auth/current-user";
+import { getSessionUser } from "@/lib/auth/session";
 import { CompleteProfileForm } from "./complete-profile-form";
 
 export const metadata = {
@@ -8,7 +9,7 @@ export const metadata = {
 };
 
 export default async function CompleteProfilePage() {
-  const session = await getSession();
+  const session = await getSessionUser();
   if (!session) redirect("/login");
   const profile = await getProfile();
   if (profile?.role === "super_admin") redirect("/admin");

@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import { getProfileOrRedirect } from "@/app/actions/auth";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import type { MenuItem } from "@/lib/types/database";
 import type {
   GuestOrder,

@@ -1,6 +1,6 @@
 import { cache } from "react";
 import { redirect } from "next/navigation";
-import { getProfile } from "@/app/actions/auth";
+import { getProfile } from "@/lib/auth/current-user";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
 import type { Profile } from "@/lib/types/database";
 

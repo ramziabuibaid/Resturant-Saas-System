@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
+import { signInWithEmailPassword } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -23,14 +23,10 @@ export function LoginForm() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const supabase = createClient();
-    const { error: err } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const { error: err } = await signInWithEmailPassword(email, password);
     setLoading(false);
     if (err) {
-      setError(err.message);
+      setError(err);
       return;
     }
     router.push("/admin");

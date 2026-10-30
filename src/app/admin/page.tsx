@@ -1,8 +1,6 @@
 import { getAdminContext } from "@/lib/admin-context";
 import Link from "next/link";
-import {
-  getOwnerDashboardStats,
-} from "@/app/actions/auth";
+import { getOwnerDashboardStats } from "@/lib/data/restaurants";
 import { getSuperAdminStats, getAllRestaurants } from "@/app/actions/super-admin";
 import {
   Building2Icon,

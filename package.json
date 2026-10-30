@@ -13,7 +13,9 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
-    "db:smoke": "tsx scripts/db-smoke.mts"
+    "db:smoke": "tsx --env-file=.env.local scripts/db-smoke.mts",
+    "db:seed": "tsx --env-file=.env.local scripts/seed.ts",
+    "user:password": "tsx --env-file=.env.local scripts/set-password.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.3.0",

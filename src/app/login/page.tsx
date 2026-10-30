@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
-import { getSession, getProfile, getRestaurantBySubdomain } from "@/app/actions/auth";
+import { getRestaurantBySubdomain } from "@/lib/data/restaurants";
+import { getProfile } from "@/lib/auth/current-user";
+import { getSessionUser } from "@/lib/auth/session";
 import { LoginFormSwitch } from "./login-form-switch";
 import { subdomainFromHost } from "@/lib/tenant-host";
 
@@ -28,7 +30,7 @@ export default async function LoginPage() {
   const mode: LoginMode = "email";
 
   const serverTenant = await resolveTenant();
-  const session = await getSession();
+  const session = await getSessionUser();
 
   if (!session) {
     return (

@@ -3,9 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/client";
-import { getPlaceholderEmail } from "@/lib/placeholder-email";
-import { createProfileAfterSignup } from "@/app/actions/auth";
+import { signUpOwner } from "@/app/actions/auth";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
@@ -36,30 +34,12 @@ export function SignupForm() {
       return;
     }
 
-    const email = getPlaceholderEmail(username);
-    const supabase = createClient();
-    const { error: signUpErr } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/complete-profile`,
-        data: { username: raw },
-      },
-    });
-
+    const { error: signUpErr } = await signUpOwner(raw, password);
     if (signUpErr) {
-      setError(signUpErr.message);
+      setError(signUpErr);
       setLoading(false);
       return;
     }
-
-    const { error: profileErr } = await createProfileAfterSignup(raw);
-    if (profileErr) {
-      setError(profileErr);
-      setLoading(false);
-      return;
-    }
-
     setLoading(false);
     setSuccess(true);
     router.refresh();
@@ -108,7 +88,7 @@ export function SignupForm() {
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          minLength={6}
+          minLength={8}
           autoComplete="new-password"
           disabled={loading}
           className="text-right"

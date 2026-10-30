@@ -108,7 +108,8 @@ export type Profile = {
   restaurant_id: string | null; // null for super_admin
   role: UserRole | string | null;
   username?: string | null; // لصاحب المطعم: اسم الدخول (بدون إيميل)
-  login_email?: string | null; // البريد المخزن في auth.users لاستخدامه عند تسجيل الدخول
+  login_email?: string | null; // بريد الدخول (لمالك النظام)
+  full_name?: string | null;
   created_at?: string;
   updated_at?: string;
 };

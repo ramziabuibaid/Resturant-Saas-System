@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "crypto";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { getProfileOrRedirect } from "@/app/actions/auth";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import type { RestaurantCustomerPhone } from "@/lib/types/database";
 import { enqueuePointsBalanceNotification, renderPointsBalanceSmsTemplate } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";

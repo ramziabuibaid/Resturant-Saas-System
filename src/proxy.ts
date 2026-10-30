@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createEdgeSupabaseClient } from "@/lib/supabase/middleware";
+import { findRestaurantByHost } from "@/lib/data/restaurants";
 import { parseTenantHost, type HostTenant } from "@/lib/tenant-host";
 
 /** Request header names set when middleware identifies a restaurant (rewritten route can read these) */
@@ -29,18 +29,15 @@ async function findRestaurant(tenant: Exclude<HostTenant, { kind: "platform" }>)
   const hit = restaurantCache.get(key);
   if (hit && hit.expires > Date.now()) return hit.value;
 
-  const supabase = createEdgeSupabaseClient();
-  const query = supabase.from("restaurants").select("id, subdomain, logo_url");
-  const { data, error } =
-    tenant.kind === "subdomain"
-      ? await query.ilike("subdomain", tenant.subdomain).maybeSingle()
-      : await query.eq("custom_domain", tenant.domain).maybeSingle();
-  // لا نخزّن الأخطاء المؤقتة — فقط النتيجة (موجود / غير موجود)
-  if (error) return null;
-
-  const value: CachedRestaurant = data
-    ? { id: data.id, subdomain: data.subdomain, logo_url: data.logo_url ?? null }
-    : null;
+  let value: CachedRestaurant;
+  try {
+    value = await findRestaurantByHost(
+      tenant.kind === "subdomain" ? { subdomain: tenant.subdomain } : { customDomain: tenant.domain }
+    );
+  } catch {
+    // لا نخزّن الأخطاء المؤقتة — فقط النتيجة (موجود / غير موجود)
+    return null;
+  }
   restaurantCache.set(key, { value, expires: Date.now() + CACHE_TTL_MS });
   return value;
 }

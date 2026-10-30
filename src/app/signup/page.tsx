@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/app/actions/auth";
+import { getSessionUser } from "@/lib/auth/session";
 import { SignupForm } from "./signup-form";
 
 export const metadata = {
@@ -8,7 +8,7 @@ export const metadata = {
 };
 
 export default async function SignupPage() {
-  const session = await getSession();
+  const session = await getSessionUser();
   if (session) redirect("/complete-profile");
 
   return (

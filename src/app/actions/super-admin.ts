@@ -1,39 +1,37 @@
 "use server";
 
-import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth-guards";
-
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
-import type { Restaurant } from "@/lib/types/database";
+import { and, asc, count, eq, inArray, or } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { db, schema } from "@/db";
+import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth/current-user";
+import { isSubdomainTaken, toRestaurantDto, validateSubdomain } from "@/lib/data/restaurants";
+import type { Restaurant } from "@/lib/types/database";
 
 export type RestaurantWithOwner = Restaurant & { owner_username?: string | null };
 
 export async function getAllRestaurants(): Promise<RestaurantWithOwner[]> {
   if (!(await isSuperAdminRequest())) return [];
-  const supabase = await createClient();
-  const { data: restaurants, error } = await supabase
-    .from("restaurants")
-    .select("id, name, subdomain, status, created_at, logo_url")
-    .order("name");
-  if (error || !restaurants?.length) return (restaurants ?? []) as RestaurantWithOwner[];
+  const rows = await db.select().from(schema.restaurants).orderBy(asc(schema.restaurants.name));
+  if (!rows.length) return [];
 
-  const ids = restaurants.map((r) => r.id);
-  const admin = createAdminClient();
-  const { data: profiles } = await admin
-    .from("profiles")
-    .select("restaurant_id, username")
-    .in("restaurant_id", ids)
-    .eq("role", "owner");
-  const usernameByRestaurant = new Map<string, string | null>();
-  for (const p of profiles ?? []) {
-    if (p.restaurant_id) usernameByRestaurant.set(p.restaurant_id, p.username ?? null);
-  }
+  const owners = await db
+    .select({ restaurantId: schema.users.restaurantId, username: schema.users.username })
+    .from(schema.users)
+    .where(
+      and(
+        eq(schema.users.role, "owner"),
+        inArray(
+          schema.users.restaurantId,
+          rows.map((r) => r.id)
+        )
+      )
+    );
+  const usernameByRestaurant = new Map(owners.map((o) => [o.restaurantId, o.username]));
 
-  return restaurants.map((r) => ({
-    ...r,
+  return rows.map((r) => ({
+    ...toRestaurantDto(r),
     owner_username: usernameByRestaurant.get(r.id) ?? null,
-  })) as RestaurantWithOwner[];
+  }));
 }
 
 export type CreateRestaurantInput = {
@@ -42,39 +40,19 @@ export type CreateRestaurantInput = {
   status?: "active" | "suspended" | "trial";
 };
 
-const SUBDOMAIN_REGEX = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/;
-const SUBDOMAIN_MIN = 2;
-const SUBDOMAIN_MAX = 63;
-
 export async function updateRestaurantSubdomain(
   restaurantId: string,
   newSubdomain: string
 ): Promise<{ error: string | null }> {
   if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
-  const subRaw = newSubdomain?.trim().toLowerCase().replace(/\s+/g, "-") ?? "";
-  if (!subRaw) return { error: "النطاق الفرعي مطلوب" };
-  if (subRaw.length < SUBDOMAIN_MIN || subRaw.length > SUBDOMAIN_MAX) {
-    return { error: `النطاق الفرعي بين ${SUBDOMAIN_MIN} و ${SUBDOMAIN_MAX} حرفاً` };
-  }
-  if (!SUBDOMAIN_REGEX.test(subRaw)) return { error: "النطاق الفرعي: حروف إنجليزية صغيرة، أرقام وشرطة فقط" };
+  const sub = validateSubdomain(newSubdomain ?? "");
+  if ("error" in sub) return { error: sub.error };
+  if (await isSubdomainTaken(sub.value, restaurantId)) return { error: "النطاق الفرعي مستخدم لمطعم آخر" };
 
-  const supabase = await createClient();
-
-  const { data: existing } = await supabase
-    .from("restaurants")
-    .select("id")
-    .ilike("subdomain", subRaw)
-    .neq("id", restaurantId)
-    .maybeSingle();
-
-  if (existing) return { error: "النطاق الفرعي مستخدم لمطعم آخر" };
-
-  const { error: updateErr } = await supabase
-    .from("restaurants")
-    .update({ subdomain: subRaw })
-    .eq("id", restaurantId);
-
-  if (updateErr) return { error: updateErr.message };
+  await db
+    .update(schema.restaurants)
+    .set({ subdomain: sub.value })
+    .where(eq(schema.restaurants.id, restaurantId));
 
   revalidatePath("/admin/restaurants");
   revalidatePath("/admin");
@@ -85,48 +63,26 @@ export async function createRestaurant(
   input: CreateRestaurantInput
 ): Promise<{ data: Restaurant | null; error: string | null }> {
   if (!(await isSuperAdminRequest())) return { data: null, error: UNAUTHORIZED };
-  const subdomain = input.subdomain.trim().toLowerCase().replace(/\s+/g, "-");
-  if (!subdomain) return { data: null, error: "Subdomain is required" };
+  const name = input.name?.trim();
+  if (!name) return { data: null, error: "اسم المطعم مطلوب" };
+  const sub = validateSubdomain(input.subdomain ?? "");
+  if ("error" in sub) return { data: null, error: sub.error };
+  if (await isSubdomainTaken(sub.value)) return { data: null, error: "النطاق الفرعي مستخدم لمطعم آخر" };
 
-  const supabase = await createClient();
-  const { data: existing } = await supabase
-    .from("restaurants")
-    .select("id")
-    .ilike("subdomain", subdomain)
-    .maybeSingle();
-  if (existing) return { data: null, error: "Subdomain already in use" };
+  const [row] = await db
+    .insert(schema.restaurants)
+    .values({ name, subdomain: sub.value, status: input.status ?? "active" })
+    .returning();
 
-  const { data, error } = await supabase
-    .from("restaurants")
-    .insert({
-      name: input.name.trim(),
-      subdomain,
-      status: input.status ?? "active",
-    })
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
   revalidatePath("/admin");
   revalidatePath("/admin/restaurants");
-  return { data: data as Restaurant, error: null };
+  return { data: toRestaurantDto(row), error: null };
 }
 
-export async function deleteRestaurant(
-  id: string
-): Promise<{ error: string | null }> {
+/** حذف المطعم وكل بياناته (الأصناف، الطلبات، الزبائن، حساب المالك…) عبر ON DELETE CASCADE */
+export async function deleteRestaurant(id: string): Promise<{ error: string | null }> {
   if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
-  // Super admin: احذف التبعيات أولاً لتجنب مشاكل قيود المفاتيح الأجنبية
-  const admin = createAdminClient();
-
-  const { error: menuItemsErr } = await admin.from("menu_items").delete().eq("restaurant_id", id);
-  if (menuItemsErr) return { error: menuItemsErr.message };
-
-  const { error: categoriesErr } = await admin.from("categories").delete().eq("restaurant_id", id);
-  if (categoriesErr) return { error: categoriesErr.message };
-
-  const { error: restaurantsErr } = await admin.from("restaurants").delete().eq("id", id);
-  if (restaurantsErr) return { error: restaurantsErr.message };
-
+  await db.delete(schema.restaurants).where(eq(schema.restaurants.id, id));
   revalidatePath("/admin");
   revalidatePath("/admin/restaurants");
   return { error: null };
@@ -138,15 +94,14 @@ export async function getSuperAdminStats(): Promise<{
   activeRestaurants: number;
   totalMenuItems: number;
 }> {
-  const supabase = await createClient();
-  const [allRes, activeRes, itemsRes] = await Promise.all([
-    supabase.from("restaurants").select("id", { count: "exact", head: true }),
-    supabase.from("restaurants").select("id", { count: "exact", head: true }).or("status.eq.active,status.is.null"),
-    supabase.from("menu_items").select("id", { count: "exact", head: true }),
+  if (!(await isSuperAdminRequest())) return { totalRestaurants: 0, activeRestaurants: 0, totalMenuItems: 0 };
+  const [[all], [active], [items]] = await Promise.all([
+    db.select({ n: count() }).from(schema.restaurants),
+    db
+      .select({ n: count() })
+      .from(schema.restaurants)
+      .where(or(eq(schema.restaurants.status, "active"), eq(schema.restaurants.status, "trial"))),
+    db.select({ n: count() }).from(schema.menuItems),
   ]);
-  return {
-    totalRestaurants: allRes.count ?? 0,
-    activeRestaurants: activeRes.count ?? 0,
-    totalMenuItems: itemsRes.count ?? 0,
-  };
+  return { totalRestaurants: all.n, activeRestaurants: active.n, totalMenuItems: items.n };
 }

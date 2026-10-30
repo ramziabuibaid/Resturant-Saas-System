@@ -1,6 +1,6 @@
 import { headers, cookies } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
-import { getRestaurantBySubdomain } from "@/app/actions/auth";
+import { getRestaurantBySubdomain } from "@/lib/data/restaurants";
 import { subdomainFromHost } from "@/lib/tenant-host";
 
 const ADMIN_TENANT_COOKIE = "admin_subdomain";

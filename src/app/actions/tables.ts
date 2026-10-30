@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { getProfileOrRedirect } from "@/app/actions/auth";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import type { RestaurantTable } from "@/lib/types/database";
 
 function revalidateRestaurantPaths() {

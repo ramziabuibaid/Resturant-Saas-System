@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { getRestaurantBySubdomain } from "@/app/actions/menu";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
-import { getRestaurantForProfile } from "@/app/actions/auth";
+import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { getAdminContext } from "@/lib/admin-context";
 import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";

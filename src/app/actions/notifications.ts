@@ -1,7 +1,7 @@
 "use server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getProfileOrRedirect } from "@/app/actions/auth";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import { renderPointsBalanceSmsTemplate } from "@/lib/notifications";
 
 export async function listRecentOutboundNotifications(limit = 40): Promise<{

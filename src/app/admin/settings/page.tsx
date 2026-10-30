@@ -1,7 +1,5 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
-import {
-  getRestaurantForProfile,
-} from "@/app/actions/auth";
+import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { listRestaurantWaiters } from "@/app/actions/waiters";
 import {
   Card,

@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
-import { getRestaurantBySubdomain } from "@/app/actions/auth";
+import { getRestaurantBySubdomain } from "@/lib/data/restaurants";
 import { getMenuItemsBySubdomain } from "@/app/actions/menu";
 import {
   getRestaurantTableByToken,

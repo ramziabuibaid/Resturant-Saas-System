@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Cairo, JetBrains_Mono } from "next/font/google";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/ThemeProvider";
-import { SessionHashHandler } from "@/components/auth/SessionHashHandler";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -40,7 +39,6 @@ export default function RootLayout({
           <TooltipProvider>
             {children}
             <Toaster position="top-center" richColors closeButton />
-            <SessionHashHandler />
           </TooltipProvider>
         </ThemeProvider>
       </body>
