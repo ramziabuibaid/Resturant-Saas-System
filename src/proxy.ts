@@ -14,7 +14,7 @@ const RESTAURANT_HEADERS = {
  * Middleware: identifies the restaurant from the host and routes the request.
  *
  * 1. parseTenantHost: platform host, restaurant subdomain, or restaurant custom domain.
- * 2. Looks the restaurant up in Supabase (cached per instance for a short time).
+ * 2. Looks the restaurant up in Postgres (cached per instance for a short time).
  * 3. App routes (/admin, /login, /auth, …) continue with x-restaurant-* headers;
  *    everything else on a restaurant host renders that restaurant's menu.
  */

@@ -47,7 +47,7 @@ export async function findCustomerByPhone(restaurantId: string, phone: string) {
  */
 export async function redeemCashInTx(
   tx: Tx,
-  args: { restaurantId: string; customerId: string; orderId: string; pointsRequested: number; pointValueCents: number }
+  args: { restaurantId: string; customerId: string; orderId: string | null; pointsRequested: number; pointValueCents: number }
 ): Promise<{ points: number; discountCents: number; newBalance: number }> {
   const [c] = await tx
     .select({ balance: schema.customers.pointsBalance })
@@ -174,3 +174,80 @@ export async function finalizeCompletedOrder(orderId: string, restaurantId: stri
     });
   }
 }
+
+/**
+ * استبدال مكافأة من الكتالوج: يتحقق من التفعيل والتواريخ والمخزون والرصيد، ثم يخصم النقاط
+ * ويسجل العملية — كله في معاملة واحدة مع قفل صف الزبون وصف المكافأة.
+ */
+export async function redeemReward(args: {
+  restaurantId: string;
+  customerId: string;
+  rewardId: string;
+  orderId: string | null;
+}): Promise<{ pointsSpent: number; newBalance: number; redemptionId: string }> {
+  return db.transaction(async (tx) => {
+    const [reward] = await tx
+      .select()
+      .from(schema.loyaltyRewards)
+      .where(and(eq(schema.loyaltyRewards.id, args.rewardId), eq(schema.loyaltyRewards.restaurantId, args.restaurantId)))
+      .for("update");
+    const now = Date.now();
+    if (!reward || !reward.active) throw new LoyaltyError("المكافأة غير متاحة");
+    if ((reward.validFrom && reward.validFrom.getTime() > now) || (reward.validTo && reward.validTo.getTime() < now))
+      throw new LoyaltyError("المكافأة خارج فترة الصلاحية");
+    if (reward.stock !== null && reward.stock <= 0) throw new LoyaltyError("نفدت كمية هذه المكافأة");
+
+    const [c] = await tx
+      .select({ balance: schema.customers.pointsBalance })
+      .from(schema.customers)
+      .where(and(eq(schema.customers.id, args.customerId), eq(schema.customers.restaurantId, args.restaurantId)))
+      .for("update");
+    if (!c) throw new LoyaltyError("العميل غير موجود");
+    if (c.balance < reward.pointsCost) throw new LoyaltyError("رصيد النقاط غير كافٍ لهذه المكافأة");
+
+    const [updated] = await tx
+      .update(schema.customers)
+      .set({
+        pointsBalance: sql`${schema.customers.pointsBalance} - ${reward.pointsCost}`,
+        lifetimeRedeemed: sql`${schema.customers.lifetimeRedeemed} + ${reward.pointsCost}`,
+      })
+      .where(eq(schema.customers.id, args.customerId))
+      .returning({ balance: schema.customers.pointsBalance });
+
+    if (reward.stock !== null) {
+      await tx
+        .update(schema.loyaltyRewards)
+        .set({ stock: sql`${schema.loyaltyRewards.stock} - 1` })
+        .where(eq(schema.loyaltyRewards.id, reward.id));
+    }
+
+    const [txRow] = await tx
+      .insert(schema.loyaltyTransactions)
+      .values({
+        restaurantId: args.restaurantId,
+        customerId: args.customerId,
+        orderId: args.orderId,
+        txType: "redeem_reward",
+        pointsDelta: -reward.pointsCost,
+        metadata: { reward_id: reward.id, reward_title: reward.title },
+      })
+      .returning({ id: schema.loyaltyTransactions.id });
+
+    const [redemption] = await tx
+      .insert(schema.loyaltyRewardRedemptions)
+      .values({
+        restaurantId: args.restaurantId,
+        customerId: args.customerId,
+        rewardId: reward.id,
+        orderId: args.orderId,
+        loyaltyTransactionId: txRow.id,
+        pointsSpent: reward.pointsCost,
+      })
+      .returning({ id: schema.loyaltyRewardRedemptions.id });
+
+    return { pointsSpent: reward.pointsCost, newBalance: updated.balance, redemptionId: redemption.id };
+  });
+}
+
+/** خطأ متوقع يُعرض للمستخدم كما هو */
+export class LoyaltyError extends Error {}

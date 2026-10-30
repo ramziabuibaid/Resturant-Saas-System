@@ -54,8 +54,7 @@ export default async function AdminRestaurantOrdersPage() {
       </div>
       {error ? (
         <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          تعذر تحميل الطلبات: {error}. نفّذ ملف{" "}
-          <code className="rounded bg-muted px-1">supabase/migrations/0014_orders-tables-customers.sql</code> إن لم يكن مفعّلاً.
+          تعذر تحميل الطلبات: {error}
         </p>
       ) : (
         <OrdersClient

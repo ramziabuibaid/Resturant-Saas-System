@@ -26,8 +26,7 @@ export default async function AdminRestaurantTablesPage() {
     <div className="space-y-4">
       {error ? (
         <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          تعذر تحميل الطاولات: {error}. نفّذ{" "}
-          <code className="rounded bg-muted px-1">supabase/migrations/0014_orders-tables-customers.sql</code> في Supabase.
+          تعذر تحميل الطاولات: {error}
         </p>
       ) : null}
       <TablesClient

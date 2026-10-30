@@ -41,7 +41,7 @@ type DashboardLayoutProps = {
   logoUrl?: string | null;
   /** بيانات البروفايل في أسفل الـ Sidebar (اختياري) */
   profile?: DashboardProfile | null;
-  /** عند التمرير: جرس طلبات حي (Supabase Realtime) */
+  /** عند التمرير: جرس الطلبات الجديدة (استعلام دوري) */
   notificationRestaurantId?: string | null;
   children: React.ReactNode;
 };

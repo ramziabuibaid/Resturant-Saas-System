@@ -491,7 +491,7 @@ export function LoyaltyDashboardClient({
                 dir="ltr"
               />
               <Input name="points" placeholder="عدد النقاط" type="number" min={1} required />
-              <Button size="sm" disabled={pending}>
+              <Button type="submit" size="sm" disabled={pending}>
                 تنفيذ
               </Button>
             </form>
@@ -522,7 +522,7 @@ export function LoyaltyDashboardClient({
               <Input name="customer_id" placeholder="معرّف العميل" dir="ltr" required />
               <Input name="reward_id" placeholder="معرّف المكافأة" dir="ltr" required />
               <Input name="order_id" placeholder="معرّف الطلب (اختياري)" dir="ltr" />
-              <Button size="sm" disabled={pending}>
+              <Button type="submit" size="sm" disabled={pending}>
                 تنفيذ
               </Button>
             </form>
@@ -598,7 +598,7 @@ export function LoyaltyDashboardClient({
                 />
                 <span className="text-sm">مكافأة مفعّلة</span>
               </div>
-              <Button size="sm" disabled={pending}>
+              <Button type="submit" size="sm" disabled={pending}>
                 حفظ المكافأة
               </Button>
             </form>

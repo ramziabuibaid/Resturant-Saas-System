@@ -1,4 +1,4 @@
-import { getLoyaltyPortalByToken } from "@/app/actions/customers";
+import { getLoyaltyPortalByToken } from "@/lib/data/loyalty";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 type Props = {

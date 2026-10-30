@@ -1,6 +1,7 @@
 "use server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
+import { and, asc, desc, eq, lte } from "drizzle-orm";
+import { db, schema } from "@/db";
 import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import { renderPointsBalanceSmsTemplate } from "@/lib/notifications";
 
@@ -16,33 +17,31 @@ export async function listRecentOutboundNotifications(limit = 40): Promise<{
   }[];
   error: string | null;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("outbound_notifications")
-    .select("id, channel, template_key, status, created_at, sent_at, error")
-    .eq("restaurant_id", rid)
-    .order("created_at", { ascending: false })
-    .limit(Math.max(1, Math.min(limit, 100)));
-  if (error) return { rows: [], error: error.message };
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rows = await db
+    .select()
+    .from(schema.outboundNotifications)
+    .where(eq(schema.outboundNotifications.restaurantId, restaurant_id!))
+    .orderBy(desc(schema.outboundNotifications.createdAt))
+    .limit(Math.max(1, Math.min(Math.floor(Number(limit) || 40), 100)));
   return {
-    rows: (data ?? []) as {
-      id: string;
-      channel: string;
-      template_key: string;
-      status: string;
-      created_at: string;
-      sent_at: string | null;
-      error: string | null;
-    }[],
+    rows: rows.map((n) => ({
+      id: n.id,
+      channel: n.channel,
+      template_key: n.templateKey,
+      status: n.status,
+      created_at: n.createdAt.toISOString(),
+      sent_at: n.sentAt?.toISOString() ?? null,
+      error: n.error,
+    })),
     error: null,
   };
 }
 
 /**
- * Worker entrypoint (can be called by cron).
- * Currently mocks provider send and marks queued rows as sent/failed.
+ * معالجة طابور الإشعارات لمطعم المستخدم.
+ * ⚠️ لا يوجد مزود SMS/واتساب بعد: الرسالة تُجهَّز ثم تُعلَّم «sent» (محاكاة).
+ * عند ربط مزود حقيقي: أرسل هنا وخزّن provider_message_id.
  */
 export async function processQueuedNotifications(batchSize = 25): Promise<{
   processed: number;
@@ -50,58 +49,44 @@ export async function processQueuedNotifications(batchSize = 25): Promise<{
   failed: number;
   error: string | null;
 }> {
-  // يُستدعى من لوحة المطعم: يعالج إشعارات مطعم المستخدم فقط
-  const profile = await getProfileOrRedirect();
-  const admin = createAdminClient();
-  const nowIso = new Date().toISOString();
-  const { data: queued, error } = await admin
-    .from("outbound_notifications")
-    .select("id, payload, template_key")
-    .eq("restaurant_id", profile.restaurant_id!)
-    .eq("status", "queued")
-    .lte("scheduled_at", nowIso)
-    .order("scheduled_at", { ascending: true })
-    .limit(Math.max(1, Math.min(batchSize, 100)));
-  if (error) return { processed: 0, sent: 0, failed: 0, error: error.message };
+  const { restaurant_id } = await getProfileOrRedirect();
+  const queued = await db
+    .select()
+    .from(schema.outboundNotifications)
+    .where(
+      and(
+        eq(schema.outboundNotifications.restaurantId, restaurant_id!),
+        eq(schema.outboundNotifications.status, "queued"),
+        lte(schema.outboundNotifications.scheduledAt, new Date())
+      )
+    )
+    .orderBy(asc(schema.outboundNotifications.scheduledAt))
+    .limit(Math.max(1, Math.min(Math.floor(Number(batchSize) || 25), 100)));
 
   let sent = 0;
   let failed = 0;
-  for (const row of queued ?? []) {
-    const id = (row as { id: string }).id;
-    const payload = (row as { payload?: Record<string, unknown> }).payload ?? {};
+  for (const row of queued) {
     try {
-      // Placeholder provider rendering. Integrate actual SMS/WhatsApp provider here.
-      if ((row as { template_key: string }).template_key === "loyalty.points.balance.updated") {
+      if (row.templateKey === "loyalty.points.balance.updated") {
+        const p = row.payload;
         renderPointsBalanceSmsTemplate({
-          customerName:
-            typeof payload.customer_name === "string" ? payload.customer_name : null,
-          pointsBalance:
-            typeof payload.points_balance === "number"
-              ? payload.points_balance
-              : Number(payload.points_balance ?? 0),
-          publicLink: typeof payload.public_link === "string" ? payload.public_link : null,
+          customerName: typeof p.customer_name === "string" ? p.customer_name : null,
+          pointsBalance: Number(p.points_balance ?? 0),
+          publicLink: typeof p.public_link === "string" ? p.public_link : null,
         });
       }
-      await admin
-        .from("outbound_notifications")
-        .update({
-          status: "sent",
-          sent_at: new Date().toISOString(),
-          error: null,
-          provider_message_id: `mock-${id.slice(0, 8)}`,
-        })
-        .eq("id", id);
+      await db
+        .update(schema.outboundNotifications)
+        .set({ status: "sent", sentAt: new Date(), error: null, providerMessageId: `mock-${row.id.slice(0, 8)}` })
+        .where(eq(schema.outboundNotifications.id, row.id));
       sent += 1;
     } catch (e) {
-      await admin
-        .from("outbound_notifications")
-        .update({
-          status: "failed",
-          error: e instanceof Error ? e.message : "send failed",
-        })
-        .eq("id", id);
+      await db
+        .update(schema.outboundNotifications)
+        .set({ status: "failed", error: e instanceof Error ? e.message : "send failed" })
+        .where(eq(schema.outboundNotifications.id, row.id));
       failed += 1;
     }
   }
-  return { processed: (queued ?? []).length, sent, failed, error: null };
+  return { processed: queued.length, sent, failed, error: null };
 }

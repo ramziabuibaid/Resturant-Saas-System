@@ -19,7 +19,7 @@ export const metadata = {
 export default async function AdminCustomersPage() {
   const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
-  const { customers, error, loyaltyColumnsMissing } = await listRestaurantCustomers();
+  const { customers, error } = await listRestaurantCustomers();
   const [dashboardRes, rewardsRes, notificationsRes] = await Promise.all([
     listLoyaltyDashboardCustomers(),
     listRestaurantRewards(),
@@ -43,20 +43,6 @@ export default async function AdminCustomersPage() {
         </p>
       </div>
 
-      {loyaltyColumnsMissing ? (
-        <div
-          className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:border-amber-400/40 dark:bg-amber-400/10 dark:text-amber-50"
-          role="status"
-        >
-          <p className="font-medium">قاعدة البيانات تحتاج تحديثاً لأعمدة المشتريات والنقاط</p>
-          <p className="mt-2 text-xs leading-relaxed opacity-90">
-            Supabase → SQL — نفّذ الملف{" "}
-            <code className="rounded bg-background/80 px-1.5 py-0.5 font-mono text-[11px]">
-              supabase/migrations/0017_FIX-customer-phones-loyalty-columns.sql
-            </code>
-          </p>
-        </div>
-      ) : null}
 
       <Card>
         <CardHeader>
@@ -69,7 +55,7 @@ export default async function AdminCustomersPage() {
 
       {error ? (
         <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-          تعذر تحميل العملاء: {error}. تأكد من تنفيذ ملفات SQL في Supabase.
+          تعذر تحميل العملاء: {error}
         </p>
       ) : (
         <div className="space-y-6">

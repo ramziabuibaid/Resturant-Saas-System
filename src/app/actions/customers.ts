@@ -1,125 +1,69 @@
 "use server";
 
-import { createHash, randomBytes } from "crypto";
+import { and, asc, count, desc, eq, inArray } from "drizzle-orm";
 import { headers } from "next/headers";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
-import { getProfileOrRedirect } from "@/lib/auth/current-user";
-import type { RestaurantCustomerPhone } from "@/lib/types/database";
-import { enqueuePointsBalanceNotification, renderPointsBalanceSmsTemplate } from "@/lib/notifications";
 import { revalidatePath } from "next/cache";
+import { db, schema } from "@/db";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
 import {
-  mirrorLoyaltyAccountToLegacyPhoneRow,
-  syncLoyaltyProfilesFromLegacyPhones,
-} from "@/lib/loyalty-sync";
+  createCustomerPublicLink,
+  LoyaltyError,
+  redeemCashInTx,
+  redeemReward,
+} from "@/lib/loyalty/core";
+import { enqueuePointsBalanceNotification, renderPointsBalanceSmsTemplate } from "@/lib/notifications";
+import type { RestaurantCustomerPhone } from "@/lib/types/database";
 
-const CUSTOMER_PHONE_COLUMNS_FULL =
-  "id, restaurant_id, phone_normalized, first_seen_at, last_order_at, order_count, total_spent_cents, points_balance, lifetime_points_earned, lifetime_points_redeemed";
+/* زبائن المطعم والولاء — كل الدوال مقيّدة بمطعم المستخدم الحالي. */
 
-const CUSTOMER_PHONE_COLUMNS_LEGACY =
-  "id, restaurant_id, phone_normalized, first_seen_at, last_order_at, order_count";
-
-function isMissingColumnError(message: string): boolean {
-  const m = message.toLowerCase();
-  return (
-    m.includes("total_spent_cents") ||
-    m.includes("points_balance") ||
-    m.includes("lifetime_points_earned") ||
-    m.includes("lifetime_points_redeemed")
-  );
+function revalidateCustomers() {
+  revalidatePath("/admin/customers");
 }
 
-function mapLegacyCustomerRow(r: {
-  id: string;
-  restaurant_id: string;
-  phone_normalized: string;
-  first_seen_at?: string | null;
-  last_order_at?: string | null;
-  order_count?: number | null;
-}): RestaurantCustomerPhone {
-  return {
-    id: r.id,
-    restaurant_id: r.restaurant_id,
-    phone_normalized: r.phone_normalized,
-    first_seen_at: r.first_seen_at ?? undefined,
-    last_order_at: r.last_order_at ?? undefined,
-    order_count: r.order_count ?? 0,
-    total_spent_cents: 0,
-    points_balance: 0,
-    lifetime_points_earned: 0,
-    lifetime_points_redeemed: 0,
-  };
+async function ownCustomer(customerId: string, restaurantId: string) {
+  const [c] = await db
+    .select()
+    .from(schema.customers)
+    .where(and(eq(schema.customers.id, customerId), eq(schema.customers.restaurantId, restaurantId)))
+    .limit(1);
+  return c ?? null;
+}
+
+async function publicSiteBaseUrl(): Promise<string> {
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
+  const proto = h.get("x-forwarded-proto") ?? "https";
+  return host ? `${proto}://${host}` : "";
 }
 
 export async function listRestaurantCustomers(): Promise<{
   customers: RestaurantCustomerPhone[];
   error: string | null;
-  /** true إن كانت قاعدة البيانات قديمة ولم تُضف أعمدة الولاء بعد */
+  /** للتوافق مع الواجهة القديمة — دائماً false الآن */
   loyaltyColumnsMissing: boolean;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-
-  const full = await supabase
-    .from("restaurant_customer_phones")
-    .select(CUSTOMER_PHONE_COLUMNS_FULL)
-    .eq("restaurant_id", rid)
-    .order("total_spent_cents", { ascending: false });
-
-  if (full.error && isMissingColumnError(full.error.message)) {
-    const legacy = await supabase
-      .from("restaurant_customer_phones")
-      .select(CUSTOMER_PHONE_COLUMNS_LEGACY)
-      .eq("restaurant_id", rid)
-      .order("last_order_at", { ascending: false });
-
-    if (legacy.error) {
-      return { customers: [], error: legacy.error.message, loyaltyColumnsMissing: false };
-    }
-    return {
-      customers: (legacy.data ?? []).map((row) =>
-        mapLegacyCustomerRow(
-          row as {
-            id: string;
-            restaurant_id: string;
-            phone_normalized: string;
-            first_seen_at?: string | null;
-            last_order_at?: string | null;
-            order_count?: number | null;
-          }
-        )
-      ),
-      error: null,
-      loyaltyColumnsMissing: true,
-    };
-  }
-
-  if (full.error) {
-    return { customers: [], error: full.error.message, loyaltyColumnsMissing: false };
-  }
-
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rows = await db
+    .select()
+    .from(schema.customers)
+    .where(eq(schema.customers.restaurantId, restaurant_id!))
+    .orderBy(desc(schema.customers.totalSpentCents), desc(schema.customers.lastOrderAt));
   return {
-    customers: (full.data ?? []) as RestaurantCustomerPhone[],
+    customers: rows.map((c) => ({
+      id: c.id,
+      restaurant_id: c.restaurantId,
+      phone_normalized: c.phoneNormalized,
+      first_seen_at: c.firstSeenAt.toISOString(),
+      last_order_at: c.lastOrderAt?.toISOString(),
+      order_count: c.orderCount,
+      total_spent_cents: c.totalSpentCents,
+      points_balance: c.pointsBalance,
+      lifetime_points_earned: c.lifetimeEarned,
+      lifetime_points_redeemed: c.lifetimeRedeemed,
+    })),
     error: null,
     loyaltyColumnsMissing: false,
   };
-}
-
-function sha256Hex(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
-}
-
-async function publicSiteBaseUrlFromHeaders(): Promise<string> {
-  try {
-    const h = await headers();
-    const host = h.get("x-forwarded-host") ?? h.get("host") ?? "";
-    const proto = h.get("x-forwarded-proto") ?? "https";
-    if (!host) return "";
-    return `${proto}://${host}`.replace(/\/$/, "");
-  } catch {
-    return "";
-  }
 }
 
 export type LoyaltyDashboardCustomer = {
@@ -137,68 +81,43 @@ export async function listLoyaltyDashboardCustomers(): Promise<{
   customers: LoyaltyDashboardCustomer[];
   error: string | null;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const rows = await db
+    .select()
+    .from(schema.customers)
+    .where(eq(schema.customers.restaurantId, rid))
+    .orderBy(desc(schema.customers.pointsBalance));
+  if (!rows.length) return { customers: [], error: null };
 
-  await syncLoyaltyProfilesFromLegacyPhones(rid);
+  const txCounts = await db
+    .select({ customerId: schema.loyaltyTransactions.customerId, n: count() })
+    .from(schema.loyaltyTransactions)
+    .where(
+      and(
+        eq(schema.loyaltyTransactions.restaurantId, rid),
+        inArray(
+          schema.loyaltyTransactions.customerId,
+          rows.map((r) => r.id)
+        )
+      )
+    )
+    .groupBy(schema.loyaltyTransactions.customerId);
+  const txByCustomer = new Map(txCounts.map((t) => [t.customerId, t.n]));
 
-  const { data: customers, error } = await admin
-    .from("customer_profiles")
-    .select("id, phone_normalized, name")
-    .eq("restaurant_id", rid);
-
-  if (error) return { customers: [], error: error.message };
-  if (!customers?.length) return { customers: [], error: null };
-
-  const customerIds = customers.map((c) => c.id as string);
-  const [accountsRes, txRes] = await Promise.all([
-    admin
-      .from("loyalty_accounts")
-      .select("customer_id, points_balance, lifetime_earned, lifetime_redeemed, updated_at")
-      .eq("restaurant_id", rid)
-      .in("customer_id", customerIds),
-    admin
-      .from("loyalty_transactions")
-      .select("customer_id")
-      .eq("restaurant_id", rid)
-      .in("customer_id", customerIds),
-  ]);
-
-  const accByCustomer = new Map(
-    (accountsRes.data ?? []).map((a) => [
-      (a as { customer_id: string }).customer_id,
-      a as {
-        customer_id: string;
-        points_balance: number;
-        lifetime_earned: number;
-        lifetime_redeemed: number;
-        updated_at: string;
-      },
-    ])
-  );
-  const txCountByCustomer = new Map<string, number>();
-  for (const tx of txRes.data ?? []) {
-    const cid = (tx as { customer_id: string }).customer_id;
-    txCountByCustomer.set(cid, (txCountByCustomer.get(cid) ?? 0) + 1);
-  }
-
-  const rows: LoyaltyDashboardCustomer[] = (customers ?? []).map((c) => {
-    const customer = c as { id: string; phone_normalized: string; name: string | null };
-    const acc = accByCustomer.get(customer.id);
-    return {
-      customer_id: customer.id,
-      phone_normalized: customer.phone_normalized,
-      name: customer.name,
-      points_balance: Number(acc?.points_balance ?? 0),
-      lifetime_earned: Number(acc?.lifetime_earned ?? 0),
-      lifetime_redeemed: Number(acc?.lifetime_redeemed ?? 0),
-      tx_count: txCountByCustomer.get(customer.id) ?? 0,
-      updated_at: acc?.updated_at ?? new Date(0).toISOString(),
-    };
-  });
-  rows.sort((a, b) => b.points_balance - a.points_balance);
-  return { customers: rows, error: null };
+  return {
+    customers: rows.map((c) => ({
+      customer_id: c.id,
+      phone_normalized: c.phoneNormalized,
+      name: c.name,
+      points_balance: c.pointsBalance,
+      lifetime_earned: c.lifetimeEarned,
+      lifetime_redeemed: c.lifetimeRedeemed,
+      tx_count: txByCustomer.get(c.id) ?? 0,
+      updated_at: c.updatedAt.toISOString(),
+    })),
+    error: null,
+  };
 }
 
 export async function generateCustomerMagicLink(customerId: string): Promise<{
@@ -208,34 +127,13 @@ export async function generateCustomerMagicLink(customerId: string): Promise<{
   path: string | null;
   error: string | null;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
-  const rawToken = randomBytes(24).toString("hex");
-  const tokenHash = sha256Hex(rawToken);
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 180).toISOString();
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  if (!(await ownCustomer(customerId, rid))) return { url: null, path: null, error: "العميل غير موجود" };
 
-  const { data: customer, error: customerErr } = await admin
-    .from("customer_profiles")
-    .select("id")
-    .eq("id", customerId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (customerErr || !customer) return { url: null, path: null, error: "العميل غير موجود" };
-
-  const { error } = await admin.from("customer_public_links").insert({
-    restaurant_id: rid,
-    customer_id: customerId,
-    token_hash: tokenHash,
-    expires_at: expiresAt,
-    is_revoked: false,
-  });
-  if (error) return { url: null, path: null, error: error.message };
-
-  const path = `/loyalty/${rawToken}`;
-  const base = await publicSiteBaseUrlFromHeaders();
-  const url = base ? `${base}${path}` : path;
-  return { url, path, error: null };
+  const path = await createCustomerPublicLink(db, rid, customerId);
+  const base = await publicSiteBaseUrl();
+  return { url: base ? `${base}${path}` : path, path, error: null };
 }
 
 /** إدراج إشعار برصيد النقاط مع رابط عام (للطابور ثم الإرسال عبر المعالج أو مزود خارجي). */
@@ -244,102 +142,78 @@ export async function enqueueCustomerPointsNotification(customerId: string): Pro
   previewMessage: string;
   error: string | null;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const customer = await ownCustomer(customerId, rid);
+  if (!customer) return { queued: false, previewMessage: "", error: "العميل غير موجود" };
 
-  const linkRes = await generateCustomerMagicLink(customerId);
-  if (linkRes.error || !linkRes.url) {
-    return { queued: false, previewMessage: "", error: linkRes.error ?? "تعذر إنشاء الرابط" };
-  }
-
-  const { data: cust } = await admin
-    .from("customer_profiles")
-    .select("name")
-    .eq("id", customerId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  const { data: acc } = await admin
-    .from("loyalty_accounts")
-    .select("points_balance")
-    .eq("customer_id", customerId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-
-  const name = (cust as { name: string | null } | null)?.name ?? null;
-  const balance = Number((acc as { points_balance: number } | null)?.points_balance ?? 0);
+  const link = await generateCustomerMagicLink(customerId);
+  if (link.error || !link.url) return { queued: false, previewMessage: "", error: link.error ?? "تعذر إنشاء الرابط" };
 
   await enqueuePointsBalanceNotification({
     restaurantId: rid,
     customerId,
-    customerName: name,
-    pointsBalance: balance,
-    publicLink: linkRes.url,
+    customerName: customer.name,
+    pointsBalance: customer.pointsBalance,
+    publicLink: link.url,
   });
-
-  const previewMessage = renderPointsBalanceSmsTemplate({
-    customerName: name,
-    pointsBalance: balance,
-    publicLink: linkRes.url,
-  });
-
-  revalidatePath("/admin/customers");
-  revalidatePath("/admin/customers");
-  return { queued: true, previewMessage, error: null };
+  revalidateCustomers();
+  return {
+    queued: true,
+    previewMessage: renderPointsBalanceSmsTemplate({
+      customerName: customer.name,
+      pointsBalance: customer.pointsBalance,
+      publicLink: link.url,
+    }),
+    error: null,
+  };
 }
 
 export async function redeemCustomerCashPoints(
   customerId: string,
   pointsRequested: number,
   orderId?: string | null
-): Promise<{
-  pointsRedeemed: number;
-  discountCents: number;
-  newBalance: number;
-  error: string | null;
-}> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
+): Promise<{ pointsRedeemed: number; discountCents: number; newBalance: number; error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const fail = (error: string) => ({ pointsRedeemed: 0, discountCents: 0, newBalance: 0, error });
 
-  const { data: customer, error: customerErr } = await admin
-    .from("customer_profiles")
-    .select("id, restaurant_id")
-    .eq("id", customerId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (customerErr || !customer) {
-    return { pointsRedeemed: 0, discountCents: 0, newBalance: 0, error: "العميل غير موجود" };
+  const points = Math.floor(Number(pointsRequested) || 0);
+  if (points < 1) return fail("عدد النقاط غير صالح");
+  if (!(await ownCustomer(customerId, rid))) return fail("العميل غير موجود");
+
+  const oid = orderId?.trim() || null;
+  if (oid) {
+    const [o] = await db
+      .select({ id: schema.orders.id })
+      .from(schema.orders)
+      .where(and(eq(schema.orders.id, oid), eq(schema.orders.restaurantId, rid)))
+      .limit(1);
+    if (!o) return fail("الطلب غير موجود");
   }
 
-  const oid = orderId?.trim() ? orderId.trim() : null;
+  const [r] = await db
+    .select({ pointValue: schema.restaurants.loyaltyPointValueCents })
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.id, rid));
 
-  const rpc = await admin.rpc("redeem_loyalty_cash", {
-    p_customer_id: customerId,
-    p_order_id: oid,
-    p_points_requested: Math.max(1, Math.floor(pointsRequested)),
-  });
+  const result = await db.transaction((tx) =>
+    redeemCashInTx(tx, {
+      restaurantId: rid,
+      customerId,
+      orderId: oid,
+      pointsRequested: points,
+      pointValueCents: Math.max(1, r?.pointValue ?? 10),
+    })
+  );
+  // إن كان الرصيد أقل من المطلوب يُستبدل المتاح فقط، ويظهر العدد الفعلي في النتيجة
+  if (result.points === 0) return fail("رصيد النقاط غير كافٍ");
 
-  if (rpc.error || !Array.isArray(rpc.data) || !rpc.data[0]) {
-    return {
-      pointsRedeemed: 0,
-      discountCents: 0,
-      newBalance: 0,
-      error: rpc.error?.message ?? "فشل الاستبدال النقدي",
-    };
-  }
-  const row = rpc.data[0] as {
-    points_redeemed: number;
-    discount_cents: number;
-    new_balance: number;
-  };
-  await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
-  revalidatePath("/admin/customers");
-  revalidatePath("/admin/customers");
+  revalidateCustomers();
   return {
-    pointsRedeemed: Number(row.points_redeemed ?? 0),
-    discountCents: Number(row.discount_cents ?? 0),
-    newBalance: Number(row.new_balance ?? 0),
+    pointsRedeemed: result.points,
+    discountCents: result.discountCents,
+    newBalance: result.newBalance,
     error: null,
   };
 }
@@ -348,146 +222,17 @@ export async function redeemCustomerReward(
   customerId: string,
   rewardId: string,
   orderId?: string
-): Promise<{
-  pointsSpent: number;
-  newBalance: number;
-  redemptionId: string | null;
-  error: string | null;
-}> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
-
-  const { data: customer, error: customerErr } = await admin
-    .from("customer_profiles")
-    .select("id, restaurant_id")
-    .eq("id", customerId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (customerErr || !customer) {
-    return { pointsSpent: 0, newBalance: 0, redemptionId: null, error: "العميل غير موجود" };
+): Promise<{ pointsSpent: number; newBalance: number; redemptionId: string | null; error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  try {
+    const r = await redeemReward({ restaurantId: rid, customerId, rewardId, orderId: orderId?.trim() || null });
+    revalidateCustomers();
+    return { ...r, error: null };
+  } catch (e) {
+    if (e instanceof LoyaltyError) return { pointsSpent: 0, newBalance: 0, redemptionId: null, error: e.message };
+    throw e;
   }
-
-  const rpc = await admin.rpc("redeem_loyalty_reward", {
-    p_customer_id: customerId,
-    p_reward_id: rewardId,
-    p_order_id: orderId ?? null,
-  });
-  if (rpc.error || !Array.isArray(rpc.data) || !rpc.data[0]) {
-    return {
-      pointsSpent: 0,
-      newBalance: 0,
-      redemptionId: null,
-      error: rpc.error?.message ?? "فشل استبدال المكافأة",
-    };
-  }
-  const row = rpc.data[0] as {
-    points_spent: number;
-    new_balance: number;
-    redemption_id: string;
-  };
-  await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
-  revalidatePath("/admin/customers");
-  revalidatePath("/admin/customers");
-  return {
-    pointsSpent: Number(row.points_spent ?? 0),
-    newBalance: Number(row.new_balance ?? 0),
-    redemptionId: row.redemption_id ?? null,
-    error: null,
-  };
-}
-
-export async function getLoyaltyPortalByToken(token: string): Promise<{
-  customer: { name: string | null; phone: string; points_balance: number } | null;
-  transactions: {
-    id: string;
-    tx_type: string;
-    points_delta: number;
-    money_value_cents: number;
-    created_at: string;
-  }[];
-  rewards: {
-    id: string;
-    title: string;
-    points_cost: number;
-    description: string | null;
-  }[];
-  error: string | null;
-}> {
-  const raw = token.trim();
-  if (!raw) return { customer: null, transactions: [], rewards: [], error: "الرابط غير صالح" };
-  const admin = createAdminClient();
-  const tokenHash = sha256Hex(raw);
-
-  const { data: link, error: linkErr } = await admin
-    .from("customer_public_links")
-    .select("restaurant_id, customer_id, expires_at, is_revoked")
-    .eq("token_hash", tokenHash)
-    .maybeSingle();
-  if (linkErr || !link) return { customer: null, transactions: [], rewards: [], error: "الرابط غير موجود" };
-  if (link.is_revoked) return { customer: null, transactions: [], rewards: [], error: "تم إلغاء هذا الرابط" };
-  if (new Date(link.expires_at).getTime() < Date.now()) {
-    return { customer: null, transactions: [], rewards: [], error: "انتهت صلاحية الرابط" };
-  }
-
-  await admin
-    .from("customer_public_links")
-    .update({ last_access_at: new Date().toISOString() })
-    .eq("token_hash", tokenHash);
-
-  const [customerRes, accountRes, txRes, rewardsRes] = await Promise.all([
-    admin
-      .from("customer_profiles")
-      .select("name, phone_normalized")
-      .eq("id", link.customer_id)
-      .eq("restaurant_id", link.restaurant_id)
-      .maybeSingle(),
-    admin
-      .from("loyalty_accounts")
-      .select("points_balance")
-      .eq("customer_id", link.customer_id)
-      .eq("restaurant_id", link.restaurant_id)
-      .maybeSingle(),
-    admin
-      .from("loyalty_transactions")
-      .select("id, tx_type, points_delta, money_value_cents, created_at")
-      .eq("customer_id", link.customer_id)
-      .eq("restaurant_id", link.restaurant_id)
-      .order("created_at", { ascending: false })
-      .limit(40),
-    admin
-      .from("loyalty_rewards_catalog")
-      .select("id, title, points_cost, description")
-      .eq("restaurant_id", link.restaurant_id)
-      .eq("active", true)
-      .order("points_cost", { ascending: true }),
-  ]);
-
-  const customerRow = customerRes.data as { name: string | null; phone_normalized: string } | null;
-  const accountRow = accountRes.data as { points_balance: number } | null;
-  return {
-    customer: customerRow
-      ? {
-          name: customerRow.name,
-          phone: customerRow.phone_normalized,
-          points_balance: Number(accountRow?.points_balance ?? 0),
-        }
-      : null,
-    transactions: (txRes.data ?? []) as {
-      id: string;
-      tx_type: string;
-      points_delta: number;
-      money_value_cents: number;
-      created_at: string;
-    }[],
-    rewards: (rewardsRes.data ?? []) as {
-      id: string;
-      title: string;
-      points_cost: number;
-      description: string | null;
-    }[],
-    error: null,
-  };
 }
 
 export async function listRestaurantRewards(): Promise<{
@@ -501,24 +246,21 @@ export async function listRestaurantRewards(): Promise<{
   }[];
   error: string | null;
 }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("loyalty_rewards_catalog")
-    .select("id, title, description, points_cost, active, optional_stock")
-    .eq("restaurant_id", rid)
-    .order("points_cost", { ascending: true });
-  if (error) return { rewards: [], error: error.message };
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rows = await db
+    .select()
+    .from(schema.loyaltyRewards)
+    .where(eq(schema.loyaltyRewards.restaurantId, restaurant_id!))
+    .orderBy(asc(schema.loyaltyRewards.pointsCost));
   return {
-    rewards: (data ?? []) as {
-      id: string;
-      title: string;
-      description: string | null;
-      points_cost: number;
-      active: boolean;
-      optional_stock: number | null;
-    }[],
+    rewards: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      description: r.description,
+      points_cost: r.pointsCost,
+      active: r.active,
+      optional_stock: r.stock,
+    })),
     error: null,
   };
 }
@@ -531,28 +273,31 @@ export async function upsertRestaurantReward(input: {
   active: boolean;
   optionalStock?: number | null;
 }): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const admin = createAdminClient();
-  const payload = {
-    restaurant_id: rid,
-    title: input.title.trim(),
-    description: input.description?.trim() ? input.description.trim() : null,
-    points_cost: Math.max(1, Math.floor(input.pointsCost)),
-    active: input.active,
-    optional_stock:
-      input.optionalStock == null ? null : Math.max(0, Math.floor(input.optionalStock)),
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const title = input.title?.trim();
+  if (!title) return { error: "عنوان المكافأة مطلوب" };
+  const pointsCost = Math.floor(Number(input.pointsCost) || 0);
+  if (pointsCost < 1 || pointsCost > 10_000_000) return { error: "تكلفة النقاط غير صالحة" };
+
+  const values = {
+    title,
+    description: input.description?.trim() || null,
+    pointsCost,
+    active: input.active === true,
+    stock: input.optionalStock == null ? null : Math.max(0, Math.floor(Number(input.optionalStock) || 0)),
   };
-  if (!payload.title) return { error: "عنوان المكافأة مطلوب" };
 
   if (input.id) {
-    const { error } = await admin
-      .from("loyalty_rewards_catalog")
-      .update(payload)
-      .eq("id", input.id)
-      .eq("restaurant_id", rid);
-    return { error: error?.message ?? null };
+    const updated = await db
+      .update(schema.loyaltyRewards)
+      .set(values)
+      .where(and(eq(schema.loyaltyRewards.id, input.id), eq(schema.loyaltyRewards.restaurantId, rid)))
+      .returning({ id: schema.loyaltyRewards.id });
+    if (!updated.length) return { error: "المكافأة غير موجودة" };
+  } else {
+    await db.insert(schema.loyaltyRewards).values({ ...values, restaurantId: rid });
   }
-  const { error } = await admin.from("loyalty_rewards_catalog").insert(payload);
-  return { error: error?.message ?? null };
+  revalidateCustomers();
+  return { error: null };
 }

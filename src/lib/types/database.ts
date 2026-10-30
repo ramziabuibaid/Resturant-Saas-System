@@ -96,11 +96,6 @@ export type MenuItem = {
   updated_at?: string;
 };
 
-/** Menu item with category relation (from join) */
-export type MenuItemWithCategory = MenuItem & {
-  categories?: Category | null;
-};
-
 export type UserRole = "super_admin" | "owner";
 
 export type Profile = {
@@ -218,47 +213,6 @@ export type RestaurantCustomerPhone = {
   lifetime_points_redeemed: number;
 };
 
-export type LoyaltyPointReason =
-  | "earn_order"
-  | "redeem"
-  | "bonus_campaign"
-  | "admin_adjust"
-  | "expiry";
-
-/** سجل حركة نقاط (اكتساب / استبدال / حملة) */
-export type LoyaltyPointLedgerEntry = {
-  id: string;
-  restaurant_id: string;
-  phone_normalized: string;
-  order_id: string | null;
-  delta_points: number;
-  reason: LoyaltyPointReason;
-  note: string | null;
-  created_at: string;
-};
-
-export type CustomerProfile = {
-  id: string;
-  restaurant_id: string;
-  phone_normalized: string;
-  name: string | null;
-  email: string | null;
-  preferred_channel: "sms" | "whatsapp" | "email";
-  marketing_opt_in: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type LoyaltyAccount = {
-  id: string;
-  restaurant_id: string;
-  customer_id: string;
-  points_balance: number;
-  lifetime_earned: number;
-  lifetime_redeemed: number;
-  updated_at: string;
-};
-
 export type LoyaltyTransactionType =
   | "earn"
   | "redeem_cash"
@@ -267,57 +221,6 @@ export type LoyaltyTransactionType =
   | "expiry"
   | "bonus";
 
-export type LoyaltyTransaction = {
-  id: string;
-  restaurant_id: string;
-  customer_id: string;
-  order_id: string | null;
-  tx_type: LoyaltyTransactionType;
-  points_delta: number;
-  money_value_cents: number;
-  metadata: Record<string, unknown>;
-  created_at: string;
-};
-
-export type LoyaltyReward = {
-  id: string;
-  restaurant_id: string;
-  title: string;
-  description: string | null;
-  points_cost: number;
-  active: boolean;
-  optional_stock: number | null;
-  valid_from: string | null;
-  valid_to: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type LoyaltyRewardRedemption = {
-  id: string;
-  restaurant_id: string;
-  customer_id: string;
-  reward_id: string;
-  order_id: string | null;
-  loyalty_transaction_id: string;
-  points_spent: number;
-  created_at: string;
-};
-
 export type OutboundNotificationChannel = "sms" | "whatsapp" | "email";
 export type OutboundNotificationStatus = "queued" | "processing" | "sent" | "failed";
 
-export type OutboundNotification = {
-  id: string;
-  restaurant_id: string;
-  customer_id: string;
-  channel: OutboundNotificationChannel;
-  template_key: string;
-  payload: Record<string, unknown>;
-  status: OutboundNotificationStatus;
-  provider_message_id: string | null;
-  error: string | null;
-  scheduled_at: string;
-  sent_at: string | null;
-  created_at: string;
-};
