@@ -124,28 +124,6 @@ export async function createProfileAfterSignup(
   return { error: null };
 }
 
-export async function setProfileRestaurant(
-  restaurantId: string
-): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated" };
-  const { error } = await supabase.from("profiles").upsert(
-    {
-      id: user.id,
-      restaurant_id: restaurantId,
-      role: "owner",
-    },
-    { onConflict: "id" }
-  );
-  if (error) return { error: error.message };
-  revalidatePath("/admin");
-  revalidatePath("/complete-profile");
-  return { error: null };
-}
-
 /**
  * إنشاء مطعم جديد وربط الحساب به (للزائر الجديد — شهر تجريبي بدون تدخل المالك).
  * يستخدم Admin لتفادي RLS على restaurants و profiles.
