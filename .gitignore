@@ -50,3 +50,7 @@ next-env.d.ts
 
 # original Nano Banana exports (copies live in public/images)
 /nanobanana
+
+# server-side deploy artifacts
+/backups
+/secrets

@@ -11,12 +11,13 @@
  * كلمات المرور المولَّدة تُكتب في .seed-credentials.local (مستثنى من git) ولا تُطبع.
  */
 import { randomBytes } from "node:crypto";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync } from "node:fs";
 import { and, eq } from "drizzle-orm";
 import { db, schema } from "../src/db";
 import { hashPassword } from "../src/lib/auth/password";
 
-const CREDENTIALS_FILE = ".seed-credentials.local";
+// داخل حاوية الأدوات على السيرفر: secrets/ مربوط بمجلد على السيرفر
+const CREDENTIALS_FILE = existsSync("secrets") ? "secrets/seed-credentials.txt" : ".seed-credentials.local";
 const generated: string[] = [];
 
 function randomPassword() {

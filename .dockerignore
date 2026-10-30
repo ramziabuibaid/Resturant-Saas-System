@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.env*
+!.env.example
+.pgdata
+uploads
+backups
+secrets
+nanobanana
+.seed-credentials.local
+.claude
+**/.DS_Store
+tsconfig.tsbuildinfo

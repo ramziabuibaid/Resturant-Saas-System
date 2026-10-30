@@ -1,0 +1,105 @@
+# منصة المطاعم على storeserver — مستقلة تماماً عن Supabase الخاص بـ bazarko.
+#
+#   docker compose up -d --build        # بناء وتشغيل (migrations تُطبَّق تلقائياً قبل التطبيق)
+#   docker compose run --rm tools npx tsx scripts/seed.ts      # البذرة (مرة واحدة)
+#   docker compose logs -f app
+#
+# الأسرار في ملف .env بجانب هذا الملف (لا يُرفع إلى git) — انظر deploy/README.md
+
+name: restaurant-saas
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: restaurant_saas
+      POSTGRES_USER: restaurant
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?ضع POSTGRES_PASSWORD في .env}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    # لا منفذ مفتوح خارج Docker. للوصول من السيرفر نفسه: docker compose exec db psql -U restaurant restaurant_saas
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U restaurant -d restaurant_saas"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 1g
+
+  # صورة مرحلة البناء: فيها drizzle-kit و tsx — للـ migrations والبذرة وتغيير كلمات المرور
+  tools:
+    build:
+      context: .
+      target: build
+      args:
+        NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+    environment:
+      DATABASE_URL: postgres://restaurant:${POSTGRES_PASSWORD}@db:5432/restaurant_saas
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@resturant.app}
+      HOME: /tmp
+      npm_config_cache: /tmp/.npm
+    volumes:
+      # كلمات المرور المولّدة من البذرة تُكتب هنا (على السيرفر فقط)
+      - ./secrets:/app/secrets
+    working_dir: /app
+    # مستخدم السيرفر (لا root) حتى يملك ملفات secrets/ التي تُكتب هنا
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    command: ["npx", "drizzle-kit", "migrate"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: run
+      args:
+        NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgres://restaurant:${POSTGRES_PASSWORD}@db:5432/restaurant_saas
+      NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+    volumes:
+      - uploads:/data/uploads
+    # محلي على السيرفر فقط — Cloudflare Tunnel يوصل الإنترنت إليه
+    ports:
+      - "127.0.0.1:3100:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      tools:
+        condition: service_completed_successfully
+    mem_limit: 1g
+
+  # نسخة احتياطية يومية: القاعدة (pg_dump) + الصور، تُحفظ 14 يوماً في ./backups
+  backup:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+      - uploads:/uploads:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        umask 077
+        while true; do
+          stamp=$$(date +%F_%H%M)
+          pg_dump -h db -U restaurant -d restaurant_saas --no-owner | gzip > /backups/db_$$stamp.sql.gz.tmp
+          mv /backups/db_$$stamp.sql.gz.tmp /backups/db_$$stamp.sql.gz
+          tar -czf /backups/uploads_$$stamp.tar.gz -C /uploads .
+          find /backups -name '*.gz' -mtime +14 -delete
+          echo "backup ok $$stamp"
+          sleep 86400
+        done
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  db-data:
+  uploads:
