@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type {
   Category,
@@ -64,9 +64,12 @@ export function OrdersClient({
   const [orders, setOrders] = useState(initialOrders);
   const [updating, setUpdating] = useState<string | null>(null);
 
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialOrders, setPrevInitialOrders] = useState(initialOrders);
+  if (prevInitialOrders !== initialOrders) {
+    setPrevInitialOrders(initialOrders);
     setOrders(initialOrders);
-  }, [initialOrders]);
+  }
   const [ownerRedeemingId, setOwnerRedeemingId] = useState<string | null>(null);
   const [filter, setFilter] = useState<OrdersFilterValue>("all");
   const [search, setSearch] = useState("");

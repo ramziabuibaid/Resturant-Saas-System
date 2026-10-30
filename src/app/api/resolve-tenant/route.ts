@@ -1,20 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-
-function subdomainFromHost(host: string): string | null {
-  const withoutPort = host.split(":")[0].trim().toLowerCase();
-  const parts = withoutPort.split(".");
-  const first = parts[0];
-  if (
-    parts.length >= 2 &&
-    first &&
-    first !== "www" &&
-    first !== "app" &&
-    first !== "localhost"
-  )
-    return first;
-  return null;
-}
+import { subdomainFromHost } from "@/lib/tenant-host";
 
 /**
  * يحلّ المطعم من الـ host (لصفحة تسجيل الدخول على النطاق الفرعي).

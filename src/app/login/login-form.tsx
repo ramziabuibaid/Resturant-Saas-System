@@ -74,7 +74,7 @@ export function LoginForm() {
         className="w-full"
         disabled={loading}
         onClick={() => {
-          window.location.href = "/login?mode=username";
+          router.push("/login?mode=username");
         }}
       >
         تسجيل الدخول عبر اسم المستخدم

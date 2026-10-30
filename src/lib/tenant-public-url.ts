@@ -1,3 +1,5 @@
+import { getRootDomain } from "@/lib/tenant-host";
+
 /**
  * رابط الموقع العام للمطعم (المنيو، QR).
  *
@@ -11,6 +13,10 @@ export function buildTenantPublicSiteUrl(
 ): string {
   if (!subdomain?.trim() || !hostHeader.trim()) return "";
   const sub = subdomain.trim().toLowerCase();
+
+  // في الإنتاج الرابط الرسمي دائماً على الدومين الرئيسي، حتى لو فُتحت اللوحة من معاينة Vercel
+  const root = getRootDomain();
+  if (root && !hostHeader.includes("localhost")) return `https://${sub}.${root}`;
   const raw = hostHeader.trim();
   const hostnameOnly = raw.split(":")[0].toLowerCase();
 

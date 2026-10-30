@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 
-/** Must match the header names set in src/middleware.ts */
+/** Must match the header names set in src/proxy.ts */
 const RESTAURANT_HEADERS = {
   ID: "x-restaurant-id",
   SUBDOMAIN: "x-restaurant-subdomain",

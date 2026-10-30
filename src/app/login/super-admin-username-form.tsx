@@ -75,7 +75,7 @@ export function SuperAdminUsernameLoginForm() {
         className="w-full"
         disabled={loading}
         onClick={() => {
-          window.location.href = "/login?mode=email";
+          router.push("/login?mode=email");
         }}
       >
         تسجيل الدخول عبر البريد الإلكتروني

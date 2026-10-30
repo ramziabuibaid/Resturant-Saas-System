@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { Category } from "@/lib/types/database";
 import {
   createCategory,
@@ -37,9 +37,12 @@ export function CategoriesManager({
   initialCategories,
 }: CategoriesManagerProps) {
   const [categories, setCategories] = useState<Category[]>(initialCategories);
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialCategories, setPrevInitialCategories] = useState(initialCategories);
+  if (prevInitialCategories !== initialCategories) {
+    setPrevInitialCategories(initialCategories);
     setCategories(initialCategories);
-  }, [initialCategories]);
+  }
   const [addName, setAddName] = useState("");
   const [adding, setAdding] = useState(false);
   const [editCategory, setEditCategory] = useState<Category | null>(null);

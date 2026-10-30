@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,13 +36,19 @@ export function RestaurantWaitersSettingsForm({
   const [savingId, setSavingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialWaiters, setPrevInitialWaiters] = useState(initialWaiters);
+  if (prevInitialWaiters !== initialWaiters) {
+    setPrevInitialWaiters(initialWaiters);
     setWaiters(initialWaiters);
-  }, [initialWaiters]);
+  }
 
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialEnabled, setPrevInitialEnabled] = useState(initialEnabled);
+  if (prevInitialEnabled !== initialEnabled) {
+    setPrevInitialEnabled(initialEnabled);
     setEnabled(initialEnabled);
-  }, [initialEnabled]);
+  }
 
   async function handleToggle(next: boolean) {
     setLoadingToggle(true);

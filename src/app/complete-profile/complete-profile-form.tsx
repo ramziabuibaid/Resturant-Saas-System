@@ -26,7 +26,8 @@ export function CompleteProfileForm() {
       return;
     }
     setLoading(false);
-    window.location.href = "/admin";
+    // تحميل كامل (وليس router.push) حتى يقرأ الخادم كوكي الجلسة الجديدة
+    window.location.assign(new URL("/admin", window.location.href));
   }
 
   return (

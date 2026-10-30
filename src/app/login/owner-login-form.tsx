@@ -31,7 +31,8 @@ export function OwnerLoginForm({ restaurantId, subdomain }: Props) {
     }
     // حفظ النطاق في cookie لقراءته في layout الـ admin (الـ Host قد لا يصل صحيحاً بعد التوجيه)
     document.cookie = `${ADMIN_TENANT_COOKIE}=${encodeURIComponent(subdomain)}; path=/; max-age=${COOKIE_MAX_AGE}; SameSite=Lax`;
-    window.location.href = "/admin";
+    // تحميل كامل (وليس router.push) حتى يقرأ الخادم كوكي الجلسة الجديدة
+    window.location.assign(new URL("/admin", window.location.href));
   }
 
   return (

@@ -14,7 +14,6 @@ import {
   Check,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { SubdomainRedirect } from "@/components/subdomain-redirect";
 import { cn } from "@/lib/utils";
 
 const fadeUp = {
@@ -28,7 +27,6 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-bg-base" dir="rtl">
-      <SubdomainRedirect />
 
       {/* Nav */}
       <motion.header

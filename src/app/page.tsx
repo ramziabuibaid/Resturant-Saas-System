@@ -8,15 +8,7 @@ import {
 } from "@/app/actions/orders";
 import { MenuView } from "@/components/menu-view";
 import { LandingPage } from "@/components/landing/landing-page";
-
-function subdomainFromHost(host: string): string | null {
-  const withoutPort = host.split(":")[0].trim().toLowerCase();
-  const parts = withoutPort.split(".");
-  const first = parts[0];
-  if (parts.length >= 2 && first && first !== "www" && first !== "app" && first !== "localhost")
-    return first;
-  return null;
-}
+import { subdomainFromHost } from "@/lib/tenant-host";
 
 /** استنتاج المطعم من الهيدرات أو من الـ host (مثل almankal.localhost). */
 async function resolveTenant(): Promise<{ id: string; subdomain: string } | null> {

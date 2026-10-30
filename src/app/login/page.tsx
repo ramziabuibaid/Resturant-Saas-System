@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getSession, getProfile, getRestaurantBySubdomain } from "@/app/actions/auth";
 import { LoginFormSwitch } from "./login-form-switch";
+import { subdomainFromHost } from "@/lib/tenant-host";
 
 export const metadata = {
   title: "تسجيل الدخول",
@@ -10,21 +11,6 @@ export const metadata = {
 };
 
 type LoginMode = "username" | "email";
-
-function subdomainFromHost(host: string): string | null {
-  const withoutPort = host.split(":")[0].trim().toLowerCase();
-  const parts = withoutPort.split(".");
-  const first = parts[0];
-  if (
-    parts.length >= 2 &&
-    first &&
-    first !== "www" &&
-    first !== "app" &&
-    first !== "localhost"
-  )
-    return first;
-  return null;
-}
 
 /** استنتاج المطعم من السيرفر (هيدرات الـ middleware أو الـ host). */
 async function resolveTenant(): Promise<{ id: string; subdomain: string } | null> {

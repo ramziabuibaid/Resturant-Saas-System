@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import type { Category, MenuItem } from "@/lib/types/database";
 import {
@@ -88,12 +88,18 @@ export function AdminItemsManager({
   const primaryCode = primaryCurrencyCode?.trim() || DEFAULT_PRIMARY_CURRENCY;
   const [categories, setCategories] = useState<Category[]>(initialCategories);
   const [items, setItems] = useState<MenuItem[]>(initialItems);
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
+  if (prevInitialItems !== initialItems) {
+    setPrevInitialItems(initialItems);
     setItems(initialItems);
-  }, [initialItems]);
-  useEffect(() => {
+  }
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialCategories, setPrevInitialCategories] = useState(initialCategories);
+  if (prevInitialCategories !== initialCategories) {
+    setPrevInitialCategories(initialCategories);
     setCategories(initialCategories);
-  }, [initialCategories]);
+  }
 
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);

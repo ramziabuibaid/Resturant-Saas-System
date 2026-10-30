@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import type { RestaurantTable, RestaurantWaiter } from "@/lib/types/database";
 import {
@@ -56,9 +56,12 @@ export function TablesClient({
   const [error, setError] = useState<string | null>(null);
   const [assigningTableId, setAssigningTableId] = useState<string | null>(null);
 
-  useEffect(() => {
+  // مزامنة مع القيمة القادمة من الخادم بعد revalidate (أثناء الرسم بدل useEffect)
+  const [prevInitialTables, setPrevInitialTables] = useState(initialTables);
+  if (prevInitialTables !== initialTables) {
+    setPrevInitialTables(initialTables);
     setTables(initialTables);
-  }, [initialTables]);
+  }
 
   async function addTable(e: React.FormEvent) {
     e.preventDefault();
