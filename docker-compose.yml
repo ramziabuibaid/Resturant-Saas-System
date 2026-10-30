@@ -100,6 +100,18 @@ services:
       db:
         condition: service_healthy
 
+  # Cloudflare Tunnel: يوصل resturant.app و *.resturant.app إلى app:3000 بلا فتح منافذ.
+  # يعمل فقط عند وجود CLOUDFLARE_TUNNEL_TOKEN في .env (deploy.sh يفعّل profile «tunnel» تلقائياً).
+  tunnel:
+    image: cloudflare/cloudflared:2026.10.2
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - app
+
 volumes:
   db-data:
   uploads:

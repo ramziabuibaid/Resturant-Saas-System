@@ -19,8 +19,9 @@ rsync -az --delete \
 
 echo "→ بناء وتشغيل"
 ssh "$HOST" "set -e; cd $DIR && test -f .env || { echo 'ملف .env غير موجود على السيرفر — انظر deploy/README.md'; exit 1; }
-  docker compose up -d --build --remove-orphans
-  docker compose ps"
+  profiles=''; grep -q '^CLOUDFLARE_TUNNEL_TOKEN=.' .env && profiles='--profile tunnel'
+  docker compose \$profiles up -d --build --remove-orphans
+  docker compose \$profiles ps"
 
 echo "→ فحص الصحة"
 ssh "$HOST" "for i in \$(seq 1 30); do curl -fsS http://127.0.0.1:3100/api/health && exit 0; sleep 2; done; echo 'فشل فحص الصحة'; exit 1"
