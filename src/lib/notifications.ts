@@ -1,4 +1,4 @@
-import { createAdminClient } from "@/lib/supabase/admin";
+import { db, schema } from "@/db";
 
 type EnqueuePointsNotificationInput = {
   restaurantId: string;
@@ -13,18 +13,16 @@ export async function enqueuePointsBalanceNotification(
   input: EnqueuePointsNotificationInput
 ): Promise<void> {
   try {
-    const admin = createAdminClient();
-    await admin.from("outbound_notifications").insert({
-      restaurant_id: input.restaurantId,
-      customer_id: input.customerId,
+    await db.insert(schema.outboundNotifications).values({
+      restaurantId: input.restaurantId,
+      customerId: input.customerId,
       channel: input.channel ?? "sms",
-      template_key: "loyalty.points.balance.updated",
+      templateKey: "loyalty.points.balance.updated",
       payload: {
         customer_name: input.customerName ?? "",
         points_balance: input.pointsBalance,
         public_link: input.publicLink,
       },
-      status: "queued",
     });
   } catch {
     // Best effort queueing; we never block checkout on notification failure.

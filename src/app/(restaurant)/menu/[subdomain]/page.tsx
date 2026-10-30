@@ -1,8 +1,5 @@
 import { getMenuItemsBySubdomain } from "@/lib/data/menu";
-import {
-  getRestaurantTableByToken,
-  listPublicTablesForRestaurant,
-} from "@/app/actions/orders";
+import { getRestaurantTableByToken, listPublicTablesForRestaurant } from "@/lib/data/tables";
 import { notFound } from "next/navigation";
 import { MenuView } from "@/components/menu-view";
 

@@ -1,62 +1,53 @@
 "use server";
 
-import { createHash, randomBytes } from "crypto";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { randomBytes } from "node:crypto";
+import { and, asc, count, desc, eq, inArray, sql } from "drizzle-orm";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
+import { db, schema } from "@/db";
 import { getProfileOrRedirect } from "@/lib/auth/current-user";
-import type { MenuItem } from "@/lib/types/database";
+import { toMenuItemDto } from "@/lib/data/menu";
+import {
+  ensureCustomer,
+  finalizeCompletedOrder,
+  findCustomerByPhone,
+  normalizePhone,
+  redeemCashInTx,
+} from "@/lib/loyalty/core";
+import { resolveUnitPriceCents } from "@/lib/order-pricing";
+import { normalizeExcludedForDb } from "@/lib/order-exclusions";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
 import type {
-  GuestOrder,
+  GuestOrderItem,
   GuestOrderWithDetails,
   OrderFulfillment,
   OrderStatus,
 } from "@/lib/types/database";
-import { resolveUnitPriceCents } from "@/lib/order-pricing";
-import { normalizeExcludedForDb } from "@/lib/order-exclusions";
-import { enqueuePointsBalanceNotification } from "@/lib/notifications";
-import {
-  mirrorLoyaltyAccountToLegacyPhoneRow,
-  syncLoyaltyProfileForPhoneFromLegacy,
-} from "@/lib/loyalty-sync";
 
-export async function getRestaurantTableByToken(
-  restaurantId: string,
-  token: string | null | undefined
-): Promise<{ id: string; label: string } | null> {
-  if (!token?.trim()) return null;
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("restaurant_tables")
-      .select("id, label, restaurant_id")
-      .eq("restaurant_id", restaurantId)
-      .eq("public_token", token.trim())
-      .maybeSingle();
-    if (error || !data) return null;
-    return { id: data.id, label: data.label };
-  } catch {
-    return null;
-  }
+/*
+ * الطلبات. دوال الزبون (createGuestOrder، getCheckoutLoyaltyPreview، getOrderTrackingByToken)
+ * عامة بطبيعتها؛ بقية الدوال تتطلب جلسة صاحب المطعم وتعمل على طلبات مطعمه فقط.
+ */
+
+const ORDER_STATUSES: OrderStatus[] = ["pending", "accepted", "preparing", "ready", "completed", "cancelled"];
+const FULFILLMENTS: OrderFulfillment[] = ["dine_in", "pickup", "delivery"];
+
+function revalidateOrderPaths() {
+  revalidatePath("/admin/orders");
 }
 
-export async function listPublicTablesForRestaurant(
-  restaurantId: string
-): Promise<{ id: string; label: string }[]> {
-  try {
-    const admin = createAdminClient();
-    const { data, error } = await admin
-      .from("restaurant_tables")
-      .select("id, label")
-      .eq("restaurant_id", restaurantId)
-      .order("sort_order", { ascending: true })
-      .order("label", { ascending: true });
-    if (error || !data) return [];
-    return data as { id: string; label: string }[];
-  } catch {
-    return [];
-  }
+async function findRestaurantBySubdomain(subdomain: string) {
+  const [r] = await db
+    .select()
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.subdomain, subdomain.trim().toLowerCase()))
+    .limit(1);
+  return r ?? null;
 }
+
+// ---------------------------------------------------------------------------
+// الزبون: معاينة النقاط وإنشاء الطلب
+// ---------------------------------------------------------------------------
 
 export type CreateGuestOrderInput = {
   subdomain: string;
@@ -79,10 +70,7 @@ export type CreateGuestOrderInput = {
 };
 
 /** معاينة رصيد النقاط لصفحة إتمام الطلب من المنيو (بدون تسجيل دخول). */
-export async function getCheckoutLoyaltyPreview(input: {
-  subdomain: string;
-  customerPhone: string;
-}): Promise<
+export async function getCheckoutLoyaltyPreview(input: { subdomain: string; customerPhone: string }): Promise<
   | {
       ok: true;
       programEnabled: boolean;
@@ -92,884 +80,305 @@ export async function getCheckoutLoyaltyPreview(input: {
     }
   | { ok: false; error: string }
 > {
-  const sub = input.subdomain.trim().toLowerCase();
   const phone = normalizePhone(input.customerPhone);
-  if (!sub || !phone) {
-    return { ok: false, error: "بيانات غير صالحة" };
+  if (!input.subdomain?.trim() || !phone) return { ok: false, error: "بيانات غير صالحة" };
+  if (!rateLimit(`preview:${clientIp(await headers())}`, 30, 60_000)) {
+    return { ok: false, error: "محاولات كثيرة، انتظر قليلاً" };
   }
-  try {
-    const admin = createAdminClient();
-    const { data: restaurant, error: rErr } = await admin
-      .from("restaurants")
-      .select(
-        "id, loyalty_program_enabled, loyalty_spend_cents_per_point, loyalty_point_value_cents"
-      )
-      .ilike("subdomain", sub)
-      .maybeSingle();
-    if (rErr || !restaurant) return { ok: false, error: "المطعم غير موجود" };
 
-    const rid = restaurant.id as string;
-    await syncLoyaltyProfileForPhoneFromLegacy(rid, phone);
-    const programEnabled = restaurant.loyalty_program_enabled === true;
-    const spendCentsPerPoint = Math.max(
-      1,
-      Math.floor(Number(restaurant.loyalty_spend_cents_per_point ?? 100))
-    );
-    const pointValueCents = Math.max(
-      1,
-      Math.floor(Number(restaurant.loyalty_point_value_cents ?? 10))
-    );
-
-    const { data: leg } = await admin
-      .from("restaurant_customer_phones")
-      .select("points_balance")
-      .eq("restaurant_id", rid)
-      .eq("phone_normalized", phone)
-      .maybeSingle();
-    const legBal = Number((leg as { points_balance: number } | null)?.points_balance ?? 0);
-
-    const { data: cp } = await admin
-      .from("customer_profiles")
-      .select("id")
-      .eq("restaurant_id", rid)
-      .eq("phone_normalized", phone)
-      .maybeSingle();
-
-    let accBal = 0;
-    if (cp) {
-      const { data: la } = await admin
-        .from("loyalty_accounts")
-        .select("points_balance")
-        .eq("restaurant_id", rid)
-        .eq("customer_id", (cp as { id: string }).id)
-        .maybeSingle();
-      accBal = Number((la as { points_balance: number } | null)?.points_balance ?? 0);
-    }
-
-    const pointsBalance = Math.max(legBal, accBal);
-
-    return {
-      ok: true,
-      programEnabled,
-      pointsBalance,
-      pointValueCents,
-      spendCentsPerPoint,
-    };
-  } catch (e) {
-    const msg = e instanceof Error ? e.message : "تعذر جلب بيانات الولاء";
-    return { ok: false, error: msg };
-  }
-}
-
-function normalizePhone(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length < 8 || digits.length > 15) return null;
-  return digits;
-}
-
-function sha256Hex(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
+  const restaurant = await findRestaurantBySubdomain(input.subdomain);
+  if (!restaurant) return { ok: false, error: "المطعم غير موجود" };
+  const customer = await findCustomerByPhone(restaurant.id, phone);
+  return {
+    ok: true,
+    programEnabled: restaurant.loyaltyProgramEnabled,
+    pointsBalance: customer?.pointsBalance ?? 0,
+    pointValueCents: Math.max(1, restaurant.loyaltyPointValueCents),
+    spendCentsPerPoint: Math.max(1, restaurant.loyaltySpendCentsPerPoint),
+  };
 }
 
 export type CreateGuestOrderResult =
   | { ok: true; orderId: string; displayNumber: number; trackingToken: string }
   | { ok: false; error: string };
 
-export async function createGuestOrder(
-  input: CreateGuestOrderInput
-): Promise<CreateGuestOrderResult> {
-  const sub = input.subdomain.trim().toLowerCase();
-  if (!sub) return { ok: false, error: "معرّف المطعم غير صالح" };
+/** خطأ متوقع يُعرض للزبون كما هو (ويلغي المعاملة) */
+class OrderError extends Error {}
 
+export async function createGuestOrder(input: CreateGuestOrderInput): Promise<CreateGuestOrderResult> {
   const phone = normalizePhone(input.customerPhone);
   if (!phone) return { ok: false, error: "رقم الجوال غير صالح (8–15 رقماً)" };
+  if (!Array.isArray(input.items) || !input.items.length) return { ok: false, error: "السلة فارغة" };
+  if (input.items.length > 50) return { ok: false, error: "عدد الأصناف كبير جداً" };
+  if (!FULFILLMENTS.includes(input.fulfillment)) return { ok: false, error: "نوع الطلب غير صالح" };
 
-  if (!input.items.length) return { ok: false, error: "السلة فارغة" };
+  const restaurant = await findRestaurantBySubdomain(input.subdomain ?? "");
+  if (!restaurant) return { ok: false, error: "المطعم غير موجود" };
+  if (restaurant.status === "suspended") return { ok: false, error: "المطعم غير متاح حالياً" };
 
-  let admin;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return {
-      ok: false,
-      error:
-        "إعدادات الخادم غير مكتملة. تأكد من وجود SUPABASE_SERVICE_ROLE_KEY في بيئة التشغيل.",
-    };
+  // حد بسيط ضد الإغراق: 10 طلبات كل 10 دقائق لكل جهاز ومطعم
+  if (!rateLimit(`order:${restaurant.id}:${clientIp(await headers())}`, 10, 10 * 60_000)) {
+    return { ok: false, error: "طلبات كثيرة من هذا الجهاز، حاول بعد قليل" };
   }
 
-  try {
-  const { data: restaurant, error: rErr } = await admin
-    .from("restaurants")
-    .select(
-      "id, subdomain, status, loyalty_program_enabled, loyalty_spend_cents_per_point, loyalty_point_value_cents"
-    )
-    .ilike("subdomain", sub)
-    .maybeSingle();
+  const restaurantId = restaurant.id;
 
-  if (rErr || !restaurant) return { ok: false, error: "المطعم غير موجود" };
-  if (restaurant.status && restaurant.status !== "active" && restaurant.status !== "trial") {
-    return { ok: false, error: "المطعم غير متاح حالياً" };
-  }
-
-  const restaurantId = restaurant.id as string;
-
+  // الطاولة: من رمز QR أو من اختيار الزبون
   let tableId: string | null = null;
-  let orderWaiterId: string | null = null;
-  if (input.tableToken?.trim()) {
-    const { data: t } = await admin
-      .from("restaurant_tables")
-      .select("id, waiter_id")
-      .eq("restaurant_id", restaurantId)
-      .eq("public_token", input.tableToken.trim())
-      .maybeSingle();
-    if (!t) return { ok: false, error: "رابط الطاولة غير صالح" };
+  let waiterId: string | null = null;
+  const tableToken = input.tableToken?.trim();
+  if (tableToken || input.fulfillment === "dine_in") {
+    if (input.fulfillment !== "dine_in") return { ok: false, error: "طلب الطاولة يجب أن يكون للتناول داخل المطعم" };
+    const where = tableToken
+      ? /^[0-9a-f-]{36}$/i.test(tableToken)
+        ? eq(schema.restaurantTables.publicToken, tableToken)
+        : null
+      : input.tableId && /^[0-9a-f-]{36}$/i.test(input.tableId)
+        ? eq(schema.restaurantTables.id, input.tableId)
+        : null;
+    if (!where) return { ok: false, error: tableToken ? "رابط الطاولة غير صالح" : "اختر رقم الطاولة" };
+    const [t] = await db
+      .select({ id: schema.restaurantTables.id, waiterId: schema.restaurantTables.waiterId })
+      .from(schema.restaurantTables)
+      .where(and(eq(schema.restaurantTables.restaurantId, restaurantId), where))
+      .limit(1);
+    if (!t) return { ok: false, error: tableToken ? "رابط الطاولة غير صالح" : "الطاولة غير صالحة" };
     tableId = t.id;
-    orderWaiterId = (t as { waiter_id?: string | null }).waiter_id ?? null;
-    if (input.fulfillment !== "dine_in") {
-      return { ok: false, error: "طلب الطاولة يجب أن يكون للتناول داخل المطعم" };
-    }
-  } else {
-    if (input.fulfillment === "dine_in") {
-      if (!input.tableId) return { ok: false, error: "اختر رقم الطاولة" };
-      const { data: t } = await admin
-        .from("restaurant_tables")
-        .select("id, waiter_id")
-        .eq("restaurant_id", restaurantId)
-        .eq("id", input.tableId)
-        .maybeSingle();
-      if (!t) return { ok: false, error: "الطاولة غير صالحة" };
-      tableId = t.id;
-      orderWaiterId = (t as { waiter_id?: string | null }).waiter_id ?? null;
-    }
+    waiterId = t.waiterId;
   }
 
   let deliveryAddress: string | null = null;
   if (input.fulfillment === "delivery") {
     const addr = input.deliveryAddress?.trim();
     if (!addr || addr.length < 5) return { ok: false, error: "عنوان التوصيل مطلوب" };
-    deliveryAddress = addr;
+    deliveryAddress = addr.slice(0, 500);
   }
 
-  const itemIds = [...new Set(input.items.map((i) => i.menuItemId))];
-  const { data: menuRows, error: mErr } = await admin
-    .from("menu_items")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .in("id", itemIds);
+  // الأسعار تُحسب من قاعدة البيانات — لا نثق بأي سعر من المتصفح
+  const itemIds = [...new Set(input.items.map((i) => i.menuItemId).filter((id) => /^[0-9a-f-]{36}$/i.test(id)))];
+  if (!itemIds.length) return { ok: false, error: "صنف غير موجود" };
+  const menuRows = await db
+    .select()
+    .from(schema.menuItems)
+    .where(and(eq(schema.menuItems.restaurantId, restaurantId), inArray(schema.menuItems.id, itemIds)));
+  const byId = new Map(menuRows.map((r) => [r.id, r]));
 
-  if (mErr || !menuRows?.length) return { ok: false, error: "تعذر التحقق من الأصناف" };
-
-  const byId = new Map(menuRows.map((r) => [r.id, r as MenuItem]));
-  const lines: {
-    menu_item_id: string;
-    quantity: number;
-    unit_price_cents: number;
-    price_option_label: string | null;
-    line_total_cents: number;
-    excluded_ingredients: string[];
-  }[] = [];
-
+  const lines: (typeof schema.orderItems.$inferInsert)[] = [];
   for (const row of input.items) {
     const item = byId.get(row.menuItemId);
     if (!item) return { ok: false, error: "صنف غير موجود" };
-    if (item.is_available === false) return { ok: false, error: `غير متاح: ${item.name}` };
-
-    const exNorm = normalizeExcludedForDb(row.excludedIngredients ?? []);
-    if (!exNorm.ok) return { ok: false, error: "قائمة المكوّنات المستبعدة غير صالحة" };
-
-    const pr = resolveUnitPriceCents(item, row.priceOptionLabel);
-    if (!pr.ok) return { ok: false, error: `اختر حجم السعر لـ ${item.name}` };
-    const q = Math.min(99, Math.max(1, Math.floor(row.quantity)));
-    const unit = pr.cents;
+    if (!item.isAvailable) return { ok: false, error: `غير متاح: ${item.name}` };
+    const excluded = normalizeExcludedForDb(row.excludedIngredients ?? []);
+    if (!excluded.ok) return { ok: false, error: "قائمة المكوّنات المستبعدة غير صالحة" };
+    const price = resolveUnitPriceCents(toMenuItemDto(item), row.priceOptionLabel);
+    if (!price.ok) return { ok: false, error: `اختر حجم السعر لـ ${item.name}` };
+    const quantity = Math.min(99, Math.max(1, Math.floor(Number(row.quantity) || 1)));
     lines.push({
-      menu_item_id: item.id,
-      quantity: q,
-      unit_price_cents: unit,
-      price_option_label: row.priceOptionLabel?.trim() || null,
-      line_total_cents: unit * q,
-      excluded_ingredients: exNorm.value,
+      orderId: "", // يُملأ داخل المعاملة
+      menuItemId: item.id,
+      itemName: item.name,
+      priceOptionLabel: row.priceOptionLabel?.trim() || null,
+      quantity,
+      unitPriceCents: price.cents,
+      lineTotalCents: price.cents * quantity,
+      excludedIngredients: excluded.value,
     });
   }
-
-  const trackingToken = randomBytes(32).toString("hex");
-  const { data: displayNumRaw, error: rpcErr } = await admin.rpc("next_order_display_number", {
-    p_restaurant_id: restaurantId,
-  });
-  const displayNumber = Number(displayNumRaw);
-  if (rpcErr || displayNumRaw == null || !Number.isFinite(displayNumber) || displayNumber < 1) {
-    return {
-      ok: false,
-      error:
-        rpcErr?.message ??
-        "تعذر تخصيص رقم الطلب. نفّذ ملف supabase/migrations/0023_orders-display-tracking.sql في قاعدة البيانات.",
-    };
-  }
-
-  const { data: orderRow, error: oErr } = await admin
-    .from("orders")
-    .insert({
-      restaurant_id: restaurantId,
-      table_id: tableId,
-      waiter_id: orderWaiterId,
-      fulfillment: input.fulfillment,
-      delivery_address: deliveryAddress,
-      customer_phone: phone,
-      status: "pending",
-      display_number: displayNumber,
-      tracking_token: trackingToken,
-    })
-    .select("id")
-    .single();
-
-  if (oErr || !orderRow) return { ok: false, error: oErr?.message ?? "فشل إنشاء الطلب" };
-
-  const orderId = orderRow.id as string;
-
-  const { error: oiErr } = await admin.from("order_items").insert(
-    lines.map((l) => ({
-      order_id: orderId,
-      menu_item_id: l.menu_item_id,
-      quantity: l.quantity,
-      unit_price_cents: l.unit_price_cents,
-      price_option_label: l.price_option_label,
-      line_total_cents: l.line_total_cents,
-      excluded_ingredients: l.excluded_ingredients.length ? l.excluded_ingredients : [],
-    }))
-  );
-
-  if (oiErr) {
-    await admin.from("orders").delete().eq("id", orderId);
-    return { ok: false, error: oiErr.message ?? "فشل حفظ بنود الطلب" };
-  }
-
-  const orderTotalCents = lines.reduce((s, l) => s + l.line_total_cents, 0);
-  const pointVal = Math.max(1, Math.floor(Number(restaurant.loyalty_point_value_cents ?? 10)));
-
-  await syncLoyaltyProfileForPhoneFromLegacy(restaurantId, phone);
-
-  let loyaltyDiscountCents = 0;
-  let loyaltyPointsUsed = 0;
+  const orderTotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
   const requestedRedeem = Math.max(0, Math.floor(Number(input.loyaltyPointsToRedeem ?? 0)));
+  const pointValueCents = Math.max(1, restaurant.loyaltyPointValueCents);
 
-  if (restaurant.loyalty_program_enabled === true && requestedRedeem > 0 && orderTotalCents > 0) {
-    const { data: cup, error: cupErr } = await admin
-      .from("customer_profiles")
-      .upsert(
-        { restaurant_id: restaurantId, phone_normalized: phone },
-        { onConflict: "restaurant_id,phone_normalized" }
-      )
-      .select("id")
-      .single();
-    if (!cupErr && cup) {
-      const redeemCustomerId = (cup as { id: string }).id;
-      const { data: accRow } = await admin
-        .from("loyalty_accounts")
-        .select("points_balance")
-        .eq("restaurant_id", restaurantId)
-        .eq("customer_id", redeemCustomerId)
-        .maybeSingle();
-      const balance = Number((accRow as { points_balance: number } | null)?.points_balance ?? 0);
-      const maxPointsByOrder = Math.floor(orderTotalCents / pointVal);
-      const redeemPts = Math.min(requestedRedeem, balance, maxPointsByOrder);
+  try {
+    const created = await db.transaction(async (tx) => {
+      // رقم الطلب: زيادة ذرّية (قفل صف المطعم يرتّب الطلبات المتزامنة)
+      const [{ n }] = await tx
+        .update(schema.restaurants)
+        .set({ lastOrderNumber: sql`${schema.restaurants.lastOrderNumber} + 1` })
+        .where(eq(schema.restaurants.id, restaurantId))
+        .returning({ n: schema.restaurants.lastOrderNumber });
 
-      if (redeemPts > 0) {
-        const redeemRpc = await admin.rpc("redeem_loyalty_cash", {
-          p_customer_id: redeemCustomerId,
-          p_order_id: orderId,
-          p_points_requested: redeemPts,
+      const customer = await ensureCustomer(tx, restaurantId, phone);
+      await tx
+        .update(schema.customers)
+        .set({ orderCount: sql`${schema.customers.orderCount} + 1`, lastOrderAt: new Date() })
+        .where(eq(schema.customers.id, customer.id));
+
+      const trackingToken = randomBytes(32).toString("hex");
+      const [order] = await tx
+        .insert(schema.orders)
+        .values({
+          restaurantId,
+          displayNumber: n,
+          trackingToken,
+          fulfillment: input.fulfillment,
+          tableId,
+          waiterId,
+          customerId: customer.id,
+          customerPhone: phone,
+          deliveryAddress,
+        })
+        .returning({ id: schema.orders.id });
+
+      await tx.insert(schema.orderItems).values(lines.map((l) => ({ ...l, orderId: order.id })));
+
+      // استبدال النقاط (الكسب يحدث عند اكتمال الطلب)
+      if (restaurant.loyaltyProgramEnabled && requestedRedeem > 0 && orderTotalCents > 0) {
+        const maxByOrder = Math.floor(orderTotalCents / pointValueCents);
+        const r = await redeemCashInTx(tx, {
+          restaurantId,
+          customerId: customer.id,
+          orderId: order.id,
+          pointsRequested: Math.min(requestedRedeem, maxByOrder),
+          pointValueCents,
         });
-        if (redeemRpc.error || !Array.isArray(redeemRpc.data) || !redeemRpc.data[0]) {
-          await admin.from("order_items").delete().eq("order_id", orderId);
-          await admin.from("orders").delete().eq("id", orderId);
-          return {
-            ok: false,
-            error:
-              redeemRpc.error?.message ??
-              "تعذر تطبيق خصم النقاط. تحقق من رصيدك أو قلّل عدد النقاط.",
-          };
+        if (r.points < Math.min(requestedRedeem, maxByOrder)) {
+          throw new OrderError("رصيد النقاط غير كافٍ. قلّل عدد النقاط ثم أعد المحاولة.");
         }
-        const rr = redeemRpc.data[0] as {
-          points_redeemed: number;
-          discount_cents: number;
-          new_balance: number;
-        };
-        loyaltyPointsUsed = Number(rr.points_redeemed ?? 0);
-        loyaltyDiscountCents = Number(rr.discount_cents ?? 0);
-
-        const { error: updOrdErr } = await admin
-          .from("orders")
-          .update({
-            loyalty_points_used: loyaltyPointsUsed,
-            loyalty_discount_cents: loyaltyDiscountCents,
-          })
-          .eq("id", orderId);
-        if (updOrdErr) {
-          await admin.from("order_items").delete().eq("order_id", orderId);
-          await admin.from("orders").delete().eq("id", orderId);
-          return { ok: false, error: updOrdErr.message };
-        }
+        await tx
+          .update(schema.orders)
+          .set({ loyaltyPointsUsed: r.points, loyaltyDiscountCents: r.discountCents })
+          .where(eq(schema.orders.id, order.id));
       }
-    }
-  }
 
-  // الإنفاق وكسب النقاط يُحتسبان عند وضع الطلب «مكتمل» فقط (finalizeLoyaltyOnOrderCompleted)
-
-  const { data: existingPhone } = await admin
-    .from("restaurant_customer_phones")
-    .select("id, order_count")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phone)
-    .maybeSingle();
-
-  if (existingPhone) {
-    await admin
-      .from("restaurant_customer_phones")
-      .update({
-        last_order_at: new Date().toISOString(),
-        order_count: (existingPhone.order_count as number) + 1,
-      })
-      .eq("id", existingPhone.id);
-  } else {
-    await admin.from("restaurant_customer_phones").insert({
-      restaurant_id: restaurantId,
-      phone_normalized: phone,
-      order_count: 1,
-      total_spent_cents: 0,
-      points_balance: 0,
-      lifetime_points_earned: 0,
-      lifetime_points_redeemed: 0,
+      return { orderId: order.id, displayNumber: n, trackingToken };
     });
-  }
 
-  const { data: cpMirror } = await admin
-    .from("customer_profiles")
-    .select("id")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phone)
-    .maybeSingle();
-  if (cpMirror) {
-    await mirrorLoyaltyAccountToLegacyPhoneRow(restaurantId, (cpMirror as { id: string }).id);
-  }
-
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders");
-
-  return { ok: true, orderId, displayNumber, trackingToken };
+    revalidateOrderPaths();
+    return { ok: true, ...created };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "تعذر إرسال الطلب";
-    return { ok: false, error: msg };
+    if (e instanceof OrderError) return { ok: false, error: e.message };
+    console.error("createGuestOrder failed", e);
+    return { ok: false, error: "تعذر إرسال الطلب، حاول مرة أخرى" };
   }
 }
 
-/** يُستدعى عند أول انتقال إلى «مكتمل»: إضافة الإنفاق إلى ملف الزبون + كسب النقاط (مرة واحدة). */
-async function finalizeLoyaltyOnOrderCompleted(orderId: string, restaurantId: string): Promise<void> {
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return;
-  }
-  const { data: orderRow, error: oErr } = await admin
-    .from("orders")
-    .select(
-      "id, customer_phone, loyalty_discount_cents, owner_discount_cents, status, completion_accounting_done"
-    )
-    .eq("id", orderId)
-    .eq("restaurant_id", restaurantId)
-    .maybeSingle();
-  if (oErr || !orderRow) return;
-  const row = orderRow as {
-    customer_phone: string;
-    loyalty_discount_cents: number | null;
-    owner_discount_cents?: number | null;
-    status: string;
-    completion_accounting_done?: boolean | null;
-  };
-  if (row.status !== "completed") return;
-  if (row.completion_accounting_done === true) return;
-
-  const phone = normalizePhone(row.customer_phone);
-  if (!phone) return;
-
-  const { data: oiRows } = await admin.from("order_items").select("line_total_cents").eq("order_id", orderId);
-  const subtotal = (oiRows ?? []).reduce(
-    (s, r) => s + Number((r as { line_total_cents: number }).line_total_cents ?? 0),
-    0
-  );
-  const loyaltyDisc = Math.max(0, Number(row.loyalty_discount_cents ?? 0));
-  const ownerDisc = Math.max(0, Number(row.owner_discount_cents ?? 0));
-  const payableCents = Math.max(0, subtotal - loyaltyDisc - ownerDisc);
-
-  const { data: existingPhone } = await admin
-    .from("restaurant_customer_phones")
-    .select("id, total_spent_cents")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phone)
-    .maybeSingle();
-  if (existingPhone) {
-    const prevSpent = Number(existingPhone.total_spent_cents ?? 0);
-    await admin
-      .from("restaurant_customer_phones")
-      .update({
-        total_spent_cents: prevSpent + payableCents,
-      })
-      .eq("id", existingPhone.id);
-  } else {
-    await admin.from("restaurant_customer_phones").insert({
-      restaurant_id: restaurantId,
-      phone_normalized: phone,
-      order_count: 1,
-      total_spent_cents: payableCents,
-      points_balance: 0,
-      lifetime_points_earned: 0,
-      lifetime_points_redeemed: 0,
-    });
-  }
-
-  const { data: rest } = await admin
-    .from("restaurants")
-    .select("loyalty_program_enabled")
-    .eq("id", restaurantId)
-    .maybeSingle();
-  const programEnabled = rest?.loyalty_program_enabled === true;
-
-  let pointsEarned = 0;
-  let loyaltyCustomerId: string | null = null;
-  let newBalance = 0;
-
-  if (programEnabled) {
-    const earnRpc = await admin.rpc("apply_loyalty_earn", { p_order_id: orderId });
-    if (!earnRpc.error && Array.isArray(earnRpc.data) && earnRpc.data.length > 0) {
-      const r = earnRpc.data[0] as {
-        points_earned?: number | null;
-        customer_id?: string | null;
-        new_balance?: number | null;
-      };
-      pointsEarned = Number(r.points_earned ?? 0);
-      loyaltyCustomerId = r.customer_id ?? null;
-      newBalance = Number(r.new_balance ?? 0);
-    }
-    if (pointsEarned !== 0) {
-      await admin.from("loyalty_point_ledger").insert({
-        restaurant_id: restaurantId,
-        phone_normalized: phone,
-        order_id: orderId,
-        delta_points: pointsEarned,
-        reason: "earn_order",
-      });
-    }
-  }
-
-  const { data: cpMirror } = await admin
-    .from("customer_profiles")
-    .select("id")
-    .eq("restaurant_id", restaurantId)
-    .eq("phone_normalized", phone)
-    .maybeSingle();
-  if (cpMirror) {
-    await mirrorLoyaltyAccountToLegacyPhoneRow(restaurantId, (cpMirror as { id: string }).id);
-  }
-
-  if (pointsEarned !== 0 && loyaltyCustomerId) {
-    const rawToken = randomBytes(24).toString("hex");
-    const tokenHash = sha256Hex(rawToken);
-    const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 180).toISOString();
-    await admin.from("customer_public_links").insert({
-      restaurant_id: restaurantId,
-      customer_id: loyaltyCustomerId,
-      token_hash: tokenHash,
-      expires_at: expiresAt,
-      is_revoked: false,
-    });
-    await enqueuePointsBalanceNotification({
-      restaurantId,
-      customerId: loyaltyCustomerId,
-      pointsBalance: newBalance,
-      publicLink: `/loyalty/${rawToken}`,
-    });
-  }
-
-  const { error: flagErr } = await admin
-    .from("orders")
-    .update({ completion_accounting_done: true })
-    .eq("id", orderId);
-  if (flagErr) {
-    /* يتطلب عمود completion_accounting_done — supabase/migrations/0030_loyalty-earn-on-order-completed.sql */
-  }
-}
-
-async function fetchLoyaltyBalancesForPhones(
-  admin: ReturnType<typeof createAdminClient>,
-  restaurantId: string,
-  phones: string[]
-): Promise<Map<string, number>> {
-  const map = new Map<string, number>();
-  const uniq = [...new Set(phones.filter(Boolean))];
-  if (!uniq.length) return map;
-  const { data: leg } = await admin
-    .from("restaurant_customer_phones")
-    .select("phone_normalized, points_balance")
-    .eq("restaurant_id", restaurantId)
-    .in("phone_normalized", uniq);
-  const legMap = new Map(
-    (leg ?? []).map((r: { phone_normalized: string; points_balance: number | null }) => [
-      r.phone_normalized,
-      Number(r.points_balance ?? 0),
-    ])
-  );
-  const { data: profs } = await admin
-    .from("customer_profiles")
-    .select("id, phone_normalized")
-    .eq("restaurant_id", restaurantId)
-    .in("phone_normalized", uniq);
-  const phoneToPid = new Map(
-    (profs ?? []).map((p: { id: string; phone_normalized: string }) => [p.phone_normalized, p.id])
-  );
-  const pidList = [...new Set([...phoneToPid.values()])];
-  let accByCustomer = new Map<string, number>();
-  if (pidList.length) {
-    const { data: accs } = await admin
-      .from("loyalty_accounts")
-      .select("customer_id, points_balance")
-      .eq("restaurant_id", restaurantId)
-      .in("customer_id", pidList);
-    accByCustomer = new Map(
-      (accs ?? []).map((a: { customer_id: string; points_balance: number | null }) => [
-        a.customer_id,
-        Number(a.points_balance ?? 0),
-      ])
-    );
-  }
-  for (const p of uniq) {
-    const legBal = legMap.get(p) ?? 0;
-    const pid = phoneToPid.get(p);
-    const accBal = pid ? accByCustomer.get(pid) ?? 0 : 0;
-    map.set(p, Math.max(legBal, accBal));
-  }
-  return map;
-}
-
-/** تطبيق أقصى خصم بالنقاط على طلب من لوحة المالك (استبدال فقط؛ الكسب عند اكتمال الطلب). */
-export async function applyOwnerLoyaltyRedeemToOrder(orderId: string): Promise<
-  | { ok: true; pointsRedeemed: number; discountCents: number }
-  | { ok: false; error: string }
-> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  let admin: ReturnType<typeof createAdminClient>;
-  try {
-    admin = createAdminClient();
-  } catch {
-    return { ok: false, error: "إعدادات الخادم غير مكتملة." };
-  }
-
-  const { data: restaurant, error: rErr } = await admin
-    .from("restaurants")
-    .select("loyalty_program_enabled, loyalty_point_value_cents")
-    .eq("id", rid)
-    .maybeSingle();
-  if (rErr || !restaurant) return { ok: false, error: "المطعم غير موجود" };
-  if (restaurant.loyalty_program_enabled !== true) {
-    return { ok: false, error: "برنامج الولاء غير مفعّل" };
-  }
-  const pointVal = Math.max(1, Math.floor(Number(restaurant.loyalty_point_value_cents ?? 10)));
-
-  const { data: orderRow, error: oErr } = await admin
-    .from("orders")
-    .select(
-      "id, restaurant_id, customer_phone, loyalty_points_used, loyalty_discount_cents, owner_discount_cents, status"
-    )
-    .eq("id", orderId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (oErr || !orderRow) return { ok: false, error: "الطلب غير موجود" };
-  if ((orderRow as { status: string }).status === "cancelled") {
-    return { ok: false, error: "لا يمكن تطبيق خصم على طلب ملغى" };
-  }
-  if ((orderRow as { status: string }).status === "completed") {
-    return {
-      ok: false,
-      error: "لا يمكن تطبيق خصم النقاط بعد اكتمال الطلب. طبّق الخصم قبل وضع الطلب كمكتمل.",
-    };
-  }
-  const existingDisc = Number((orderRow as { loyalty_discount_cents?: number }).loyalty_discount_cents ?? 0);
-  const existingUsed = Number((orderRow as { loyalty_points_used?: number }).loyalty_points_used ?? 0);
-  if (existingDisc > 0 || existingUsed > 0) {
-    return { ok: false, error: "تم تطبيق خصم نقاط على هذا الطلب مسبقاً" };
-  }
-
-  const phone = normalizePhone((orderRow as { customer_phone: string }).customer_phone);
-  if (!phone) return { ok: false, error: "رقم الجوال غير صالح" };
-
-  const { data: oiRows } = await admin.from("order_items").select("line_total_cents").eq("order_id", orderId);
-  const subtotal = (oiRows ?? []).reduce(
-    (s, r) => s + Number((r as { line_total_cents: number }).line_total_cents ?? 0),
-    0
-  );
-  const ownerDiscPre = Math.max(
-    0,
-    Math.floor(Number((orderRow as { owner_discount_cents?: number }).owner_discount_cents ?? 0))
-  );
-  const redeemBase = Math.max(0, subtotal - ownerDiscPre);
-  if (redeemBase <= 0) return { ok: false, error: "مبلغ الطلب غير صالح بعد الخصم اليدوي" };
-
-  await syncLoyaltyProfileForPhoneFromLegacy(rid, phone);
-
-  const { data: cup, error: cupErr } = await admin
-    .from("customer_profiles")
-    .upsert(
-      { restaurant_id: rid, phone_normalized: phone },
-      { onConflict: "restaurant_id,phone_normalized" }
-    )
-    .select("id")
-    .single();
-  if (cupErr || !cup) return { ok: false, error: "تعذر تجهيز ملف الزبون" };
-  const customerId = (cup as { id: string }).id;
-
-  const { data: accRow } = await admin
-    .from("loyalty_accounts")
-    .select("points_balance")
-    .eq("restaurant_id", rid)
-    .eq("customer_id", customerId)
-    .maybeSingle();
-  const balance = Number((accRow as { points_balance: number } | null)?.points_balance ?? 0);
-
-  const maxPointsByOrder = Math.floor(redeemBase / pointVal);
-  const redeemPts = Math.min(balance, maxPointsByOrder);
-  if (redeemPts <= 0) {
-    return { ok: false, error: "لا يوجد رصيد نقاط كافٍ أو مبلغ الطلب لا يسمح بالاستبدال" };
-  }
-
-  const redeemRpc = await admin.rpc("redeem_loyalty_cash", {
-    p_customer_id: customerId,
-    p_order_id: orderId,
-    p_points_requested: redeemPts,
-  });
-  if (redeemRpc.error || !Array.isArray(redeemRpc.data) || !redeemRpc.data[0]) {
-    return {
-      ok: false,
-      error: redeemRpc.error?.message ?? "فشل استبدال النقاط",
-    };
-  }
-  const rr = redeemRpc.data[0] as {
-    points_redeemed: number;
-    discount_cents: number;
-    new_balance: number;
-  };
-  const loyaltyPointsUsed = Number(rr.points_redeemed ?? 0);
-  const loyaltyDiscountCents = Number(rr.discount_cents ?? 0);
-
-  const { error: updOrdErr } = await admin
-    .from("orders")
-    .update({
-      loyalty_points_used: loyaltyPointsUsed,
-      loyalty_discount_cents: loyaltyDiscountCents,
-    })
-    .eq("id", orderId);
-  if (updOrdErr) {
-    return { ok: false, error: updOrdErr.message };
-  }
-
-  await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
-
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/customers");
-  revalidatePath("/admin/customers");
-
-  return { ok: true, pointsRedeemed: loyaltyPointsUsed, discountCents: loyaltyDiscountCents };
-}
+// ---------------------------------------------------------------------------
+// لوحة المطعم: قائمة الطلبات
+// ---------------------------------------------------------------------------
 
 export async function listRestaurantOrders(options?: {
   status?: OrderStatus;
   limit?: number;
 }): Promise<{ orders: GuestOrderWithDetails[]; error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
   const limit = Math.min(100, Math.max(1, options?.limit ?? 50));
 
-  let q = supabase
-    .from("orders")
-    .select("*")
-    .eq("restaurant_id", rid)
-    .order("created_at", { ascending: false })
+  const orderRows = await db
+    .select()
+    .from(schema.orders)
+    .where(
+      options?.status && ORDER_STATUSES.includes(options.status)
+        ? and(eq(schema.orders.restaurantId, rid), eq(schema.orders.status, options.status))
+        : eq(schema.orders.restaurantId, rid)
+    )
+    .orderBy(desc(schema.orders.createdAt))
     .limit(limit);
-
-  if (options?.status) {
-    q = q.eq("status", options.status);
-  }
-
-  const { data: orders, error } = await q;
-  if (error) return { orders: [], error: error.message };
-
-  const orderRows = (orders ?? []) as GuestOrder[];
+  if (!orderRows.length) return { orders: [], error: null };
   const ids = orderRows.map((o) => o.id);
-  if (!ids.length) return { orders: [], error: null };
 
-  const tableIds = [...new Set(orderRows.map((o) => o.table_id).filter(Boolean))] as string[];
-  const tableLabels = new Map<string, string>();
-  const tableWaiterIds = new Map<string, string | null>();
-  if (tableIds.length) {
-    const { data: trows } = await supabase
-      .from("restaurant_tables")
-      .select("id, label, waiter_id")
-      .in("id", tableIds);
-    for (const t of trows ?? []) {
-      const row = t as { id: string; label: string; waiter_id: string | null };
-      tableLabels.set(row.id, row.label);
-      tableWaiterIds.set(row.id, row.waiter_id ?? null);
-    }
-  }
+  const [restaurant] = await db
+    .select({
+      enabled: schema.restaurants.loyaltyProgramEnabled,
+      pointValue: schema.restaurants.loyaltyPointValueCents,
+    })
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.id, rid));
 
-  const waiterIdsToLabel = new Set<string>();
+  const tableIds = [...new Set(orderRows.map((o) => o.tableId).filter((x): x is string => !!x))];
+  const phones = [...new Set(orderRows.map((o) => o.customerPhone))];
+
+  const [tables, items, earns, customers] = await Promise.all([
+    tableIds.length
+      ? db
+          .select({ id: schema.restaurantTables.id, label: schema.restaurantTables.label, waiterId: schema.restaurantTables.waiterId })
+          .from(schema.restaurantTables)
+          .where(inArray(schema.restaurantTables.id, tableIds))
+      : [],
+    db.select().from(schema.orderItems).where(inArray(schema.orderItems.orderId, ids)),
+    db
+      .select({ orderId: schema.loyaltyTransactions.orderId, points: schema.loyaltyTransactions.pointsDelta })
+      .from(schema.loyaltyTransactions)
+      .where(and(inArray(schema.loyaltyTransactions.orderId, ids), eq(schema.loyaltyTransactions.txType, "earn"))),
+    db
+      .select({ phone: schema.customers.phoneNormalized, balance: schema.customers.pointsBalance })
+      .from(schema.customers)
+      .where(and(eq(schema.customers.restaurantId, rid), inArray(schema.customers.phoneNormalized, phones))),
+  ]);
+
+  const tableById = new Map(tables.map((t) => [t.id, t]));
+  const waiterIds = new Set<string>();
   for (const o of orderRows) {
-    const gw = o as GuestOrder;
-    if (gw.waiter_id) waiterIdsToLabel.add(gw.waiter_id);
-    else if (o.table_id) {
-      const tid = tableWaiterIds.get(o.table_id);
-      if (tid) waiterIdsToLabel.add(tid);
-    }
+    const wid = o.waiterId ?? (o.tableId ? tableById.get(o.tableId)?.waiterId : null);
+    if (wid) waiterIds.add(wid);
   }
+  const waiters = waiterIds.size
+    ? await db
+        .select({ id: schema.restaurantWaiters.id, name: schema.restaurantWaiters.name })
+        .from(schema.restaurantWaiters)
+        .where(inArray(schema.restaurantWaiters.id, [...waiterIds]))
+    : [];
+  const waiterName = new Map(waiters.map((w) => [w.id, w.name]));
+  const earnedByOrder = new Map(earns.map((e) => [e.orderId, e.points]));
+  const balanceByPhone = new Map(customers.map((c) => [c.phone, c.balance]));
 
-  let waiterNames = new Map<string, string>();
-  if (waiterIdsToLabel.size) {
-    const { data: wrows } = await supabase
-      .from("restaurant_waiters")
-      .select("id, name")
-      .in("id", [...waiterIdsToLabel]);
-    waiterNames = new Map(
-      (wrows ?? []).map((w) => {
-        const row = w as { id: string; name: string };
-        return [row.id, row.name] as const;
-      })
-    );
-  }
-
-  const { data: items, error: iErr } = await supabase
-    .from("order_items")
-    .select("*")
-    .in("order_id", ids);
-
-  if (iErr) return { orders: [], error: iErr.message };
-
-  const menuIds = [...new Set((items ?? []).map((r) => (r as { menu_item_id: string }).menu_item_id))];
-  const { data: menuRows } = await supabase
-    .from("menu_items")
-    .select("id, name")
-    .in("id", menuIds);
-  const nameById = new Map((menuRows ?? []).map((m) => [(m as { id: string }).id, (m as { name: string }).name]));
-
-  const { data: earnLedger } = await supabase
-    .from("loyalty_point_ledger")
-    .select("order_id, delta_points")
-    .in("order_id", ids)
-    .eq("reason", "earn_order");
-
-  const pointsEarnedByOrder = new Map<string, number>();
-  for (const row of earnLedger ?? []) {
-    const oid = (row as { order_id: string | null }).order_id;
-    if (!oid) continue;
-    const d = Number((row as { delta_points: number }).delta_points ?? 0);
-    pointsEarnedByOrder.set(oid, (pointsEarnedByOrder.get(oid) ?? 0) + d);
-  }
-
-  const itemsByOrder = new Map<string, GuestOrderWithDetails["items"]>();
-  for (const row of items ?? []) {
-    const r = row as {
-      order_id: string;
-      id: string;
-      menu_item_id: string;
-      quantity: number;
-      unit_price_cents: number;
-      price_option_label: string | null;
-      line_total_cents: number;
-      excluded_ingredients?: unknown;
-    };
-    let excluded: string[] = [];
-    if (Array.isArray(r.excluded_ingredients)) {
-      excluded = r.excluded_ingredients.filter((x): x is string => typeof x === "string");
-    }
-    const list = itemsByOrder.get(r.order_id) ?? [];
+  const itemsByOrder = new Map<string, GuestOrderItem[]>();
+  for (const r of items) {
+    const list = itemsByOrder.get(r.orderId) ?? [];
     list.push({
       id: r.id,
-      order_id: r.order_id,
-      menu_item_id: r.menu_item_id,
+      order_id: r.orderId,
+      menu_item_id: r.menuItemId ?? "",
       quantity: r.quantity,
-      unit_price_cents: r.unit_price_cents,
-      price_option_label: r.price_option_label,
-      line_total_cents: r.line_total_cents,
-      excluded_ingredients: excluded.length ? excluded : undefined,
-      menu_item_name: nameById.get(r.menu_item_id) ?? undefined,
+      unit_price_cents: r.unitPriceCents,
+      price_option_label: r.priceOptionLabel,
+      line_total_cents: r.lineTotalCents,
+      excluded_ingredients: r.excludedIngredients.length ? r.excludedIngredients : undefined,
+      menu_item_name: r.itemName,
     });
-    itemsByOrder.set(r.order_id, list);
+    itemsByOrder.set(r.orderId, list);
   }
 
-  let balanceMap = new Map<string, number>();
-  let loyaltyProgramEnabled = false;
-  let pointValueCents = 10;
-  try {
-    const admin = createAdminClient();
-    const { data: restRow } = await admin
-      .from("restaurants")
-      .select("loyalty_program_enabled, loyalty_point_value_cents")
-      .eq("id", rid)
-      .maybeSingle();
-    loyaltyProgramEnabled = restRow?.loyalty_program_enabled === true;
-    pointValueCents = Math.max(1, Math.floor(Number(restRow?.loyalty_point_value_cents ?? 10)));
-    const phones = orderRows.map((row) => String(row.customer_phone ?? ""));
-    balanceMap = await fetchLoyaltyBalancesForPhones(admin, rid, phones);
-  } catch {
-    /* تجاهل — تعرض القائمة بدون أرصدة */
-  }
+  const loyaltyOn = restaurant?.enabled === true;
+  const pv = Math.max(1, restaurant?.pointValue ?? 10);
 
-  const result: GuestOrderWithDetails[] = orderRows.map((o) => {
-    const g = o as GuestOrder;
+  const orders: GuestOrderWithDetails[] = orderRows.map((o) => {
     const lineItems = itemsByOrder.get(o.id) ?? [];
     const subtotal = lineItems.reduce((s, i) => s + i.line_total_cents, 0);
-    const ownerDiscPre = Math.max(0, Number((g as GuestOrder).owner_discount_cents ?? 0));
-    const redeemBase = Math.max(0, subtotal - ownerDiscPre);
-    const phone = String(o.customer_phone ?? "");
-    const balance = balanceMap.get(phone) ?? 0;
-    const pv = pointValueCents;
-    const maxPts =
-      loyaltyProgramEnabled && redeemBase > 0
-        ? Math.min(balance, Math.floor(redeemBase / pv))
-        : 0;
-    const loyaltyDisc = Number(g.loyalty_discount_cents ?? 0);
-    const loyaltyUsed = Number(g.loyalty_points_used ?? 0);
+    const redeemBase = Math.max(0, subtotal - o.ownerDiscountCents);
+    const balance = balanceByPhone.get(o.customerPhone) ?? 0;
+    const maxPts = loyaltyOn && redeemBase > 0 ? Math.min(balance, Math.floor(redeemBase / pv)) : 0;
     const ownerCan =
-      loyaltyProgramEnabled &&
-      loyaltyDisc === 0 &&
-      loyaltyUsed === 0 &&
+      loyaltyOn &&
+      o.loyaltyDiscountCents === 0 &&
+      o.loyaltyPointsUsed === 0 &&
       maxPts > 0 &&
       o.status !== "cancelled" &&
       o.status !== "completed";
-
-    const twid =
-      g.waiter_id ?? (o.table_id ? tableWaiterIds.get(o.table_id) ?? null : null);
-    const wname = twid ? waiterNames.get(twid) ?? null : null;
+    const table = o.tableId ? tableById.get(o.tableId) : undefined;
+    const twid = o.waiterId ?? table?.waiterId ?? null;
 
     return {
       id: o.id,
-      restaurant_id: o.restaurant_id,
-      table_id: o.table_id,
-      waiter_id: g.waiter_id ?? null,
+      restaurant_id: o.restaurantId,
+      table_id: o.tableId,
+      waiter_id: o.waiterId,
       fulfillment: o.fulfillment,
-      delivery_address: o.delivery_address,
-      customer_phone: o.customer_phone,
+      delivery_address: o.deliveryAddress,
+      customer_phone: o.customerPhone,
       status: o.status,
-      display_number: g.display_number,
-      tracking_token: g.tracking_token,
-      created_at: o.created_at,
-      loyalty_points_used: Number(g.loyalty_points_used ?? 0),
-      loyalty_discount_cents: Number(g.loyalty_discount_cents ?? 0),
-      staff_notes: (g as GuestOrder).staff_notes ?? null,
-      owner_discount_cents: ownerDiscPre,
-      loyalty_points_earned_on_order: pointsEarnedByOrder.get(o.id) ?? 0,
-      table_label: o.table_id ? tableLabels.get(o.table_id) ?? null : null,
+      display_number: o.displayNumber,
+      tracking_token: o.trackingToken,
+      created_at: o.createdAt.toISOString(),
+      loyalty_points_used: o.loyaltyPointsUsed,
+      loyalty_discount_cents: o.loyaltyDiscountCents,
+      staff_notes: o.staffNotes,
+      owner_discount_cents: o.ownerDiscountCents,
+      completion_accounting_done: o.completionAccountingDone,
+      loyalty_points_earned_on_order: earnedByOrder.get(o.id) ?? 0,
+      table_label: table?.label ?? null,
       table_waiter_id: twid,
-      waiter_name: wname,
+      waiter_name: twid ? waiterName.get(twid) ?? null : null,
       items: lineItems,
       customer_loyalty_points_balance: balance,
       owner_can_apply_loyalty_redeem: ownerCan,
@@ -978,155 +387,153 @@ export async function listRestaurantOrders(options?: {
     };
   });
 
-  return { orders: result, error: null };
+  return { orders, error: null };
 }
 
-/** تعيين أو إلغاء تعيين الويتر على الطلب يدوياً (يُخزَّن في orders.waiter_id) */
-export async function updateOrderWaiter(
-  orderId: string,
-  waiterId: string | null
-): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
+// ---------------------------------------------------------------------------
+// لوحة المطعم: تعديلات الطاقم
+// ---------------------------------------------------------------------------
 
+async function ownOrder(orderId: string, restaurantId: string) {
+  const [o] = await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.restaurantId, restaurantId)))
+    .limit(1);
+  return o ?? null;
+}
+
+/** الأصناف والخصم اليدوي قابلة للتعديل قبل الاكتمال وقبل تطبيق خصم النقاط */
+function structureLockReason(o: typeof schema.orders.$inferSelect): string | null {
+  if (o.status === "completed" || o.status === "cancelled") return "لا يمكن تعديل طلب مكتمل أو ملغى";
+  if (o.loyaltyPointsUsed > 0 || o.loyaltyDiscountCents > 0)
+    return "لا يمكن تعديل الأصناف أو الخصم اليدوي بعد تطبيق خصم النقاط.";
+  return null;
+}
+
+async function orderSubtotal(orderId: string) {
+  const [{ s }] = await db
+    .select({ s: sql<number>`coalesce(sum(${schema.orderItems.lineTotalCents}), 0)::int` })
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.orderId, orderId));
+  return s;
+}
+
+/** بعد تعديل الأصناف: الخصم اليدوي لا يتجاوز المجموع الجديد */
+async function clampOwnerDiscount(orderId: string) {
+  const sub = await orderSubtotal(orderId);
+  await db
+    .update(schema.orders)
+    .set({ ownerDiscountCents: sql`least(${schema.orders.ownerDiscountCents}, ${sub})` })
+    .where(eq(schema.orders.id, orderId));
+}
+
+/** تطبيق أقصى خصم بالنقاط على طلب من لوحة المالك (استبدال فقط؛ الكسب عند اكتمال الطلب). */
+export async function applyOwnerLoyaltyRedeemToOrder(
+  orderId: string
+): Promise<{ ok: true; pointsRedeemed: number; discountCents: number } | { ok: false; error: string }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+
+  const [restaurant] = await db
+    .select({ enabled: schema.restaurants.loyaltyProgramEnabled, pointValue: schema.restaurants.loyaltyPointValueCents })
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.id, rid));
+  if (!restaurant?.enabled) return { ok: false, error: "برنامج الولاء غير مفعّل" };
+  const pointValueCents = Math.max(1, restaurant.pointValue);
+
+  try {
+    const r = await db.transaction(async (tx) => {
+      const [o] = await tx
+        .select()
+        .from(schema.orders)
+        .where(and(eq(schema.orders.id, orderId), eq(schema.orders.restaurantId, rid)))
+        .for("update");
+      if (!o) throw new OrderError("الطلب غير موجود");
+      if (o.status === "cancelled") throw new OrderError("لا يمكن تطبيق خصم على طلب ملغى");
+      if (o.status === "completed")
+        throw new OrderError("لا يمكن تطبيق خصم النقاط بعد اكتمال الطلب. طبّق الخصم قبل وضع الطلب كمكتمل.");
+      if (o.loyaltyDiscountCents > 0 || o.loyaltyPointsUsed > 0)
+        throw new OrderError("تم تطبيق خصم نقاط على هذا الطلب مسبقاً");
+      const phone = normalizePhone(o.customerPhone);
+      if (!phone) throw new OrderError("رقم الجوال غير صالح");
+
+      const [{ s }] = await tx
+        .select({ s: sql<number>`coalesce(sum(${schema.orderItems.lineTotalCents}), 0)::int` })
+        .from(schema.orderItems)
+        .where(eq(schema.orderItems.orderId, orderId));
+      const base = Math.max(0, s - o.ownerDiscountCents);
+      if (base <= 0) throw new OrderError("مبلغ الطلب غير صالح بعد الخصم اليدوي");
+
+      const customer = await ensureCustomer(tx, rid, phone);
+      const redeemed = await redeemCashInTx(tx, {
+        restaurantId: rid,
+        customerId: customer.id,
+        orderId,
+        pointsRequested: Math.floor(base / pointValueCents),
+        pointValueCents,
+      });
+      if (redeemed.points <= 0) throw new OrderError("لا يوجد رصيد نقاط كافٍ أو مبلغ الطلب لا يسمح بالاستبدال");
+
+      await tx
+        .update(schema.orders)
+        .set({ loyaltyPointsUsed: redeemed.points, loyaltyDiscountCents: redeemed.discountCents })
+        .where(eq(schema.orders.id, orderId));
+      return redeemed;
+    });
+
+    revalidateOrderPaths();
+    revalidatePath("/admin/customers");
+    return { ok: true, pointsRedeemed: r.points, discountCents: r.discountCents };
+  } catch (e) {
+    if (e instanceof OrderError) return { ok: false, error: e.message };
+    throw e;
+  }
+}
+
+/** تعيين أو إلغاء تعيين الويتر على الطلب يدوياً */
+export async function updateOrderWaiter(orderId: string, waiterId: string | null): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
   if (waiterId) {
-    const { data: w } = await supabase
-      .from("restaurant_waiters")
-      .select("id")
-      .eq("id", waiterId)
-      .eq("restaurant_id", rid)
-      .maybeSingle();
+    const [w] = await db
+      .select({ id: schema.restaurantWaiters.id })
+      .from(schema.restaurantWaiters)
+      .where(and(eq(schema.restaurantWaiters.id, waiterId), eq(schema.restaurantWaiters.restaurantId, rid)))
+      .limit(1);
     if (!w) return { error: "الويتر غير موجود" };
   }
-
-  const { error } = await supabase
-    .from("orders")
-    .update({ waiter_id: waiterId })
-    .eq("id", orderId)
-    .eq("restaurant_id", rid);
-  if (error) return { error: error.message };
-
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders");
-  return { error: null };
-}
-
-type SupabaseServer = Awaited<ReturnType<typeof createClient>>;
-
-async function assertOrderEditableForStructure(
-  supabase: SupabaseServer,
-  orderId: string,
-  rid: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  const { data: o } = await supabase
-    .from("orders")
-    .select("status, loyalty_points_used, loyalty_discount_cents")
-    .eq("id", orderId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (!o) return { ok: false, error: "الطلب غير موجود" };
-  const st = (o as { status: string }).status;
-  if (st === "completed" || st === "cancelled") {
-    return { ok: false, error: "لا يمكن تعديل طلب مكتمل أو ملغى" };
-  }
-  const lu = Number((o as { loyalty_points_used?: number }).loyalty_points_used ?? 0);
-  const ld = Number((o as { loyalty_discount_cents?: number }).loyalty_discount_cents ?? 0);
-  if (lu > 0 || ld > 0) {
-    return {
-      ok: false,
-      error: "لا يمكن تعديل الأصناف أو الخصم اليدوي بعد تطبيق خصم النقاط.",
-    };
-  }
-  return { ok: true };
-}
-
-async function orderSubtotalCents(supabase: SupabaseServer, orderId: string): Promise<number> {
-  const { data: rows } = await supabase
-    .from("order_items")
-    .select("line_total_cents")
-    .eq("order_id", orderId);
-  return (rows ?? []).reduce(
-    (s, r) => s + Number((r as { line_total_cents: number }).line_total_cents ?? 0),
-    0
-  );
-}
-
-async function clampOwnerDiscountToSubtotal(
-  supabase: SupabaseServer,
-  orderId: string,
-  rid: string
-): Promise<void> {
-  const { data: o } = await supabase
-    .from("orders")
-    .select("owner_discount_cents")
-    .eq("id", orderId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  const od = Math.max(0, Number((o as { owner_discount_cents?: number })?.owner_discount_cents ?? 0));
-  const sub = await orderSubtotalCents(supabase, orderId);
-  if (od > sub) {
-    await supabase
-      .from("orders")
-      .update({ owner_discount_cents: sub })
-      .eq("id", orderId)
-      .eq("restaurant_id", rid);
-  }
-}
-
-function revalidateOrderPaths() {
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders");
-}
-
-/** ملاحظات داخلية للطاقم — مسموح حتى للطلبات المكتملة ما عدا الملغاة */
-export async function updateOrderStaffNotes(
-  orderId: string,
-  notes: string | null
-): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-  const { data: o } = await supabase
-    .from("orders")
-    .select("status")
-    .eq("id", orderId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (!o) return { error: "الطلب غير موجود" };
-  if ((o as { status: string }).status === "cancelled") {
-    return { error: "لا يمكن تعديل طلب ملغى" };
-  }
-  const trimmed = notes?.trim() ?? "";
-  const { error } = await supabase
-    .from("orders")
-    .update({ staff_notes: trimmed || null })
-    .eq("id", orderId)
-    .eq("restaurant_id", rid);
-  if (error) return { error: error.message };
+  await db
+    .update(schema.orders)
+    .set({ waiterId })
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.restaurantId, rid)));
   revalidateOrderPaths();
   return { error: null };
 }
 
-export async function setOrderOwnerDiscount(
-  orderId: string,
-  discountCents: number
-): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-  const gate = await assertOrderEditableForStructure(supabase, orderId, rid);
-  if (!gate.ok) return { error: gate.error };
-  const d = Math.max(0, Math.floor(Number(discountCents)));
-  const sub = await orderSubtotalCents(supabase, orderId);
+/** ملاحظات داخلية للطاقم — مسموح حتى للطلبات المكتملة ما عدا الملغاة */
+export async function updateOrderStaffNotes(orderId: string, notes: string | null): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const o = await ownOrder(orderId, restaurant_id!);
+  if (!o) return { error: "الطلب غير موجود" };
+  if (o.status === "cancelled") return { error: "لا يمكن تعديل طلب ملغى" };
+  const trimmed = notes?.trim().slice(0, 2000) ?? "";
+  await db.update(schema.orders).set({ staffNotes: trimmed || null }).where(eq(schema.orders.id, o.id));
+  revalidateOrderPaths();
+  return { error: null };
+}
+
+export async function setOrderOwnerDiscount(orderId: string, discountCents: number): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const o = await ownOrder(orderId, restaurant_id!);
+  if (!o) return { error: "الطلب غير موجود" };
+  const locked = structureLockReason(o);
+  if (locked) return { error: locked };
+  const d = Math.max(0, Math.floor(Number(discountCents) || 0));
+  const sub = await orderSubtotal(o.id);
   if (sub <= 0) return { error: "لا يوجد مبلغ أصناف" };
   if (d > sub) return { error: "الخصم لا يتجاوز مجموع الأصناف" };
-  const { error } = await supabase
-    .from("orders")
-    .update({ owner_discount_cents: d })
-    .eq("id", orderId)
-    .eq("restaurant_id", rid);
-  if (error) return { error: error.message };
+  await db.update(schema.orders).set({ ownerDiscountCents: d }).where(eq(schema.orders.id, o.id));
   revalidateOrderPaths();
   return { error: null };
 }
@@ -1137,141 +544,114 @@ export async function addOrderItemFromMenu(input: {
   quantity: number;
   priceOptionLabel: string | null;
 }): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-  const gate = await assertOrderEditableForStructure(supabase, input.orderId, rid);
-  if (!gate.ok) return { error: gate.error };
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const o = await ownOrder(input.orderId, rid);
+  if (!o) return { error: "الطلب غير موجود" };
+  const locked = structureLockReason(o);
+  if (locked) return { error: locked };
 
-  const { data: mi } = await supabase
-    .from("menu_items")
-    .select("*")
-    .eq("id", input.menuItemId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  if (!mi) return { error: "الصنف غير موجود" };
-  const item = mi as MenuItem;
-  if (item.is_available === false) return { error: "الصنف غير متاح حالياً" };
+  const [item] = await db
+    .select()
+    .from(schema.menuItems)
+    .where(and(eq(schema.menuItems.id, input.menuItemId), eq(schema.menuItems.restaurantId, rid)))
+    .limit(1);
+  if (!item) return { error: "الصنف غير موجود" };
+  if (!item.isAvailable) return { error: "الصنف غير متاح حالياً" };
+  const price = resolveUnitPriceCents(toMenuItemDto(item), input.priceOptionLabel);
+  if (!price.ok) return { error: "اختر حجم السعر للصنف" };
+  const quantity = Math.min(99, Math.max(1, Math.floor(Number(input.quantity) || 1)));
 
-  const pr = resolveUnitPriceCents(item, input.priceOptionLabel);
-  if (!pr.ok) return { error: "اختر حجم السعر للصنف" };
-  const q = Math.min(99, Math.max(1, Math.floor(input.quantity)));
-  const unit = pr.cents;
-
-  const { error } = await supabase.from("order_items").insert({
-    order_id: input.orderId,
-    menu_item_id: item.id,
-    quantity: q,
-    unit_price_cents: unit,
-    price_option_label: input.priceOptionLabel?.trim() || null,
-    line_total_cents: unit * q,
-    excluded_ingredients: [],
+  await db.insert(schema.orderItems).values({
+    orderId: o.id,
+    menuItemId: item.id,
+    itemName: item.name,
+    priceOptionLabel: input.priceOptionLabel?.trim() || null,
+    quantity,
+    unitPriceCents: price.cents,
+    lineTotalCents: price.cents * quantity,
   });
-  if (error) return { error: error.message };
-  await clampOwnerDiscountToSubtotal(supabase, input.orderId, rid);
+  await clampOwnerDiscount(o.id);
   revalidateOrderPaths();
   return { error: null };
 }
 
-export async function updateOrderItemQuantity(
-  orderItemId: string,
-  quantity: number
-): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
+/** بند الطلب + الطلب، بشرط أن يتبع مطعم المستخدم */
+async function ownOrderItem(orderItemId: string, restaurantId: string) {
+  const [row] = await db
+    .select({ item: schema.orderItems, order: schema.orders })
+    .from(schema.orderItems)
+    .innerJoin(schema.orders, eq(schema.orders.id, schema.orderItems.orderId))
+    .where(and(eq(schema.orderItems.id, orderItemId), eq(schema.orders.restaurantId, restaurantId)))
+    .limit(1);
+  return row ?? null;
+}
 
-  const { data: row } = await supabase
-    .from("order_items")
-    .select("id, order_id, unit_price_cents")
-    .eq("id", orderItemId)
-    .maybeSingle();
+export async function updateOrderItemQuantity(orderItemId: string, quantity: number): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const row = await ownOrderItem(orderItemId, restaurant_id!);
   if (!row) return { error: "البند غير موجود" };
-  const orderId = (row as { order_id: string }).order_id;
+  const locked = structureLockReason(row.order);
+  if (locked) return { error: locked };
 
-  const gate = await assertOrderEditableForStructure(supabase, orderId, rid);
-  if (!gate.ok) return { error: gate.error };
-
-  const q = Math.min(99, Math.max(1, Math.floor(quantity)));
-  const unit = Math.max(1, Math.floor(Number((row as { unit_price_cents: number }).unit_price_cents ?? 0)));
-  const { error } = await supabase
-    .from("order_items")
-    .update({
-      quantity: q,
-      line_total_cents: unit * q,
-    })
-    .eq("id", orderItemId);
-  if (error) return { error: error.message };
-  await clampOwnerDiscountToSubtotal(supabase, orderId, rid);
+  const q = Math.min(99, Math.max(1, Math.floor(Number(quantity) || 1)));
+  await db
+    .update(schema.orderItems)
+    .set({ quantity: q, lineTotalCents: row.item.unitPriceCents * q })
+    .where(eq(schema.orderItems.id, orderItemId));
+  await clampOwnerDiscount(row.order.id);
   revalidateOrderPaths();
   return { error: null };
 }
 
 export async function removeOrderItem(orderItemId: string): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-
-  const { data: row } = await supabase
-    .from("order_items")
-    .select("id, order_id")
-    .eq("id", orderItemId)
-    .maybeSingle();
+  const { restaurant_id } = await getProfileOrRedirect();
+  const row = await ownOrderItem(orderItemId, restaurant_id!);
   if (!row) return { error: "البند غير موجود" };
-  const orderId = (row as { order_id: string }).order_id;
+  const locked = structureLockReason(row.order);
+  if (locked) return { error: locked };
 
-  const gate = await assertOrderEditableForStructure(supabase, orderId, rid);
-  if (!gate.ok) return { error: gate.error };
+  const [{ n }] = await db
+    .select({ n: count() })
+    .from(schema.orderItems)
+    .where(eq(schema.orderItems.orderId, row.order.id));
+  if (n <= 1) return { error: "يجب أن يبقى صنف واحد على الأقل في الطلب" };
 
-  const { count } = await supabase
-    .from("order_items")
-    .select("id", { count: "exact", head: true })
-    .eq("order_id", orderId);
-  if ((count ?? 0) <= 1) {
-    return { error: "يجب أن يبقى صنف واحد على الأقل في الطلب" };
-  }
-
-  const { error } = await supabase.from("order_items").delete().eq("id", orderItemId);
-  if (error) return { error: error.message };
-  await clampOwnerDiscountToSubtotal(supabase, orderId, rid);
+  await db.delete(schema.orderItems).where(eq(schema.orderItems.id, orderItemId));
+  await clampOwnerDiscount(row.order.id);
   revalidateOrderPaths();
   return { error: null };
 }
 
-export async function updateOrderStatus(
-  orderId: string,
-  status: OrderStatus
-): Promise<{ error: string | null }> {
-  const profile = await getProfileOrRedirect();
-  const rid = profile.restaurant_id!;
-  const supabase = await createClient();
-  const { data: prevRow } = await supabase
-    .from("orders")
-    .select("status")
-    .eq("id", orderId)
-    .eq("restaurant_id", rid)
-    .maybeSingle();
-  const oldStatus = prevRow?.status as OrderStatus | undefined;
+export async function updateOrderStatus(orderId: string, status: OrderStatus): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  if (!ORDER_STATUSES.includes(status)) return { error: "حالة غير صالحة" };
 
-  const { error } = await supabase
-    .from("orders")
-    .update({ status })
-    .eq("id", orderId)
-    .eq("restaurant_id", rid);
-  if (error) return { error: error.message };
+  const updated = await db
+    .update(schema.orders)
+    .set({ status })
+    .where(and(eq(schema.orders.id, orderId), eq(schema.orders.restaurantId, rid)))
+    .returning({ id: schema.orders.id });
+  if (!updated.length) return { error: "الطلب غير موجود" };
 
-  if (status === "completed" && oldStatus !== "completed") {
+  // الإنفاق والنقاط عند أول اكتمال فقط (الدالة نفسها تتحقق من ذلك)
+  if (status === "completed") {
     try {
-      await finalizeLoyaltyOnOrderCompleted(orderId, rid);
-    } catch {
-      /* تجاهل — لا يُعاد فشل تحديث الحالة */
+      await finalizeCompletedOrder(orderId, rid);
+    } catch (e) {
+      console.error("finalizeCompletedOrder failed", e);
     }
   }
 
-  revalidatePath("/admin/orders");
-  revalidatePath("/admin/orders");
+  revalidateOrderPaths();
+  revalidatePath("/admin/customers");
   return { error: null };
 }
+
+// ---------------------------------------------------------------------------
+// تتبع الطلب العام (بدون تسجيل دخول — الرمز السري هو الصلاحية)
+// ---------------------------------------------------------------------------
 
 /** بند طلب في صفحة التتبع العامة */
 export type PublicOrderTrackingItem = {
@@ -1323,158 +703,98 @@ export type PublicOrderTracking = {
   secondary_exchange_rate: number | null;
 };
 
-export async function getOrderTrackingByToken(
-  subdomain: string,
-  token: string
-): Promise<PublicOrderTracking | null> {
-  const t = token.trim();
-  const sub = subdomain.trim().toLowerCase();
-  if (!t || !sub) return null;
-  try {
-    const admin = createAdminClient();
-    const { data: restaurant, error: rErr } = await admin
-      .from("restaurants")
-      .select(
-        "id, name, logo_url, menu_title_animation_enabled, footer_note, public_address, public_maps_url, public_phone_1, public_phone_2, public_phone_3, social_facebook_url, social_instagram_url, social_tiktok_url, currency_code, secondary_currency_enabled, secondary_currency_code, secondary_currency_exchange_rate"
-      )
-      .ilike("subdomain", sub)
-      .maybeSingle();
-    if (rErr || !restaurant) return null;
-    const { data: order, error: oErr } = await admin
-      .from("orders")
-      .select(
-        "id, display_number, status, created_at, restaurant_id, fulfillment, delivery_address, table_id, customer_phone, loyalty_points_used, loyalty_discount_cents, owner_discount_cents"
-      )
-      .eq("tracking_token", t)
-      .eq("restaurant_id", restaurant.id)
-      .maybeSingle();
-    if (oErr || !order) return null;
+export async function getOrderTrackingByToken(subdomain: string, token: string): Promise<PublicOrderTracking | null> {
+  const t = token?.trim();
+  if (!t || !/^[0-9a-f]{64}$/.test(t) || !subdomain?.trim()) return null;
 
-    const orderId = order.id as string;
-    let table_label: string | null = null;
-    const tid = order.table_id as string | null;
-    if (tid) {
-      const { data: trow } = await admin
-        .from("restaurant_tables")
-        .select("label")
-        .eq("id", tid)
-        .maybeSingle();
-      table_label = (trow?.label as string) ?? null;
-    }
+  const restaurant = await findRestaurantBySubdomain(subdomain);
+  if (!restaurant) return null;
+  const [order] = await db
+    .select()
+    .from(schema.orders)
+    .where(and(eq(schema.orders.trackingToken, t), eq(schema.orders.restaurantId, restaurant.id)))
+    .limit(1);
+  if (!order) return null;
 
-    const { data: rawItems } = await admin
-      .from("order_items")
-      .select("*")
-      .eq("order_id", orderId);
+  const [items, [table], [earn]] = await Promise.all([
+    db.select().from(schema.orderItems).where(eq(schema.orderItems.orderId, order.id)).orderBy(asc(schema.orderItems.itemName)),
+    order.tableId
+      ? db.select({ label: schema.restaurantTables.label }).from(schema.restaurantTables).where(eq(schema.restaurantTables.id, order.tableId))
+      : Promise.resolve([] as { label: string }[]),
+    db
+      .select({ points: schema.loyaltyTransactions.pointsDelta })
+      .from(schema.loyaltyTransactions)
+      .where(and(eq(schema.loyaltyTransactions.orderId, order.id), eq(schema.loyaltyTransactions.txType, "earn"))),
+  ]);
 
-    const orderItemsRows = rawItems ?? [];
-    const menuIds = [
-      ...new Set(
-        orderItemsRows.map((r) => (r as { menu_item_id: string }).menu_item_id)
-      ),
-    ];
-    const { data: menuRows } = await admin
-      .from("menu_items")
-      .select("id, name")
-      .in("id", menuIds);
-    const nameById = new Map(
-      (menuRows ?? []).map((m) => [(m as { id: string }).id, (m as { name: string }).name])
-    );
+  const subtotal = items.reduce((s, i) => s + i.lineTotalCents, 0);
+  const secOn = restaurant.secondaryCurrencyEnabled;
+  const secCode = restaurant.secondaryCurrencyCode?.trim() || null;
+  const secRate = restaurant.secondaryCurrencyExchangeRate == null ? NaN : Number(restaurant.secondaryCurrencyExchangeRate);
 
-    const items: PublicOrderTrackingItem[] = [];
-    let items_subtotal_cents = 0;
-    for (const row of orderItemsRows) {
-      const r = row as {
-        id: string;
-        menu_item_id: string;
-        quantity: number;
-        price_option_label: string | null;
-        line_total_cents: number;
-        excluded_ingredients?: unknown;
-      };
-      let excluded: string[] = [];
-      if (Array.isArray(r.excluded_ingredients)) {
-        excluded = r.excluded_ingredients.filter((x): x is string => typeof x === "string");
-      }
-      items_subtotal_cents += r.line_total_cents;
-      items.push({
-        id: r.id,
-        menu_item_name: nameById.get(r.menu_item_id) ?? "صنف",
-        quantity: r.quantity,
-        price_option_label: r.price_option_label,
-        line_total_cents: r.line_total_cents,
-        excluded_ingredients: excluded.length ? excluded : undefined,
-      });
-    }
+  return {
+    display_number: order.displayNumber,
+    status: order.status,
+    created_at: order.createdAt.toISOString(),
+    restaurant_name: restaurant.name,
+    logo_url: restaurant.logoUrl,
+    menu_title_animation_enabled: restaurant.menuTitleAnimationEnabled,
+    footer_note: restaurant.footerNote,
+    public_address: restaurant.publicAddress,
+    public_maps_url: restaurant.publicMapsUrl,
+    public_phone_1: restaurant.publicPhone1,
+    public_phone_2: restaurant.publicPhone2,
+    public_phone_3: restaurant.publicPhone3,
+    social_facebook_url: restaurant.socialFacebookUrl,
+    social_instagram_url: restaurant.socialInstagramUrl,
+    social_tiktok_url: restaurant.socialTiktokUrl,
+    fulfillment: order.fulfillment,
+    delivery_address: order.deliveryAddress,
+    table_label: table?.label ?? null,
+    customer_phone: order.customerPhone,
+    items: items.map((i) => ({
+      id: i.id,
+      menu_item_name: i.itemName,
+      quantity: i.quantity,
+      price_option_label: i.priceOptionLabel,
+      line_total_cents: i.lineTotalCents,
+      excluded_ingredients: i.excludedIngredients.length ? i.excludedIngredients : undefined,
+    })),
+    items_subtotal_cents: subtotal,
+    loyalty_points_used: order.loyaltyPointsUsed,
+    loyalty_discount_cents: order.loyaltyDiscountCents,
+    owner_discount_cents: order.ownerDiscountCents,
+    loyalty_points_earned_on_order: earn?.points ?? 0,
+    total_cents: Math.max(0, subtotal - order.loyaltyDiscountCents - order.ownerDiscountCents),
+    currency_code: restaurant.currencyCode,
+    secondary_currency_enabled: secOn,
+    secondary_currency_code: secOn ? secCode : null,
+    secondary_exchange_rate: secOn && secCode && Number.isFinite(secRate) && secRate > 0 ? secRate : null,
+  };
+}
 
-    const currencyCode =
-      (restaurant.currency_code as string | null)?.trim() || "SAR";
+// ---------------------------------------------------------------------------
+// جرس الطلبات الجديدة (استعلام دوري بدل Realtime)
+// ---------------------------------------------------------------------------
 
-    const loyaltyDiscount = Math.max(
-      0,
-      Math.floor(Number((order as { loyalty_discount_cents?: number }).loyalty_discount_cents ?? 0))
-    );
-    const ownerDiscount = Math.max(
-      0,
-      Math.floor(Number((order as { owner_discount_cents?: number }).owner_discount_cents ?? 0))
-    );
-    const loyaltyPointsUsed = Math.max(
-      0,
-      Math.floor(Number((order as { loyalty_points_used?: number }).loyalty_points_used ?? 0))
-    );
-    const total_cents = Math.max(0, items_subtotal_cents - loyaltyDiscount - ownerDiscount);
+/** أرقام الطلبات الأحدث من sinceNumber (أو آخر رقم فقط عند sinceNumber = null) */
+export async function pollNewOrders(
+  sinceNumber: number | null
+): Promise<{ latest: number; newNumbers: number[] }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const rid = restaurant_id!;
+  const [r] = await db
+    .select({ latest: schema.restaurants.lastOrderNumber })
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.id, rid));
+  const latest = r?.latest ?? 0;
+  if (sinceNumber == null || latest <= sinceNumber) return { latest, newNumbers: [] };
 
-    const { data: earnLedgerRows } = await admin
-      .from("loyalty_point_ledger")
-      .select("delta_points")
-      .eq("order_id", orderId)
-      .eq("reason", "earn_order");
-    const loyaltyPointsEarnedOnOrder = (earnLedgerRows ?? []).reduce(
-      (s, r) => s + Math.floor(Number((r as { delta_points: number }).delta_points ?? 0)),
-      0
-    );
-
-    const secEnabled = restaurant.secondary_currency_enabled === true;
-    const secCode = (restaurant.secondary_currency_code as string | null)?.trim() ?? null;
-    const secRateRaw = restaurant.secondary_currency_exchange_rate;
-    const secRate =
-      secEnabled && secRateRaw != null ? Number(secRateRaw) : NaN;
-
-    return {
-      display_number: Number(order.display_number),
-      status: order.status as OrderStatus,
-      created_at: order.created_at as string,
-      restaurant_name: (restaurant.name as string) ?? "",
-      logo_url: (restaurant.logo_url as string | null) ?? null,
-      menu_title_animation_enabled:
-        restaurant.menu_title_animation_enabled === true,
-      footer_note: (restaurant.footer_note as string | null) ?? null,
-      public_address: (restaurant.public_address as string | null) ?? null,
-      public_maps_url: (restaurant.public_maps_url as string | null) ?? null,
-      public_phone_1: (restaurant.public_phone_1 as string | null) ?? null,
-      public_phone_2: (restaurant.public_phone_2 as string | null) ?? null,
-      public_phone_3: (restaurant.public_phone_3 as string | null) ?? null,
-      social_facebook_url: (restaurant.social_facebook_url as string | null) ?? null,
-      social_instagram_url: (restaurant.social_instagram_url as string | null) ?? null,
-      social_tiktok_url: (restaurant.social_tiktok_url as string | null) ?? null,
-      fulfillment: order.fulfillment as OrderFulfillment,
-      delivery_address: (order.delivery_address as string | null) ?? null,
-      table_label,
-      customer_phone: (order.customer_phone as string) ?? "",
-      items,
-      items_subtotal_cents,
-      loyalty_points_used: loyaltyPointsUsed,
-      loyalty_discount_cents: loyaltyDiscount,
-      owner_discount_cents: ownerDiscount,
-      loyalty_points_earned_on_order: loyaltyPointsEarnedOnOrder,
-      total_cents,
-      currency_code: currencyCode,
-      secondary_currency_enabled: secEnabled,
-      secondary_currency_code: secEnabled ? secCode : null,
-      secondary_exchange_rate:
-        secEnabled && secCode && Number.isFinite(secRate) && secRate > 0 ? secRate : null,
-    };
-  } catch {
-    return null;
-  }
+  const rows = await db
+    .select({ n: schema.orders.displayNumber })
+    .from(schema.orders)
+    .where(and(eq(schema.orders.restaurantId, rid), sql`${schema.orders.displayNumber} > ${sinceNumber}`))
+    .orderBy(asc(schema.orders.displayNumber))
+    .limit(20);
+  return { latest, newNumbers: rows.map((x) => x.n) };
 }

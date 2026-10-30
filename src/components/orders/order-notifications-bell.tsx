@@ -1,6 +1,6 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
+import { pollNewOrders } from "@/app/actions/orders";
 import { BellIcon } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -24,37 +24,38 @@ export function OrderNotificationsBell({ restaurantId, variant = "dashboard" }: 
     return () => window.clearTimeout(id);
   }, [onOrdersPage]);
 
+  // استعلام دوري كل 8 ثوانٍ أثناء ظهور الصفحة (بديل Supabase Realtime)
   useEffect(() => {
     if (!restaurantId) return;
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`orders-insert-${restaurantId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "orders",
-          filter: `restaurant_id=eq.${restaurantId}`,
-        },
-        (payload) => {
-          const row = payload.new as { id?: string; display_number?: number } | null;
-          const num = row?.display_number;
-          toast.success("طلب جديد", {
-            description:
-              typeof num === "number" ? `رقم الطلب #${num}` : "وصل طلباً جديداً إلى المنيو",
-          });
-          if (pathname?.includes("/orders")) {
-            router.refresh();
-          } else {
-            setBadge((c) => (c < 99 ? c + 1 : c));
-          }
-        }
-      )
-      .subscribe();
+    let since: number | null = null;
+    let stopped = false;
 
+    async function tick() {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const { latest, newNumbers } = await pollNewOrders(since);
+        if (stopped) return;
+        if (since !== null && newNumbers.length) {
+          for (const num of newNumbers.slice(-3)) {
+            toast.success("طلب جديد", { description: `رقم الطلب #${num}` });
+          }
+          if (pathname?.includes("/orders")) router.refresh();
+          else setBadge((c) => Math.min(99, c + newNumbers.length));
+        }
+        since = latest;
+      } catch {
+        /* شبكة مؤقتة — المحاولة التالية بعد قليل */
+      }
+    }
+
+    void tick();
+    const id = window.setInterval(tick, 8000);
+    const onVisible = () => void tick();
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
-      void supabase.removeChannel(channel);
+      stopped = true;
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [restaurantId, pathname, router]);
 

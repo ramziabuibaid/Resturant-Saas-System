@@ -2,10 +2,7 @@ import { headers } from "next/headers";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getRestaurantBySubdomain } from "@/lib/data/restaurants";
 import { getMenuItemsBySubdomain } from "@/lib/data/menu";
-import {
-  getRestaurantTableByToken,
-  listPublicTablesForRestaurant,
-} from "@/app/actions/orders";
+import { getRestaurantTableByToken, listPublicTablesForRestaurant } from "@/lib/data/tables";
 import { MenuView } from "@/components/menu-view";
 import { LandingPage } from "@/components/landing/landing-page";
 import { subdomainFromHost } from "@/lib/tenant-host";
