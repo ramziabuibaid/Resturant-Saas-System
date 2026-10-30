@@ -37,7 +37,7 @@ export async function getProfile(): Promise<Profile | null> {
   return data as Profile;
 }
 
-/** For /owner (restaurant owner): requires session + profile with restaurant_id. Redirects super_admin to /admin. */
+/** For restaurant-owner server actions: requires session + profile with restaurant_id. Redirects super_admin to /admin. */
 export async function getProfileOrRedirect(): Promise<Profile> {
   const session = await getSession();
   if (!session) redirect("/login");
@@ -53,7 +53,7 @@ export async function getSuperAdminProfileOrRedirect(): Promise<Profile> {
   const session = await getSession();
   if (!session) redirect("/login");
   const profile = await getProfile();
-  if (!profile || profile.role !== SUPER_ADMIN_ROLE) redirect("/owner");
+  if (!profile || profile.role !== SUPER_ADMIN_ROLE) redirect("/admin");
   return profile;
 }
 
@@ -68,7 +68,7 @@ export async function getSuperAdminProfileOrRedirectWithLoginMode(
   const session = await getSession();
   if (!session) redirect(`/login?mode=${loginMode}`);
   const profile = await getProfile();
-  if (!profile || profile.role !== SUPER_ADMIN_ROLE) redirect("/owner");
+  if (!profile || profile.role !== SUPER_ADMIN_ROLE) redirect("/admin");
   return profile;
 }
 
@@ -141,7 +141,7 @@ export async function setProfileRestaurant(
     { onConflict: "id" }
   );
   if (error) return { error: error.message };
-  revalidatePath("/owner");
+  revalidatePath("/admin");
   revalidatePath("/complete-profile");
   return { error: null };
 }
@@ -200,7 +200,7 @@ export async function createRestaurantAndLink(payload: {
   );
   if (profileErr) return { error: profileErr.message || "فشل ربط الحساب بالمطعم" };
 
-  revalidatePath("/owner");
+  revalidatePath("/admin");
   revalidatePath("/complete-profile");
   return { error: null };
 }

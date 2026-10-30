@@ -1,3 +1,4 @@
+import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { redirect } from "next/navigation";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getProfileForRestaurantAdminOrRedirect } from "@/app/actions/auth";
@@ -11,10 +12,7 @@ export const metadata = {
 
 /** صفحة لوحة المطعم فقط — عند الدخول بدون subdomain نوجّه إلى /admin */
 export default async function AdminCategoriesPage() {
-  const tenant = await getIdentifiedRestaurant();
-  if (!tenant) redirect("/admin");
-
-  const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
+  const { profile } = await requireRestaurantAdmin();
   const restaurantId = profile.restaurant_id!;
   const categories = await getCategoriesForRestaurant(restaurantId);
 

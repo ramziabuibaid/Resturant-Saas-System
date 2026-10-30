@@ -26,7 +26,7 @@ export function CompleteProfileForm() {
       return;
     }
     setLoading(false);
-    window.location.href = "/owner";
+    window.location.href = "/admin";
   }
 
   return (

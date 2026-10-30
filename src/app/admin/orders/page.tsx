@@ -1,3 +1,4 @@
+import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { headers } from "next/headers";
 import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getRestaurantForProfile } from "@/app/actions/auth";
@@ -6,7 +7,7 @@ import { listRestaurantTables } from "@/app/actions/tables";
 import { listRestaurantWaiters } from "@/app/actions/waiters";
 import { getMenuItems } from "@/app/actions/admin-items";
 import { getCategoriesForRestaurant } from "@/app/actions/admin-categories";
-import { OrdersClient } from "@/app/owner/orders/orders-client";
+import { OrdersClient } from "./orders-client";
 
 export const metadata = {
   title: "الطلبات",
@@ -14,7 +15,7 @@ export const metadata = {
 };
 
 export default async function AdminRestaurantOrdersPage() {
-  const profile = await getProfileOrRedirect();
+  const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
   const { orders, error } = await listRestaurantOrders({ limit: 100 });
 

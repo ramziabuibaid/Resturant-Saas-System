@@ -12,7 +12,7 @@ export default async function CompleteProfilePage() {
   if (!session) redirect("/login");
   const profile = await getProfile();
   if (profile?.role === "super_admin") redirect("/admin");
-  if (profile?.restaurant_id) redirect("/owner");
+  if (profile?.restaurant_id) redirect("/admin");
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4" dir="rtl">

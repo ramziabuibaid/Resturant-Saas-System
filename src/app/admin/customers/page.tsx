@@ -1,3 +1,4 @@
+import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
@@ -21,10 +22,7 @@ export const metadata = {
 };
 
 export default async function AdminCustomersPage() {
-  const tenant = await resolveAdminTenant();
-  if (!tenant) redirect("/admin");
-
-  const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
+  const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
   const { customers, error, loyaltyColumnsMissing } = await listRestaurantCustomers();
   const [dashboardRes, rewardsRes, notificationsRes] = await Promise.all([

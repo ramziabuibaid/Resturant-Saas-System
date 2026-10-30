@@ -94,13 +94,6 @@ export async function middleware(request: NextRequest) {
       });
     }
 
-    // [subdomain].localhost:3000/owner/* → نفس الفكرة (للتوافق)
-    if (pathname.startsWith("/owner")) {
-      return NextResponse.rewrite(new URL(pathname + url.search, request.url), {
-        request: { headers: requestHeaders },
-      });
-    }
-
     // جذر النطاق الفرعي (almankal.localhost:3000/) → عرض منيو المطعم كموقع مستقل
     if (pathname === "/") {
       url.pathname = `/menu/${encodeURIComponent(restaurant.subdomain)}`;

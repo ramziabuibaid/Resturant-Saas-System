@@ -6,9 +6,9 @@ import { getProfileOrRedirect } from "@/app/actions/auth";
 import type { RestaurantTable } from "@/lib/types/database";
 
 function revalidateRestaurantPaths() {
-  revalidatePath("/owner/tables");
   revalidatePath("/admin/tables");
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/tables");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
 }
 

@@ -1,3 +1,4 @@
+import { requireSuperAdmin } from "@/lib/admin-context";
 import { redirect } from "next/navigation";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getAllRestaurants } from "@/app/actions/super-admin";
@@ -10,8 +11,7 @@ export const metadata = {
 
 /** صفحة Super Admin فقط — عند الدخول من subdomain نوجّه إلى /admin */
 export default async function AdminRestaurantsPage() {
-  const tenant = await getIdentifiedRestaurant();
-  if (tenant) redirect("/admin");
+  await requireSuperAdmin();
 
   const restaurants = await getAllRestaurants();
   const ownerUsernames = Object.fromEntries(

@@ -28,9 +28,9 @@ export async function createCategory(
     .select()
     .single();
   if (error) return { data: null, error: error.message };
-  revalidatePath("/owner/categories");
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/categories");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");
@@ -49,9 +49,9 @@ export async function updateCategory(
     .select()
     .single();
   if (error) return { data: null, error: error.message };
-  revalidatePath("/owner/categories");
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/categories");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");
@@ -95,9 +95,9 @@ export async function deleteCategory(
     };
   }
 
-  revalidatePath("/owner/categories");
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/categories");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/categories");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");

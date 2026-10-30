@@ -451,7 +451,7 @@ export async function createGuestOrder(
     await mirrorLoyaltyAccountToLegacyPhoneRow(restaurantId, (cpMirror as { id: string }).id);
   }
 
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
 
   return { ok: true, orderId, displayNumber, trackingToken };
@@ -772,9 +772,9 @@ export async function applyOwnerLoyaltyRedeemToOrder(orderId: string): Promise<
 
   await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
 
-  revalidatePath("/owner/orders");
   revalidatePath("/admin/orders");
-  revalidatePath("/owner/customers");
+  revalidatePath("/admin/orders");
+  revalidatePath("/admin/customers");
   revalidatePath("/admin/customers");
 
   return { ok: true, pointsRedeemed: loyaltyPointsUsed, discountCents: loyaltyDiscountCents };
@@ -1007,7 +1007,7 @@ export async function updateOrderWaiter(
     .eq("restaurant_id", rid);
   if (error) return { error: error.message };
 
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
   return { error: null };
 }
@@ -1075,7 +1075,7 @@ async function clampOwnerDiscountToSubtotal(
 }
 
 function revalidateOrderPaths() {
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
 }
 
@@ -1268,7 +1268,7 @@ export async function updateOrderStatus(
     }
   }
 
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
   return { error: null };
 }

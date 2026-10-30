@@ -70,7 +70,7 @@ export function OrderNotificationsBell({ restaurantId, variant = "dashboard" }: 
       aria-label="الإشعارات — طلبات جديدة"
       onClick={() => {
         setBadge(0);
-        if (!onOrdersPage) router.push(pathname?.startsWith("/owner") ? "/owner/orders" : "/admin/orders");
+        if (!onOrdersPage) router.push("/admin/orders");
       }}
     >
       <BellIcon className="size-5" />

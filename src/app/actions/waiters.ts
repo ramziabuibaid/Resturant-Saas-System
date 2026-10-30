@@ -6,11 +6,11 @@ import { getProfileOrRedirect } from "@/app/actions/auth";
 import type { RestaurantWaiter } from "@/lib/types/database";
 
 function revalidateWaiterPaths() {
-  revalidatePath("/owner/settings");
   revalidatePath("/admin/settings");
-  revalidatePath("/owner/tables");
+  revalidatePath("/admin/settings");
   revalidatePath("/admin/tables");
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/tables");
+  revalidatePath("/admin/orders");
   revalidatePath("/admin/orders");
 }
 

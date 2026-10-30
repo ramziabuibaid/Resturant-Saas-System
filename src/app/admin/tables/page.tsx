@@ -1,9 +1,10 @@
+import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getRestaurantForProfile } from "@/app/actions/auth";
 import { listRestaurantTables } from "@/app/actions/tables";
 import { listRestaurantWaiters } from "@/app/actions/waiters";
 import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
-import { TablesClient } from "@/app/owner/tables/tables-client";
+import { TablesClient } from "./tables-client";
 import { headers } from "next/headers";
 
 export const metadata = {
@@ -12,7 +13,7 @@ export const metadata = {
 };
 
 export default async function AdminRestaurantTablesPage() {
-  const profile = await getProfileOrRedirect();
+  const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
   const { tables, error } = await listRestaurantTables();
   const { waiters: restaurantWaiters } = await listRestaurantWaiters();

@@ -1,3 +1,4 @@
+import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { redirect } from "next/navigation";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
 import {
@@ -25,10 +26,7 @@ export const metadata = {
 
 /** صفحة لوحة المطعم فقط — عند الدخول بدون subdomain نوجّه إلى /admin */
 export default async function AdminSettingsPage() {
-  const tenant = await resolveAdminTenant();
-  if (!tenant) redirect("/admin");
-
-  const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
+  const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
   const { waiters: restaurantWaiters } = await listRestaurantWaiters();
 

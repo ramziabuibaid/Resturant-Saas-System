@@ -439,7 +439,7 @@ export async function enqueueCustomerPointsNotification(customerId: string): Pro
     publicLink: linkRes.url,
   });
 
-  revalidatePath("/owner/customers");
+  revalidatePath("/admin/customers");
   revalidatePath("/admin/customers");
   return { queued: true, previewMessage, error: null };
 }
@@ -490,7 +490,7 @@ export async function redeemCustomerCashPoints(
     new_balance: number;
   };
   await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
-  revalidatePath("/owner/customers");
+  revalidatePath("/admin/customers");
   revalidatePath("/admin/customers");
   return {
     pointsRedeemed: Number(row.points_redeemed ?? 0),
@@ -543,7 +543,7 @@ export async function redeemCustomerReward(
     redemption_id: string;
   };
   await mirrorLoyaltyAccountToLegacyPhoneRow(rid, customerId);
-  revalidatePath("/owner/customers");
+  revalidatePath("/admin/customers");
   revalidatePath("/admin/customers");
   return {
     pointsSpent: Number(row.points_spent ?? 0),

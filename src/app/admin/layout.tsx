@@ -1,13 +1,9 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 import { getRestaurantBySubdomain } from "@/app/actions/menu";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
-import {
-  getSuperAdminProfileOrRedirectWithLoginMode,
-  getProfileForRestaurantAdminOrRedirect,
-  getRestaurantForProfile,
-} from "@/app/actions/auth";
+import { getRestaurantForProfile } from "@/app/actions/auth";
+import { getAdminContext } from "@/lib/admin-context";
 import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";
 import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
@@ -37,26 +33,19 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /**
- * توجيه /admin حسب الـ subdomain (حسب SYSTEM_CONTEXT.md):
- * - localhost:3000/admin (بدون subdomain) → لوحة مالك النظام (Super Admin)
- * - almankal.localhost:3000/admin (مع subdomain) → لوحة تحكم المطعم
+ * /admin واحد لكل الأدوار — انظر getAdminContext:
+ * - مالك النظام على الدومين الرئيسي → لوحة النظام
+ * - صاحب المطعم (من نطاقه الفرعي أو من الدومين الرئيسي) → لوحة مطعمه
  */
 export default async function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const tenant = await resolveAdminTenant();
+  const ctx = await getAdminContext();
+  if (ctx.kind === "super") return <AdminShell>{children}</AdminShell>;
 
-  if (!tenant) {
-    // بدون subdomain = منطقة Super Admin فقط
-    await getSuperAdminProfileOrRedirectWithLoginMode("username");
-    return <AdminShell>{children}</AdminShell>;
-  }
-
-  // مع subdomain = لوحة تحكم المطعم — التحقق من أن المستخدم مالك هذا المطعم
-  const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
-
+  const { profile } = ctx;
   const restaurant = await getRestaurantForProfile(profile);
   let livePreviewUrl: string | null = null;
   if (restaurant?.subdomain) {

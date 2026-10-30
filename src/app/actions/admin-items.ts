@@ -108,8 +108,8 @@ export async function createMenuItem(
     .select()
     .single();
   if (error) return { data: null, error: error.message };
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");
   return { data: data as MenuItem, error: null };
@@ -199,8 +199,8 @@ export async function updateMenuItem(
     .select()
     .single();
   if (error) return { data: null, error: error.message };
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");
   return { data: data as MenuItem, error: null };
@@ -212,8 +212,8 @@ export async function deleteMenuItem(
   const supabase = await createClient();
   const { error } = await supabase.from("menu_items").delete().eq("id", id);
   if (error) return { error: error.message };
-  revalidatePath("/owner/items");
-  revalidatePath("/owner");
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
   revalidatePath("/admin/menu");
   revalidatePath("/admin");
   return { error: null };

@@ -1,3 +1,4 @@
+import { getAdminContext } from "@/lib/admin-context";
 import Link from "next/link";
 import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import {
@@ -16,7 +17,7 @@ import {
   StarIcon,
 } from "lucide-react";
 import { AdminDashboardCharts } from "./admin-dashboard-charts";
-import { OwnerDashboardCharts } from "@/app/owner/owner-dashboard-charts";
+import { OwnerDashboardCharts } from "@/app/admin/owner-dashboard-charts";
 
 export const metadata = {
   title: "لوحة التحكم",
@@ -33,10 +34,9 @@ const btnPrimary =
  * - مع subdomain → لوحة المطعم (Restaurant Admin)
  */
 export default async function AdminDashboardPage() {
-  const tenant = await getIdentifiedRestaurant();
+  const ctx = await getAdminContext();
 
-  if (!tenant) {
-    await getSuperAdminProfileOrRedirect();
+  if (ctx.kind === "super") {
     const stats = await getSuperAdminStats();
     const restaurants = await getAllRestaurants();
     const recentRestaurants = restaurants.slice(0, 5);
@@ -198,8 +198,7 @@ export default async function AdminDashboardPage() {
   }
 
   /* ========== Restaurant Admin Dashboard ========== */
-  const profile = await getProfileForRestaurantAdminOrRedirect(tenant.id);
-  const stats = await getOwnerDashboardStats(profile.restaurant_id!);
+  const stats = await getOwnerDashboardStats(ctx.restaurantId);
 
   return (
     <div className="space-y-8 page-enter">

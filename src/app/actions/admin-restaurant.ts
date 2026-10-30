@@ -134,8 +134,8 @@ export async function updateRestaurantPublicContent(
 
   revalidatePath("/admin");
   revalidatePath("/admin/settings");
-  revalidatePath("/owner");
-  revalidatePath("/owner/settings");
+  revalidatePath("/admin");
+  revalidatePath("/admin/settings");
   revalidatePath("/");
   if (row?.subdomain) {
     revalidatePath(`/menu/${row.subdomain}`);
@@ -180,9 +180,9 @@ export async function updateRestaurantLoyaltySettings(
   if (dbError) return { error: dbError.message };
 
   revalidatePath("/admin/settings");
-  revalidatePath("/owner/settings");
+  revalidatePath("/admin/settings");
   revalidatePath("/admin/customers");
-  revalidatePath("/owner/customers");
+  revalidatePath("/admin/customers");
   return { error: null };
 }
 
@@ -209,8 +209,8 @@ export async function updateRestaurantPhoneCountryPrefix(
   if (dbError) return { error: dbError.message };
 
   revalidatePath("/admin/settings");
-  revalidatePath("/owner/settings");
+  revalidatePath("/admin/settings");
   revalidatePath("/admin/orders");
-  revalidatePath("/owner/orders");
+  revalidatePath("/admin/orders");
   return { error: null };
 }

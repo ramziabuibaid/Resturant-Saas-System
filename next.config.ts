@@ -7,6 +7,15 @@ const supabaseHost = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseStorageHost = supabaseHost ?? "zhucpdyylouircudctct.supabase.co";
 
 const nextConfig: NextConfig = {
+  // مسارات قديمة دُمجت في /admin (المرحلة 0)
+  async redirects() {
+    return [
+      { source: "/owner/items", destination: "/admin/menu", permanent: true },
+      { source: "/owner/:path*", destination: "/admin/:path*", permanent: true },
+      { source: "/super-admin/:path*", destination: "/admin/:path*", permanent: true },
+      { source: "/super_admin/:path*", destination: "/admin/:path*", permanent: true },
+    ];
+  },
   images: {
     remotePatterns: [
       {
