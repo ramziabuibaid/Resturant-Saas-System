@@ -7,7 +7,6 @@ import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placehold
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
-import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
   AddItemButton,
@@ -21,13 +20,6 @@ import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
 import { MenuPublicFooter } from "@/components/menu-public-footer";
 import { MenuFeaturedStoriesBanner } from "@/components/menu-featured-stories-banner";
 import { MenuPromoBanner } from "@/components/menu-promo-banner";
-
-/** يعيد السعر المعروض للصنف (أول خيار أو السعر الواحد) */
-function getDisplayPrice(item: MenuItem): number {
-  const opts = item.price_options;
-  if (opts && Array.isArray(opts) && opts.length > 0) return opts[0].price_cents;
-  return item.price;
-}
 
 /** يعرض سطر الأسعار بعملة المطعم — أرقام إنجليزية، شعار العملة، حجم أوضح */
 function PriceDisplay({
@@ -123,7 +115,6 @@ function groupItemsByCategory(
   const groupsById = new Map<string, MenuItem[]>();
 
   for (const item of menuItems) {
-    const categoryId = item.category_id || "uncategorized";
     const categoryName =
       (item.category_id && byId.get(item.category_id)) ||
       item.category ||
@@ -141,7 +132,6 @@ function groupItemsByCategory(
   }));
   const uncategorized = groupsById.get("uncategorized") ?? groupsById.get("other-Other") ?? [];
   const usedIds = new Set(categories.map((c) => c.id));
-  const usedNames = new Set(categories.map((c) => c.name));
   const rest = [...groupsById.entries()].filter(
     ([key, items]) =>
       items.length > 0 &&

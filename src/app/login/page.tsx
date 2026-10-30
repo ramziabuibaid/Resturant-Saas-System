@@ -37,8 +37,7 @@ async function resolveTenant(): Promise<{ id: string; subdomain: string } | null
   return tenant;
 }
 
-export default async function LoginPage({
-}: {}) {
+export default async function LoginPage() {
   // نُحدد loginMode بشكل آمن على السيرفر، ثم نقرأ mode من المتصفح داخل LoginFormSwitch.
   const mode: LoginMode = "email";
 

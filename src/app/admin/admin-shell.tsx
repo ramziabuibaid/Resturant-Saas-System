@@ -3,7 +3,6 @@
 import {
   LayoutDashboardIcon,
   Building2Icon,
-  ShieldCheckIcon,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DashboardLayout, type NavGroup } from "@/components/dashboard/DashboardLayout";

@@ -1,6 +1,5 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { headers } from "next/headers";
-import { getProfileOrRedirect } from "@/app/actions/auth";
 import { getRestaurantForProfile } from "@/app/actions/auth";
 import { listRestaurantOrders } from "@/app/actions/orders";
 import { listRestaurantTables } from "@/app/actions/tables";

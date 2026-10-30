@@ -808,8 +808,8 @@ export async function listRestaurantOrders(options?: {
   if (!ids.length) return { orders: [], error: null };
 
   const tableIds = [...new Set(orderRows.map((o) => o.table_id).filter(Boolean))] as string[];
-  let tableLabels = new Map<string, string>();
-  let tableWaiterIds = new Map<string, string | null>();
+  const tableLabels = new Map<string, string>();
+  const tableWaiterIds = new Map<string, string | null>();
   if (tableIds.length) {
     const { data: trows } = await supabase
       .from("restaurant_tables")

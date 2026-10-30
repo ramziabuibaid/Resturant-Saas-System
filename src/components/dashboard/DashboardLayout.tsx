@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -176,9 +176,12 @@ export function DashboardLayout({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const firstHref = navGroups[0]?.items[0]?.href ?? "/admin";
 
-  useEffect(() => {
-    if (mobileMenuOpen) setMobileMenuOpen(false);
-  }, [pathname]);
+  // إغلاق قائمة الجوال عند الانتقال لصفحة أخرى
+  const [menuPathname, setMenuPathname] = useState(pathname);
+  if (menuPathname !== pathname) {
+    setMenuPathname(pathname);
+    setMobileMenuOpen(false);
+  }
 
   return (
     <div className="flex min-h-svh bg-[var(--bg-base)]">

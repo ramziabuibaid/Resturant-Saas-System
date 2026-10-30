@@ -31,7 +31,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ar" data-theme="dark" suppressHydrationWarning className="transition-colors duration-300">
+    <html lang="ar" suppressHydrationWarning className="transition-colors duration-300">
       <body
         className={`${cairo.variable} ${jetbrainsMono.variable} antialiased`}
         style={{ fontFamily: "var(--font-sans)" }}

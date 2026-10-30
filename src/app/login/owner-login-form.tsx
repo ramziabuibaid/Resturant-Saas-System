@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 import { signInWithUsernamePassword } from "@/app/actions/auth";
 import { Button } from "@/components/ui/button";
@@ -64,9 +66,9 @@ export function OwnerLoginForm({ restaurantId, subdomain }: Props) {
         {loading ? "جاري الدخول…" : "تسجيل الدخول"}
       </Button>
       <p className="text-center text-xs text-muted-foreground">
-        <a href="/" className="underline hover:text-foreground">
+        <Link href="/" className="underline hover:text-foreground">
           العودة لصفحة المطعم
-        </a>
+        </Link>
       </p>
     </form>
   );

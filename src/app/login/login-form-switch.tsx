@@ -22,27 +22,15 @@ export function LoginFormSwitch({ serverTenant, loginMode }: Props) {
   const effectiveLoginMode: "username" | "email" = modeParam === "username" ? "username" : loginMode;
 
   useEffect(() => {
-    if (serverTenant) {
-      setClientTenant(serverTenant);
-      setChecking(false);
-      return;
-    }
-    const hostname = typeof window !== "undefined" ? window.location.hostname : "";
-    if (!hostname) {
-      setChecking(false);
-      return;
-    }
-    const url = `/api/resolve-tenant?hostname=${encodeURIComponent(hostname)}`;
+    if (serverTenant) return;
+    const url = `/api/resolve-tenant?hostname=${encodeURIComponent(window.location.hostname)}`;
     fetch(url)
       .then((res) => res.json())
       .then((body: { tenant: { id: string; subdomain: string } | null }) => {
         setClientTenant(body.tenant ?? null);
-        setChecking(false);
       })
-      .catch(() => {
-        setClientTenant(null);
-        setChecking(false);
-      });
+      .catch(() => setClientTenant(null))
+      .finally(() => setChecking(false));
   }, [serverTenant]);
 
   if (checking) {

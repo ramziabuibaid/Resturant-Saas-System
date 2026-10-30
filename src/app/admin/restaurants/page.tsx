@@ -1,6 +1,4 @@
 import { requireSuperAdmin } from "@/lib/admin-context";
-import { redirect } from "next/navigation";
-import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import { getAllRestaurants } from "@/app/actions/super-admin";
 import { RestaurantsTable } from "./restaurants-table";
 

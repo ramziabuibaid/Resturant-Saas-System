@@ -203,7 +203,6 @@ export function AddItemButton({
 
 export function MenuCartBar({
   cart,
-  setCart,
   menuById,
   currencyCode,
   secondaryEnabled,
@@ -479,15 +478,20 @@ export function MenuCheckoutDialog({
     trackingToken: string;
   } | null>(null);
 
-  const [loyaltyPreview, setLoyaltyPreview] = useState<{
+  const [loyaltyPreviewState, setLoyaltyPreview] = useState<{
     programEnabled: boolean;
     pointsBalance: number;
     pointValueCents: number;
   } | null>(null);
   const [loyaltyLoading, setLoyaltyLoading] = useState(false);
   const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState(0);
+  /** المعاينة تخص رقماً مكتملاً فقط — رقم قصير يعني لا معاينة */
+  const loyaltyPreview = phone.trim().length >= 8 ? loyaltyPreviewState : null;
 
-  useEffect(() => {
+  // تصفير حالة النافذة عند إغلاقها (أثناء الرسم بدل useEffect + setState)
+  const [wasOpen, setWasOpen] = useState(open);
+  if (wasOpen !== open) {
+    setWasOpen(open);
     if (!open) {
       setSuccess(false);
       setMessage(null);
@@ -496,7 +500,7 @@ export function MenuCheckoutDialog({
       setLoyaltyPointsToRedeem(0);
       setLoyaltyLoading(false);
     }
-  }, [open]);
+  }
 
   /** يضمن تفريغ السلة فوراً قبل رسم شاشة النجاح (حتى يختفي شريط السلة فوراً). */
   useLayoutEffect(() => {
@@ -548,11 +552,7 @@ export function MenuCheckoutDialog({
   useEffect(() => {
     if (!open) return;
     const raw = phone.trim();
-    if (raw.length < 8) {
-      setLoyaltyPreview(null);
-      setLoyaltyPointsToRedeem(0);
-      return;
-    }
+    if (raw.length < 8) return;
     let cancelled = false;
     const t = setTimeout(async () => {
       setLoyaltyLoading(true);
@@ -581,10 +581,6 @@ export function MenuCheckoutDialog({
     const capByOrder = Math.floor(totalCents / pv);
     return Math.min(loyaltyPreview.pointsBalance, capByOrder);
   }, [loyaltyPreview, totalCents]);
-
-  useEffect(() => {
-    setLoyaltyPointsToRedeem((p) => Math.min(p, maxRedeemPoints));
-  }, [maxRedeemPoints]);
 
   const appliedLoyaltyPoints = Math.min(loyaltyPointsToRedeem, maxRedeemPoints);
   const pointVal = Math.max(1, loyaltyPreview?.pointValueCents ?? 1);

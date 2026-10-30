@@ -322,8 +322,8 @@ export async function signInSuperAdminWithUsernamePassword(
 
     if (signInError) return { error: signInError.message || "فشل تسجيل الدخول" };
     return { error: null };
-  } catch (e: any) {
-    return { error: e?.message || "فشل تسجيل الدخول" };
+  } catch (e) {
+    return { error: (e instanceof Error && e.message) || "فشل تسجيل الدخول" };
   }
 }
 

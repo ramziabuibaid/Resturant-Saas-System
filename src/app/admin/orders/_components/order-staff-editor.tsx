@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useEffect, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState } from "react";
 import Image from "next/image";
 import type { Category, GuestOrderWithDetails, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
@@ -93,21 +93,32 @@ export function OrderStaffEditor({
   const [pickOption, setPickOption] = useState("");
   const [addQty, setAddQty] = useState("1");
 
-  useEffect(() => {
-    setNotesDraft(order.staff_notes ?? "");
-  }, [order.id, order.staff_notes]);
-
-  useEffect(() => {
-    setDiscountDraft(String((order.owner_discount_cents ?? 0) / 100));
-  }, [order.id, order.owner_discount_cents]);
-
-  useEffect(() => {
-    setSelectedAdd(null);
-    setPickOption("");
-    setAddQty("1");
-    setAddSearch("");
-    setCategoryFilter(null);
-  }, [order.id]);
+  // مزامنة المسودات عند تغيّر الطلب أثناء الرسم (بدل useEffect + setState)
+  const [synced, setSynced] = useState({
+    id: order.id,
+    notes: order.staff_notes,
+    discount: order.owner_discount_cents,
+  });
+  if (
+    synced.id !== order.id ||
+    synced.notes !== order.staff_notes ||
+    synced.discount !== order.owner_discount_cents
+  ) {
+    setSynced({ id: order.id, notes: order.staff_notes, discount: order.owner_discount_cents });
+    if (synced.id !== order.id || synced.notes !== order.staff_notes) {
+      setNotesDraft(order.staff_notes ?? "");
+    }
+    if (synced.id !== order.id || synced.discount !== order.owner_discount_cents) {
+      setDiscountDraft(String((order.owner_discount_cents ?? 0) / 100));
+    }
+    if (synced.id !== order.id) {
+      setSelectedAdd(null);
+      setPickOption("");
+      setAddQty("1");
+      setAddSearch("");
+      setCategoryFilter(null);
+    }
+  }
 
   const sortedCategories = useMemo(
     () =>

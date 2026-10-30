@@ -388,7 +388,7 @@ export function RestaurantsTable({
                               <DialogHeader>
                                 <DialogTitle>تغيير كلمة المرور</DialogTitle>
                                 <DialogDescription>
-                                  تعيين كلمة مرور جديدة لصاحب مطعم "{r.name}" (مستخدم: {username}).
+                                  تعيين كلمة مرور جديدة لصاحب مطعم «{r.name}» (مستخدم: {username}).
                                 </DialogDescription>
                               </DialogHeader>
                               <div className="grid gap-4 py-4">
@@ -468,7 +468,7 @@ export function RestaurantsTable({
                             <DialogHeader>
                               <DialogTitle>تعديل النطاق الفرعي</DialogTitle>
                               <DialogDescription>
-                                تعيين نطاق جديد للمطعم "{r.name}". سيؤثر على رابط المنيو العام.
+                                تعيين نطاق جديد للمطعم «{r.name}». سيؤثر على رابط المنيو العام.
                               </DialogDescription>
                             </DialogHeader>
 

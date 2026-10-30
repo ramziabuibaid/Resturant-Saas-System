@@ -1,7 +1,4 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
-import { redirect } from "next/navigation";
-import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
-import { getProfileForRestaurantAdminOrRedirect } from "@/app/actions/auth";
 import { getCategoriesForRestaurant } from "@/app/actions/admin-categories";
 import { CategoriesManager } from "@/app/admin/categories/categories-manager";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
@@ -31,6 +31,20 @@ type MenuFeaturedStoriesBannerProps = {
   orderContext: "table_qr" | "remote";
 };
 
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
+function usePrefersReducedMotion() {
+  return useSyncExternalStore(
+    (onChange) => {
+      const mq = window.matchMedia(REDUCED_MOTION_QUERY);
+      mq.addEventListener("change", onChange);
+      return () => mq.removeEventListener("change", onChange);
+    },
+    () => window.matchMedia(REDUCED_MOTION_QUERY).matches,
+    () => false
+  );
+}
+
 export function MenuFeaturedStoriesBanner({
   items,
   currencyCode,
@@ -42,15 +56,8 @@ export function MenuFeaturedStoriesBanner({
 }: MenuFeaturedStoriesBannerProps) {
   const [index, setIndex] = useState(0);
   const [manualTick, setManualTick] = useState(0);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = usePrefersReducedMotion();
   const touchStartX = useRef<number | null>(null);
-
-  useEffect(() => {
-    setReduceMotion(
-      typeof window !== "undefined" &&
-        window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    );
-  }, []);
 
   const n = items.length;
   const safeIndex = n === 0 ? 0 : Math.min(index, n - 1);
@@ -69,10 +76,13 @@ export function MenuFeaturedStoriesBanner({
     [n]
   );
 
-  useEffect(() => {
+  // قائمة أصناف جديدة → ابدأ من الأول
+  const [prevItems, setPrevItems] = useState(items);
+  if (prevItems !== items) {
+    setPrevItems(items);
     setIndex(0);
     setManualTick((t) => t + 1);
-  }, [items]);
+  }
 
   useEffect(() => {
     if (n <= 1) return;

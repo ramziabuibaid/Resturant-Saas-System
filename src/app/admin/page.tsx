@@ -1,9 +1,6 @@
 import { getAdminContext } from "@/lib/admin-context";
 import Link from "next/link";
-import { getIdentifiedRestaurant } from "@/lib/restaurant-headers";
 import {
-  getSuperAdminProfileOrRedirect,
-  getProfileForRestaurantAdminOrRedirect,
   getOwnerDashboardStats,
 } from "@/app/actions/auth";
 import { getSuperAdminStats, getAllRestaurants } from "@/app/actions/super-admin";
@@ -11,7 +8,6 @@ import {
   Building2Icon,
   UtensilsCrossedIcon,
   TrendingUpIcon,
-  FolderIcon,
   DollarSignIcon,
   ShoppingBagIcon,
   StarIcon,

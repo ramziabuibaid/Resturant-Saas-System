@@ -1,9 +1,6 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
-import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
 import {
-  getProfileForRestaurantAdminOrRedirect,
   getRestaurantForProfile,
 } from "@/app/actions/auth";
 import {

@@ -13,11 +13,9 @@ export function ThemeToggle() {
       className="theme-toggle-btn"
       aria-label="تبديل السمة"
     >
-      {resolvedTheme === "dark" ? (
-        <SunIcon className="size-[18px]" />
-      ) : (
-        <MoonIcon className="size-[18px]" />
-      )}
+      {/* الأيقونتان معاً وCSS يختار — يتجنب اختلاف الرسم بين الخادم والمتصفح */}
+      <SunIcon className="size-[18px] hidden dark:block" />
+      <MoonIcon className="size-[18px] block dark:hidden" />
     </button>
   );
 }
