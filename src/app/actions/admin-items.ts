@@ -1,40 +1,15 @@
 "use server";
 
-import { createClient } from "@/lib/supabase/server";
-import type { Restaurant, Category, MenuItem, PriceOption } from "@/lib/types/database";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
+import { db, schema } from "@/db";
+import { getProfileOrRedirect } from "@/lib/auth/current-user";
+import { toMenuItemDto } from "@/lib/data/menu";
+import type { MenuItem, PriceOption } from "@/lib/types/database";
 
-export async function getRestaurants(): Promise<Restaurant[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("restaurants")
-    .select("*")
-    .order("name");
-  if (error) return [];
-  return (data ?? []) as Restaurant[];
-}
-
-export async function getCategories(restaurantId: string): Promise<Category[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("categories")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("name");
-  if (error) return [];
-  return (data ?? []) as Category[];
-}
-
-export async function getMenuItems(restaurantId: string): Promise<MenuItem[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from("menu_items")
-    .select("*")
-    .eq("restaurant_id", restaurantId)
-    .order("name");
-  if (error) return [];
-  return (data ?? []) as MenuItem[];
-}
+/*
+ * المطعم يُؤخذ دائماً من جلسة المستخدم — restaurant_id القادم من المتصفح يُتجاهل.
+ */
 
 export type CreateMenuItemInput = {
   restaurant_id: string;
@@ -51,170 +26,169 @@ export type CreateMenuItemInput = {
   secondary_price_options?: PriceOption[] | null;
 };
 
+export type UpdateMenuItemInput = Partial<Omit<CreateMenuItemInput, "restaurant_id">>;
+
+function revalidateMenu() {
+  revalidatePath("/admin/menu");
+  revalidatePath("/admin");
+}
+
+function isValidCents(n: unknown): n is number {
+  return typeof n === "number" && Number.isInteger(n) && n >= 0 && n <= 100_000_000;
+}
+
+function cleanOptions(opts: PriceOption[] | null | undefined): PriceOption[] | null | "invalid" {
+  if (opts == null) return null;
+  if (!Array.isArray(opts)) return "invalid";
+  if (opts.length === 0) return null;
+  const out = opts.map((o) => ({ label: String(o.label ?? "").trim(), price_cents: o.price_cents }));
+  if (out.some((o) => !o.label || !isValidCents(o.price_cents))) return "invalid";
+  return out;
+}
+
+/** التصنيف يجب أن يتبع نفس المطعم */
+async function categoryBelongs(categoryId: string | null | undefined, restaurantId: string) {
+  if (!categoryId) return true;
+  const [c] = await db
+    .select({ id: schema.categories.id })
+    .from(schema.categories)
+    .where(and(eq(schema.categories.id, categoryId), eq(schema.categories.restaurantId, restaurantId)))
+    .limit(1);
+  return Boolean(c);
+}
+
+/**
+ * عند تفعيل العملة الثانية بدون سعر صرف، يجب إدخال أسعارها يدوياً.
+ */
+async function checkSecondaryPrices(
+  restaurantId: string,
+  primaryOptions: PriceOption[] | null,
+  secondaryOptions: PriceOption[] | null | undefined,
+  secondaryPrice: number | null | undefined
+): Promise<string | null> {
+  const [r] = await db
+    .select({
+      enabled: schema.restaurants.secondaryCurrencyEnabled,
+      rate: schema.restaurants.secondaryCurrencyExchangeRate,
+    })
+    .from(schema.restaurants)
+    .where(eq(schema.restaurants.id, restaurantId))
+    .limit(1);
+  const rate = r?.rate == null ? NaN : Number(r.rate);
+  if (!r?.enabled || (Number.isFinite(rate) && rate > 0)) return null;
+
+  if (primaryOptions?.length) {
+    if (secondaryOptions !== undefined && (!secondaryOptions || secondaryOptions.length !== primaryOptions.length))
+      return "عند عدم ضبط سعر الصرف في الإعدادات يجب إدخال أسعار العملة الثانية لكل الأحجام.";
+  } else if (secondaryPrice !== undefined && secondaryPrice !== null && !isValidCents(secondaryPrice)) {
+    return "سعر العملة الثانية غير صالح.";
+  }
+  return null;
+}
+
 export async function createMenuItem(
   input: CreateMenuItemInput
 ): Promise<{ data: MenuItem | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data: restaurantSettings } = await supabase
-    .from("restaurants")
-    .select("secondary_currency_enabled, secondary_currency_exchange_rate")
-    .eq("id", input.restaurant_id)
-    .maybeSingle();
-  const secondaryEnabled = restaurantSettings?.secondary_currency_enabled === true;
-  const rawRate = restaurantSettings?.secondary_currency_exchange_rate;
-  const exchangeRate =
-    typeof rawRate === "number"
-      ? rawRate
-      : rawRate != null
-        ? Number(rawRate)
-        : NaN;
-  const hasExchangeRate =
-    Number.isFinite(exchangeRate) && exchangeRate > 0;
+  const { restaurant_id } = await getProfileOrRedirect();
+  const restaurantId = restaurant_id!;
 
-  if (secondaryEnabled && !hasExchangeRate) {
-    const hasPrimaryOptions =
-      Array.isArray(input.price_options) && input.price_options.length > 0;
-    if (hasPrimaryOptions) {
-      const secOpts = input.secondary_price_options;
-      if (!Array.isArray(secOpts) || secOpts.length !== input.price_options!.length) {
-        return {
-          data: null,
-          error:
-            "عند عدم ضبط سعر الصرف في الإعدادات يجب إدخال أسعار العملة الثانية لكل الأحجام.",
-        };
-      }
-    } else if (typeof input.secondary_price !== "number" || input.secondary_price < 0) {
-      return {
-        data: null,
-        error:
-          "عند عدم ضبط سعر الصرف في الإعدادات يجب إدخال سعر صحيح للعملة الثانية.",
-      };
-    }
-  }
-  const { data, error } = await supabase
-    .from("menu_items")
-    .insert({
-      restaurant_id: input.restaurant_id,
-      name: input.name.trim(),
+  const name = input.name?.trim();
+  if (!name) return { data: null, error: "اسم الصنف مطلوب" };
+  if (!isValidCents(input.price)) return { data: null, error: "السعر غير صالح" };
+  const priceOptions = cleanOptions(input.price_options);
+  const secondaryOptions = cleanOptions(input.secondary_price_options);
+  if (priceOptions === "invalid" || secondaryOptions === "invalid")
+    return { data: null, error: "أسعار الأحجام غير صالحة" };
+  if (!(await categoryBelongs(input.category_id, restaurantId))) return { data: null, error: "التصنيف غير صالح" };
+
+  const secondaryError = await checkSecondaryPrices(
+    restaurantId,
+    priceOptions,
+    secondaryOptions,
+    input.secondary_price ?? null
+  );
+  if (secondaryError) return { data: null, error: secondaryError };
+
+  const [row] = await db
+    .insert(schema.menuItems)
+    .values({
+      restaurantId,
+      name,
       description: input.description?.trim() || null,
       price: input.price,
-      secondary_price: input.secondary_price ?? null,
-      category_id: input.category_id || null,
-      image_url: input.image_url || null,
-      is_available: input.is_available ?? true,
-      price_options: input.price_options ?? null,
-      secondary_price_options: input.secondary_price_options ?? null,
+      secondaryPrice: input.secondary_price ?? null,
+      categoryId: input.category_id || null,
+      imageUrl: input.image_url || null,
+      isAvailable: input.is_available ?? true,
+      priceOptions,
+      secondaryPriceOptions: secondaryOptions,
     })
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
-  return { data: data as MenuItem, error: null };
-}
+    .returning();
 
-export type UpdateMenuItemInput = {
-  name?: string;
-  description?: string | null;
-  price?: number;
-  secondary_price?: number | null;
-  category_id?: string | null;
-  image_url?: string | null;
-  is_available?: boolean;
-  price_options?: PriceOption[] | null;
-  secondary_price_options?: PriceOption[] | null;
-};
+  revalidateMenu();
+  return { data: toMenuItemDto(row), error: null };
+}
 
 export async function updateMenuItem(
   id: string,
   input: UpdateMenuItemInput
 ): Promise<{ data: MenuItem | null; error: string | null }> {
-  const supabase = await createClient();
-  const { data: existingItem } = await supabase
-    .from("menu_items")
-    .select("restaurant_id, price_options")
-    .eq("id", id)
-    .maybeSingle();
-  if (!existingItem?.restaurant_id) {
-    return { data: null, error: "الصنف غير موجود." };
-  }
-  const { data: restaurantSettings } = await supabase
-    .from("restaurants")
-    .select("secondary_currency_enabled, secondary_currency_exchange_rate")
-    .eq("id", existingItem.restaurant_id)
-    .maybeSingle();
-  const secondaryEnabled = restaurantSettings?.secondary_currency_enabled === true;
-  const rawRate = restaurantSettings?.secondary_currency_exchange_rate;
-  const exchangeRate =
-    typeof rawRate === "number"
-      ? rawRate
-      : rawRate != null
-        ? Number(rawRate)
-        : NaN;
-  const hasExchangeRate =
-    Number.isFinite(exchangeRate) && exchangeRate > 0;
+  const { restaurant_id } = await getProfileOrRedirect();
+  const restaurantId = restaurant_id!;
+  const own = and(eq(schema.menuItems.id, id), eq(schema.menuItems.restaurantId, restaurantId));
 
-  if (secondaryEnabled && !hasExchangeRate) {
-    const effectivePrimaryOptions =
-      input.price_options !== undefined ? input.price_options : existingItem.price_options;
-    const hasPrimaryOptions =
-      Array.isArray(effectivePrimaryOptions) && effectivePrimaryOptions.length > 0;
-    if (hasPrimaryOptions) {
-      if (input.secondary_price_options !== undefined) {
-        if (
-          !Array.isArray(input.secondary_price_options) ||
-          input.secondary_price_options.length !== effectivePrimaryOptions.length
-        ) {
-          return {
-            data: null,
-            error:
-              "عند عدم ضبط سعر الصرف في الإعدادات يجب إدخال أسعار العملة الثانية لكل الأحجام.",
-          };
-        }
-      }
-    } else if (input.secondary_price !== undefined) {
-      if (input.secondary_price !== null && input.secondary_price < 0) {
-        return { data: null, error: "سعر العملة الثانية غير صالح." };
-      }
-    }
+  const [existing] = await db.select().from(schema.menuItems).where(own).limit(1);
+  if (!existing) return { data: null, error: "الصنف غير موجود." };
+
+  const patch: Partial<typeof schema.menuItems.$inferInsert> = {};
+  if (input.name !== undefined) {
+    const name = input.name.trim();
+    if (!name) return { data: null, error: "اسم الصنف مطلوب" };
+    patch.name = name;
   }
-  const payload: Record<string, unknown> = {};
-  if (input.name !== undefined) payload.name = input.name.trim();
-  if (input.description !== undefined)
-    payload.description = input.description?.trim() || null;
-  if (input.price !== undefined) payload.price = input.price;
-  if (input.secondary_price !== undefined) payload.secondary_price = input.secondary_price;
-  if (input.category_id !== undefined) payload.category_id = input.category_id;
-  if (input.image_url !== undefined) payload.image_url = input.image_url;
-  if (input.is_available !== undefined) payload.is_available = input.is_available;
-  if (input.price_options !== undefined) payload.price_options = input.price_options;
-  if (input.secondary_price_options !== undefined)
-    payload.secondary_price_options = input.secondary_price_options;
-  const { data, error } = await supabase
-    .from("menu_items")
-    .update(payload)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) return { data: null, error: error.message };
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
-  return { data: data as MenuItem, error: null };
+  if (input.description !== undefined) patch.description = input.description?.trim() || null;
+  if (input.price !== undefined) {
+    if (!isValidCents(input.price)) return { data: null, error: "السعر غير صالح" };
+    patch.price = input.price;
+  }
+  if (input.secondary_price !== undefined) patch.secondaryPrice = input.secondary_price;
+  if (input.category_id !== undefined) {
+    if (!(await categoryBelongs(input.category_id, restaurantId))) return { data: null, error: "التصنيف غير صالح" };
+    patch.categoryId = input.category_id || null;
+  }
+  if (input.image_url !== undefined) patch.imageUrl = input.image_url || null;
+  if (input.is_available !== undefined) patch.isAvailable = input.is_available;
+  if (input.price_options !== undefined) {
+    const opts = cleanOptions(input.price_options);
+    if (opts === "invalid") return { data: null, error: "أسعار الأحجام غير صالحة" };
+    patch.priceOptions = opts;
+  }
+  if (input.secondary_price_options !== undefined) {
+    const opts = cleanOptions(input.secondary_price_options);
+    if (opts === "invalid") return { data: null, error: "أسعار الأحجام غير صالحة" };
+    patch.secondaryPriceOptions = opts;
+  }
+
+  const secondaryError = await checkSecondaryPrices(
+    restaurantId,
+    patch.priceOptions !== undefined ? patch.priceOptions ?? null : existing.priceOptions,
+    input.secondary_price_options,
+    input.secondary_price
+  );
+  if (secondaryError) return { data: null, error: secondaryError };
+
+  const [row] = await db.update(schema.menuItems).set(patch).where(own).returning();
+  revalidateMenu();
+  return { data: toMenuItemDto(row), error: null };
 }
 
-export async function deleteMenuItem(
-  id: string
-): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const { error } = await supabase.from("menu_items").delete().eq("id", id);
-  if (error) return { error: error.message };
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
-  revalidatePath("/admin/menu");
-  revalidatePath("/admin");
+export async function deleteMenuItem(id: string): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const deleted = await db
+    .delete(schema.menuItems)
+    .where(and(eq(schema.menuItems.id, id), eq(schema.menuItems.restaurantId, restaurant_id!)))
+    .returning({ id: schema.menuItems.id });
+  if (!deleted.length) return { error: "الصنف غير موجود." };
+  revalidateMenu();
   return { error: null };
 }

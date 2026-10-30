@@ -1,5 +1,5 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
-import { getCategoriesForRestaurant } from "@/app/actions/admin-categories";
+import { getCategoriesForRestaurant } from "@/lib/data/menu";
 import { CategoriesManager } from "@/app/admin/categories/categories-manager";
 
 export const metadata = {

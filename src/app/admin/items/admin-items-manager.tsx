@@ -8,7 +8,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
 } from "@/app/actions/admin-items";
-import { uploadMenuImage } from "@/lib/supabase/storage";
+import { uploadMenuImage } from "@/lib/uploads/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

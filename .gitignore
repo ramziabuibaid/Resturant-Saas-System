@@ -44,3 +44,6 @@ next-env.d.ts
 # local dev database
 /.pgdata
 /.seed-credentials.local
+
+# uploaded files (local dev; on the server this is a Docker volume)
+/uploads

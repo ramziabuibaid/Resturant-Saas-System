@@ -4,8 +4,8 @@ import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { listRestaurantOrders } from "@/app/actions/orders";
 import { listRestaurantTables } from "@/app/actions/tables";
 import { listRestaurantWaiters } from "@/app/actions/waiters";
-import { getMenuItems } from "@/app/actions/admin-items";
-import { getCategoriesForRestaurant } from "@/app/actions/admin-categories";
+import { getMenuItems } from "@/lib/data/menu";
+import { getCategoriesForRestaurant } from "@/lib/data/menu";
 import { OrdersClient } from "./orders-client";
 
 export const metadata = {

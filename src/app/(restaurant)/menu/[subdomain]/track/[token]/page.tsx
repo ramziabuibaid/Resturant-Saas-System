@@ -1,4 +1,4 @@
-import { getRestaurantBySubdomain } from "@/app/actions/menu";
+import { getRestaurantSummaryBySubdomain as getRestaurantBySubdomain } from "@/lib/data/menu";
 import { getOrderTrackingByToken } from "@/app/actions/orders";
 import { notFound } from "next/navigation";
 import { OrderTrackClient } from "./order-track-client";

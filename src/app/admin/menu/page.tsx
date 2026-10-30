@@ -1,6 +1,6 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { getRestaurantForProfile } from "@/lib/data/restaurants";
-import { getCategories, getMenuItems } from "@/app/actions/admin-items";
+import { getCategoriesForRestaurant as getCategories, getMenuItems } from "@/lib/data/menu";
 import { AdminItemsManager } from "@/app/admin/items/admin-items-manager";
 
 export const metadata = {

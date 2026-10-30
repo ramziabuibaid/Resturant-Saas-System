@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
-import { getRestaurantBySubdomain } from "@/app/actions/menu";
+import { getRestaurantSummaryBySubdomain as getRestaurantBySubdomain } from "@/lib/data/menu";
 import { resolveAdminTenant } from "@/lib/admin-resolve-tenant";
 import { getRestaurantForProfile } from "@/lib/data/restaurants";
 import { getAdminContext } from "@/lib/admin-context";

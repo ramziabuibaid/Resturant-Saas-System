@@ -50,6 +50,7 @@ const TENANT_APP_PREFIXES = [
   "/forbidden",
   "/complete-profile",
   "/loyalty",
+  "/uploads",
 ];
 
 function matchesPrefix(pathname: string, prefix: string) {

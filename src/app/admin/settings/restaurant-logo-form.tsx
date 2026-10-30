@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { uploadRestaurantLogo } from "@/lib/supabase/storage";
+import { uploadRestaurantLogo } from "@/lib/uploads/client";
 import { updateRestaurantLogo } from "@/app/actions/admin-restaurant";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";

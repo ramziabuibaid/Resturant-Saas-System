@@ -1,4 +1,4 @@
-import { getMenuItemsBySubdomain } from "@/app/actions/menu";
+import { getMenuItemsBySubdomain } from "@/lib/data/menu";
 import {
   getRestaurantTableByToken,
   listPublicTablesForRestaurant,

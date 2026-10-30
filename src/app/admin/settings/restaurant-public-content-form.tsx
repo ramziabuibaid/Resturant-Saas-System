@@ -10,7 +10,7 @@ import { updateRestaurantPublicContent } from "@/app/actions/admin-restaurant";
 import {
   uploadRestaurantHeroBackground,
   uploadRestaurantMenuBanner,
-} from "@/lib/supabase/storage";
+} from "@/lib/uploads/client";
 import { MENU_CURRENCIES } from "@/lib/currencies";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
