@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
   if (!googleConfigured()) return NextResponse.redirect(new URL("/login?error=google_off", base));
 
   // من نطاق مطعم: نكمل على الدومين الرئيسي حتى يُضبط الكوكي هناك
-  if (new URL(base).host !== req.nextUrl.host) return NextResponse.redirect(new URL("/auth/google", base));
+  // خلف النفق يرى التطبيق عنوانه الداخلي في nextUrl، فنقارن بالـ Host الذي أرسله المتصفح
+  const host = req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? req.nextUrl.host;
+  if (new URL(base).host !== host) return NextResponse.redirect(new URL("/auth/google", base));
 
   const { state, verifier, challenge } = newOAuthState();
   const res = NextResponse.redirect(googleAuthUrl({ redirectUri: `${base}/auth/google/callback`, state, challenge }));
