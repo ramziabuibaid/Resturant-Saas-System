@@ -327,7 +327,7 @@ export function OrdersClient({
       ) : filtered.length === 0 ? (
         <p className="text-center text-muted-foreground">لا توجد طلبات تطابق التصفية.</p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filtered.map((o) => (
             <li key={o.id}>
               <OrderCard

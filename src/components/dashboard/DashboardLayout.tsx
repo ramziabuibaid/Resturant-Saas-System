@@ -4,17 +4,19 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { ExternalLink, Flame, LogOut, MoreHorizontal } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { BellIcon, PanelLeftIcon } from "lucide-react";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { OrderNotificationsBell } from "@/components/orders/order-notifications-bell";
+import { cn } from "@/lib/utils";
 
 export type NavItem = {
   href: string;
   label: string;
   icon?: React.ReactNode;
   badge?: string | number;
+  /** يظهر في شريط الجوال السفلي (أقصى 4 عناصر) */
+  mobile?: boolean;
 };
 
 export type NavGroup = {
@@ -29,94 +31,100 @@ export type DashboardProfile = {
 };
 
 type DashboardLayoutProps = {
-  /** عنوان الهيدر (اسم المطعم أو "لوحة مالك النظام") */
+  /** اسم المطعم أو «لوحة مالك النظام» */
   title: string;
-  /** مجموعات الروابط في الشريط الجانبي */
   navGroups: NavGroup[];
-  /** محتوى الهيدر من اليمين (مثل قائمة المستخدم / تسجيل الخروج) */
-  headerRight?: React.ReactNode;
   /** رابط معاينة المنيو (اختياري) */
   previewUrl?: string | null;
-  /** شعار المطعم أو العلامة في أعلى الـ Sidebar (اختياري) */
   logoUrl?: string | null;
-  /** بيانات البروفايل في أسفل الـ Sidebar (اختياري) */
   profile?: DashboardProfile | null;
-  /** عند التمرير: جرس الطلبات الجديدة (استعلام دوري) */
+  /** جرس الطلبات الجديدة (استعلام دوري) */
   notificationRestaurantId?: string | null;
   children: React.ReactNode;
 };
 
-function SidebarNavContent({
+function isActive(pathname: string, href: string, rootHref: string) {
+  if (href === rootHref) return pathname === href;
+  return pathname === href || pathname.startsWith(href + "/");
+}
+
+function SignOutButton({ compact = false }: { compact?: boolean }) {
+  return (
+    <form action="/auth/signout" method="POST">
+      <button
+        type="submit"
+        className={cn(
+          "flex items-center gap-2 rounded-xl text-sm font-medium text-text-secondary transition hover:bg-bg-surface-2 hover:text-danger",
+          compact ? "size-10 justify-center" : "h-10 w-full px-3"
+        )}
+        aria-label="تسجيل الخروج"
+      >
+        <LogOut className="size-[18px]" />
+        {compact ? null : "تسجيل الخروج"}
+      </button>
+    </form>
+  );
+}
+
+function SidebarContent({
   pathname,
   navGroups,
   title,
   logoUrl,
   profile,
-  firstHref,
+  rootHref,
 }: {
   pathname: string;
   navGroups: NavGroup[];
   title: string;
   logoUrl?: string | null;
   profile?: DashboardProfile | null;
-  firstHref: string;
+  rootHref: string;
 }) {
   return (
-    <>
-      <div className="flex h-[60px] shrink-0 items-center px-5">
-        <Link
-          href={firstHref}
-          className="flex items-center gap-3 text-[var(--text-primary)] no-underline"
-        >
-          {logoUrl ? (
-            <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-[var(--radius-md)] bg-[var(--bg-surface-2)]">
-              <Image
-                src={logoUrl}
-                alt=""
-                fill
-                className="object-contain"
-                sizes="36px"
-                unoptimized
-              />
-            </div>
-          ) : null}
-          <span className="text-lg font-semibold truncate">{title}</span>
-        </Link>
-      </div>
-      <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4">
+    <div className="flex h-full flex-col">
+      <Link href={rootHref} className="flex h-16 shrink-0 items-center gap-3 px-5">
+        {logoUrl ? (
+          <span className="relative size-10 shrink-0 overflow-hidden rounded-xl border border-border bg-bg-surface-2">
+            <Image src={logoUrl} alt="" fill className="object-cover" sizes="40px" />
+          </span>
+        ) : (
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-brand text-white">
+            <Flame className="size-5" />
+          </span>
+        )}
+        <span className="min-w-0">
+          <span className="block truncate font-display text-[17px] font-bold leading-tight text-text-primary">{title}</span>
+          <span className="block text-[11px] text-text-muted">لوحة التحكم · منيو</span>
+        </span>
+      </Link>
+
+      <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-4">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <div className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
-              {group.label}
-            </div>
+            <p className="mb-1.5 px-3 text-[11px] font-semibold text-text-muted">{group.label}</p>
             <ul className="space-y-0.5">
               {group.items.map((item) => {
-                const isActive =
-                  pathname === item.href ||
-                  pathname.startsWith(item.href + "/");
+                const active = isActive(pathname, item.href, rootHref);
                 return (
                   <li key={item.href}>
                     <Link
                       href={item.href}
-                      className={`flex h-10 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors ${
-                        isActive
-                          ? "bg-[var(--sidebar-active-bg)] text-[var(--sidebar-active)]"
-                          : "text-[var(--text-secondary)] hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-                      }`}
+                      className={cn(
+                        "relative flex h-10 items-center gap-3 rounded-xl px-3 text-sm font-medium transition",
+                        active
+                          ? "bg-brand-light font-semibold text-brand"
+                          : "text-text-secondary hover:bg-bg-surface-2 hover:text-text-primary"
+                      )}
                     >
-                      {item.icon && (
-                        <span className="flex size-5 shrink-0 items-center justify-center [&>svg]:size-5">
-                          {item.icon}
-                        </span>
-                      )}
-                      <span className="min-w-0 flex-1 truncate">
-                        {item.label}
-                      </span>
-                      {item.badge != null && (
-                        <span className="rounded-full bg-[var(--brand)] px-2 py-0.5 text-[10px] font-semibold text-[var(--text-inverse)]">
-                          {item.badge}
-                        </span>
-                      )}
+                      {active ? <span className="absolute inset-y-2 -start-3 w-1 rounded-e-full bg-brand" /> : null}
+                      {item.icon ? (
+                        <span className="flex size-5 shrink-0 items-center justify-center [&>svg]:size-[18px]">{item.icon}</span>
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                      {item.badge != null ? (
+                        <span className="rounded-full bg-brand px-2 py-0.5 text-[10px] font-bold text-white">{item.badge}</span>
+                      ) : null}
                     </Link>
                   </li>
                 );
@@ -125,46 +133,28 @@ function SidebarNavContent({
           </div>
         ))}
       </nav>
-      {profile && (profile.name || profile.imageUrl) && (
-        <div className="shrink-0 border-t border-[var(--border)] p-3">
-          <div className="flex items-center gap-3 rounded-lg px-2 py-2">
-            {profile.imageUrl ? (
-              <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full bg-[var(--bg-surface-2)]">
-                <Image
-                  src={profile.imageUrl}
-                  alt=""
-                  fill
-                  className="object-cover"
-                  sizes="36px"
-                  unoptimized
-                />
-              </div>
-            ) : (
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--brand-light)] text-sm font-semibold text-[var(--brand)]">
-                {(profile.name ?? "؟").charAt(0)}
-              </div>
-            )}
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-[var(--text-primary)]">
-                {profile.name ?? "—"}
-              </p>
-              {profile.role && (
-                <p className="truncate text-xs text-[var(--text-muted)]">
-                  {profile.role}
-                </p>
-              )}
-            </div>
+
+      <div className="shrink-0 space-y-1 border-t border-border p-3">
+        {profile?.name ? (
+          <div className="flex items-center gap-3 px-2 py-2">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand-light text-sm font-bold text-brand">
+              {profile.name.charAt(0)}
+            </span>
+            <span className="min-w-0">
+              <span className="block truncate text-sm font-semibold text-text-primary">{profile.name}</span>
+              {profile.role ? <span className="block truncate text-xs text-text-muted">{profile.role}</span> : null}
+            </span>
           </div>
-        </div>
-      )}
-    </>
+        ) : null}
+        <SignOutButton />
+      </div>
+    </div>
   );
 }
 
 export function DashboardLayout({
   title,
   navGroups,
-  headerRight,
   previewUrl,
   logoUrl,
   profile,
@@ -172,97 +162,115 @@ export function DashboardLayout({
   children,
 }: DashboardLayoutProps) {
   const pathname = usePathname();
-  const isMobile = useIsMobile();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const firstHref = navGroups[0]?.items[0]?.href ?? "/admin";
+  const [moreOpen, setMoreOpen] = useState(false);
+  const rootHref = navGroups[0]?.items[0]?.href ?? "/admin";
+  const allItems = navGroups.flatMap((g) => g.items);
+  const currentItem = allItems.find((i) => isActive(pathname, i.href, rootHref));
+  const mobileItems = allItems.filter((i) => i.mobile).slice(0, 4);
 
-  // إغلاق قائمة الجوال عند الانتقال لصفحة أخرى
-  const [menuPathname, setMenuPathname] = useState(pathname);
-  if (menuPathname !== pathname) {
-    setMenuPathname(pathname);
-    setMobileMenuOpen(false);
+  // إغلاق قائمة «المزيد» عند الانتقال لصفحة أخرى
+  const [lastPath, setLastPath] = useState(pathname);
+  if (lastPath !== pathname) {
+    setLastPath(pathname);
+    setMoreOpen(false);
   }
 
   return (
-    <div className="flex min-h-svh bg-[var(--bg-base)]">
-      {/* Desktop Sidebar — hidden on mobile */}
-      <aside
-        className="sticky top-0 z-20 hidden h-svh w-[var(--sidebar-width)] flex-col border-r border-[var(--border)] bg-[var(--bg-surface)] md:flex"
-        style={{ width: "var(--sidebar-width)" }}
-      >
-        <SidebarNavContent
+    <div className="flex min-h-svh bg-bg-base" dir="rtl">
+      <aside className="sticky top-0 hidden h-svh w-[248px] shrink-0 border-e border-border bg-bg-surface md:block">
+        <SidebarContent
           pathname={pathname}
           navGroups={navGroups}
           title={title}
           logoUrl={logoUrl}
           profile={profile}
-          firstHref={firstHref}
+          rootHref={rootHref}
         />
       </aside>
 
-      {/* Main area */}
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Header — DESIGN_SYSTEM: 60px, اسم المطعم يسار، معاينة + ThemeToggle + avatar يمين */}
-        <header
-          className="sticky top-0 z-10 flex h-[var(--header-height)] items-center gap-4 border-b border-[var(--border)] bg-[var(--bg-surface)]/80 px-4 backdrop-blur-[12px] sm:px-6"
-          style={{ height: "var(--header-height)" }}
-        >
-          {isMobile && (
-            <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
-              <SheetTrigger
-                className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-                aria-label="فتح القائمة"
-              >
-                <PanelLeftIcon className="size-5" />
-              </SheetTrigger>
-              <SheetContent side="right" className="flex w-[var(--sidebar-width)] max-w-[85vw] flex-col p-0">
-                <div className="flex h-full flex-col bg-[var(--bg-surface)]">
-                  <SidebarNavContent
-                    pathname={pathname}
-                    navGroups={navGroups}
-                    title={title}
-                    logoUrl={logoUrl}
-                    profile={profile}
-                    firstHref={firstHref}
-                  />
-                </div>
-              </SheetContent>
-            </Sheet>
-          )}
-          <div className="min-w-0 flex-1 font-semibold text-[var(--text-primary)] truncate">
-            {title}
+        <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-border bg-bg-base/85 px-4 backdrop-blur-xl sm:px-8">
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-lg font-bold text-text-primary">{currentItem?.label ?? title}</p>
+            <p className="truncate text-xs text-text-muted md:hidden">{title}</p>
           </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            {previewUrl && (
-              <a
-                href={previewUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex h-9 items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--bg-surface)] px-3 text-sm font-medium text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-              >
-                معاينة المنيو
-              </a>
-            )}
-            {notificationRestaurantId ? (
-              <OrderNotificationsBell restaurantId={notificationRestaurantId} variant="dashboard" />
-            ) : (
-              <button
-                type="button"
-                className="flex size-9 items-center justify-center rounded-[var(--radius-md)] text-[var(--text-secondary)] transition-colors hover:bg-[var(--bg-surface-2)] hover:text-[var(--text-primary)]"
-                aria-label="الإشعارات"
-              >
-                <BellIcon className="size-5" />
-              </button>
-            )}
-            <ThemeToggle />
-            {headerRight}
-          </div>
+          {previewUrl ? (
+            <a
+              href={previewUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden h-10 items-center gap-2 rounded-xl border border-border bg-bg-surface px-3.5 text-sm font-semibold text-text-secondary transition hover:text-text-primary sm:inline-flex"
+            >
+              <ExternalLink className="size-4" />
+              معاينة المنيو
+            </a>
+          ) : null}
+          {notificationRestaurantId ? (
+            <OrderNotificationsBell restaurantId={notificationRestaurantId} variant="dashboard" />
+          ) : null}
+          <ThemeToggle />
+          <span className="md:hidden">
+            <SignOutButton compact />
+          </span>
         </header>
 
-        {/* Main content — DESIGN_SYSTEM: padding, responsive */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-8">{children}</main>
+        <main className={cn("flex-1 p-4 sm:p-8", mobileItems.length ? "pb-28 md:pb-8" : "")}>
+          <div className="mx-auto w-full max-w-6xl">{children}</div>
+        </main>
       </div>
+
+      {/* شريط الجوال السفلي */}
+      {mobileItems.length ? (
+        <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+          <ul className="flex">
+            {mobileItems.map((item) => {
+              const active = isActive(pathname, item.href, rootHref);
+              return (
+                <li key={item.href} className="flex-1">
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex h-16 flex-col items-center justify-center gap-1 text-[11px] font-semibold",
+                      active ? "text-brand" : "text-text-muted"
+                    )}
+                  >
+                    <span className={cn("flex h-7 w-12 items-center justify-center rounded-full [&>svg]:size-5", active && "bg-brand-light")}>
+                      {item.icon}
+                    </span>
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+            <li className="flex-1">
+              <button
+                type="button"
+                onClick={() => setMoreOpen(true)}
+                className="flex h-16 w-full flex-col items-center justify-center gap-1 text-[11px] font-semibold text-text-muted"
+              >
+                <span className="flex h-7 w-12 items-center justify-center">
+                  <MoreHorizontal className="size-5" />
+                </span>
+                المزيد
+              </button>
+            </li>
+          </ul>
+        </nav>
+      ) : null}
+
+      <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
+        <SheetContent side="right" className="w-[280px] max-w-[85vw] bg-bg-surface p-0">
+          <SheetTitle className="sr-only">القائمة</SheetTitle>
+          <SidebarContent
+            pathname={pathname}
+            navGroups={navGroups}
+            title={title}
+            logoUrl={logoUrl}
+            profile={profile}
+            rootHref={rootHref}
+          />
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

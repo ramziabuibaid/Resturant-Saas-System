@@ -43,15 +43,10 @@ export default async function AdminRestaurantOrdersPage() {
     : [[], []];
 
   return (
-    <div className="space-y-8">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">الطلبات</h1>
-        <p className="text-muted-foreground">
-          الطلبات الواردة من المنيو العام (QR أو روابط السوشيال). حدّث حالة الطلب حسب سير العمل في مطعمك.
-          يظهر ملخص المبلغ ويمكنك <span className="font-medium text-foreground">تطبيق خصم بالنقاط</span> من هنا
-          عند توفر رصيد للزبون (برنامج الولاء مفعّل).
-        </p>
-      </div>
+    <div className="space-y-5">
+      <p className="text-sm text-text-secondary">
+        الطلبات الواردة من المنيو. اضغط زر الخطوة التالية في كل بطاقة لتحديث الحالة — الزبون يرى التحديث في صفحة التتبع.
+      </p>
       {error ? (
         <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
           تعذر تحميل الطلبات: {error}

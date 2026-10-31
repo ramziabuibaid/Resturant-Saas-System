@@ -19,46 +19,46 @@ export const ORDER_STATUS_FLOW: OrderStatus[] = [
   "completed",
 ];
 
-/** ألوان الواجهة: حدود وخلفية خفيفة (Tailwind classes) */
+/** بطاقة الطلب: خلفية محايدة + شريط جانبي بلون الحالة */
 export function orderStatusCardClasses(status: OrderStatus): string {
   switch (status) {
     case "pending":
-      return "border-emerald-500/50 bg-emerald-950/25 order-card-pulse-pending";
+      return "border-s-brand ring-1 ring-brand/30 order-card-pulse-pending";
     case "accepted":
-      return "border-sky-500/40 bg-sky-950/20 order-card-pulse-accepted";
+      return "border-s-sky-500";
     case "preparing":
-      return "border-amber-500/50 bg-amber-950/25 order-card-pulse-preparing";
+      return "border-s-amber-500";
     case "ready":
-      return "border-blue-500/50 bg-blue-950/25 shadow-[inset_4px_0_0_0_rgba(59,130,246,0.65)]";
+      return "border-s-emerald-500";
     case "completed":
-      return "border-zinc-500/40 bg-zinc-900/40 shadow-[inset_4px_0_0_0_rgba(113,113,122,0.5)]";
+      return "border-s-border-strong opacity-80";
     case "cancelled":
-      return "border-red-500/45 bg-red-950/25 shadow-[inset_4px_0_0_0_rgba(239,68,68,0.55)]";
+      return "border-s-red-400 opacity-70";
     default:
-      return "border-border bg-card";
+      return "border-s-border";
   }
 }
 
+/** شارة الحالة (هادئة في الوضعين) */
 export function orderStatusBadgeClasses(status: OrderStatus): string {
   switch (status) {
     case "pending":
-      return "bg-emerald-600/90 text-white";
+      return "bg-brand text-white";
     case "accepted":
-      return "bg-sky-600/90 text-white";
+      return "bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300";
     case "preparing":
-      return "bg-amber-600/90 text-white";
+      return "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300";
     case "ready":
-      return "bg-blue-600/90 text-white";
+      return "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300";
     case "completed":
-      return "bg-zinc-600/90 text-white";
+      return "bg-bg-surface-2 text-text-secondary";
     case "cancelled":
-      return "bg-red-600/90 text-white";
+      return "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300";
     default:
-      return "bg-muted text-muted-foreground";
+      return "bg-bg-surface-2 text-text-muted";
   }
 }
 
-/** الخطوة التالية المنطقية في التشغيل (للزر السريع) */
 export function nextOperationalStatus(current: OrderStatus): OrderStatus | null {
   if (current === "cancelled" || current === "completed") return null;
   const i = ORDER_STATUS_FLOW.indexOf(current);

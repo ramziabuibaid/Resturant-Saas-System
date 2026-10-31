@@ -91,22 +91,6 @@ export async function findRestaurantByHost(
   return row ?? null;
 }
 
-export async function getOwnerDashboardStats(restaurantId: string) {
-  const [[cats], [items], [pending]] = await Promise.all([
-    db.select({ n: count() }).from(schema.categories).where(eq(schema.categories.restaurantId, restaurantId)),
-    db.select({ n: count() }).from(schema.menuItems).where(eq(schema.menuItems.restaurantId, restaurantId)),
-    db
-      .select({ n: count() })
-      .from(schema.orders)
-      .where(and(eq(schema.orders.restaurantId, restaurantId), eq(schema.orders.status, "pending"))),
-  ]);
-  return {
-    categoriesCount: cats.n,
-    menuItemsCount: items.n,
-    pendingOrdersCount: pending.n,
-  };
-}
-
 export async function isSubdomainTaken(subdomain: string, exceptRestaurantId?: string) {
   const rows = await db
     .select({ id: schema.restaurants.id })

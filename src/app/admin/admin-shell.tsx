@@ -4,7 +4,6 @@ import {
   LayoutDashboardIcon,
   Building2Icon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { DashboardLayout, type NavGroup } from "@/components/dashboard/DashboardLayout";
 
 const superAdminNavGroups: NavGroup[] = [
@@ -20,15 +19,8 @@ const superAdminNavGroups: NavGroup[] = [
 export function AdminShell({ children }: { children: React.ReactNode }) {
   return (
     <DashboardLayout
-      title="لوحة مالك النظام"
+      title="مالك النظام"
       navGroups={superAdminNavGroups}
-      headerRight={
-        <form action="/auth/signout" method="POST">
-          <Button type="submit" variant="ghost" size="sm">
-            تسجيل الخروج
-          </Button>
-        </form>
-      }
     >
       {children}
     </DashboardLayout>

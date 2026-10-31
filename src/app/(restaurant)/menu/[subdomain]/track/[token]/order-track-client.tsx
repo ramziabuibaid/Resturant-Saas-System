@@ -2,7 +2,8 @@
 
 import { getOrderTrackingByToken, type PublicOrderTracking } from "@/app/actions/orders";
 import type { OrderStatus } from "@/lib/types/database";
-import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { BellRingIcon, CheckIcon, ChefHatIcon, GiftIcon, PartyPopperIcon, ReceiptIcon } from "lucide-react";
 import { ORDER_STATUS_LABELS } from "@/lib/order-status-ui";
 import { formatMenuPrice } from "@/lib/currencies";
 import { secondaryCentsFromPrimaryCents } from "@/lib/secondary-currency";
@@ -85,260 +86,151 @@ export function OrderTrackClient({ subdomain, token, initialData }: Props) {
   const secondaryRate = showSecondary ? rateRaw : NaN;
   const secondaryCurrencyCode = data.secondary_currency_code;
 
-  return (
-    <div className="min-h-svh bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50">
-      <header className="border-b border-stone-200/90 bg-gradient-to-b from-white/95 via-stone-50/95 to-stone-100/90 backdrop-blur dark:border-white/5 dark:from-stone-950/80 dark:via-stone-950/90 dark:to-stone-900/90">
-        <div className="mx-auto max-w-5xl px-4 pt-5 pb-6 sm:pb-8">
-          <MenuRestaurantBrand
-            logoUrl={data.logo_url}
-            name={data.restaurant_name}
-            menuTitleAnimationEnabled={data.menu_title_animation_enabled}
-          />
-        </div>
-      </header>
+  const STEP_ICONS = [ReceiptIcon, CheckIcon, ChefHatIcon, BellRingIcon, PartyPopperIcon];
+  const headline = cancelled
+    ? "تم إلغاء الطلب"
+    : data.status === "completed"
+      ? "بالهناء والشفاء!"
+      : data.status === "ready"
+        ? "طلبك جاهز"
+        : data.status === "preparing"
+          ? "طلبك قيد التحضير"
+          : data.status === "accepted"
+            ? "المطعم قبل طلبك"
+            : "وصل طلبك إلى المطعم";
 
-      <div className="mx-auto max-w-lg px-4 py-8">
-        <div className="mb-8 text-center">
-          <h2 className="font-mono text-3xl font-bold tabular-nums text-stone-900 dark:text-stone-50">
-            طلب{" "}
-            <span dir="ltr" className="tabular-nums">
-              #{data.display_number}
+  return (
+    <div className="min-h-svh bg-bg-base text-text-primary" dir="rtl">
+      <div className="mx-auto max-w-lg px-4 pb-10 pt-6">
+        <header className="flex items-center gap-3">
+          {data.logo_url ? (
+            <span className="relative size-11 overflow-hidden rounded-2xl border border-border bg-bg-surface">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={data.logo_url} alt="" className="size-full object-cover" />
             </span>
-          </h2>
-          <p className="mt-2 text-sm text-stone-600 dark:text-stone-400" dir="rtl">
-            تم الإنشاء{" "}
-            {new Date(data.created_at).toLocaleString("ar-SA", {
-              dateStyle: "medium",
-              timeStyle: "short",
-              numberingSystem: "latn",
-            })}
+          ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-display text-lg font-bold">{data.restaurant_name}</p>
+            <p className="text-xs text-text-muted">تتبع الطلب</p>
+          </div>
+          <ThemeToggle />
+        </header>
+
+        <section className="mt-6 rounded-[26px] border border-border bg-bg-surface p-6 text-center">
+          <p className="text-sm font-semibold text-text-muted">طلب رقم</p>
+          <p className="font-display text-6xl font-bold tabular-nums text-brand" dir="ltr">
+            #{data.display_number}
+          </p>
+          <h1 className="mt-3 font-display text-2xl font-bold">{headline}</h1>
+          <p className="mt-1 text-sm text-text-secondary">
+            {FULFILLMENT_LABELS[data.fulfillment] ?? data.fulfillment}
+            {data.table_label ? ` · ${data.table_label}` : ""}
           </p>
           {!terminal ? (
-            <p
-              className="mt-3 inline-flex items-center gap-2 rounded-full border border-emerald-500/35 bg-emerald-500/10 px-3 py-1 text-[11px] font-medium text-emerald-900 dark:border-emerald-500/25 dark:bg-emerald-950/40 dark:text-emerald-100"
-              role="status"
-              aria-live="polite"
-            >
-              <span
-                className="relative flex size-2 shrink-0"
-                aria-hidden
-              >
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-              يتحدّث تلقائياً كل بضع ثوانٍ
+            <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-bg-surface-2 px-3 py-1 text-xs text-text-muted">
+              <span className="size-1.5 animate-pulse rounded-full bg-brand" /> تتحدث الحالة تلقائياً
             </p>
           ) : null}
-        </div>
 
-        <section
-          className="mb-8 rounded-2xl border border-stone-200/90 bg-white/80 p-4 shadow-sm dark:border-white/10 dark:bg-stone-900/60"
-          aria-labelledby="order-details-heading"
-        >
-          <h3
-            id="order-details-heading"
-            className="mb-3 text-sm font-semibold text-stone-800 dark:text-stone-100"
-          >
-            تفاصيل الطلب
-          </h3>
-          <dl className="space-y-2 text-sm text-stone-700 dark:text-stone-300">
-            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
-              <dt className="text-stone-500 dark:text-stone-400">حالة الطلب</dt>
-              <dd className="font-medium">{ORDER_STATUS_LABELS[data.status]}</dd>
-            </div>
-            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
-              <dt className="text-stone-500 dark:text-stone-400">نوع الطلب</dt>
-              <dd className="font-medium">
-                {FULFILLMENT_LABELS[data.fulfillment] ?? data.fulfillment}
-              </dd>
-            </div>
-            {data.table_label ? (
-              <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
-                <dt className="text-stone-500 dark:text-stone-400">الطاولة</dt>
-                <dd className="font-medium">{data.table_label}</dd>
-              </div>
-            ) : null}
-            {data.delivery_address ? (
-              <div className="border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
-                <dt className="text-stone-500 dark:text-stone-400">عنوان التوصيل</dt>
-                <dd className="mt-1 font-medium leading-relaxed">{data.delivery_address}</dd>
-              </div>
-            ) : null}
-            <div className="flex flex-wrap justify-between gap-2 border-b border-stone-200/80 pb-2 dark:border-stone-700/80">
-              <dt className="text-stone-500 dark:text-stone-400">رقم الجوال</dt>
-              <dd dir="ltr" className="font-mono font-medium tabular-nums">
-                {data.customer_phone}
-              </dd>
-            </div>
-          </dl>
+          {cancelled ? (
+            <p className="mt-6 rounded-2xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300">
+              تواصل مع المطعم للاستفسار عن سبب الإلغاء.
+            </p>
+          ) : (
+            <ol className="mt-7 flex items-start justify-between">
+              {TRACK_STEPS.map((step, i) => {
+                const Icon = STEP_ICONS[i];
+                const done = i < activeIdx;
+                const current = i === activeIdx;
+                return (
+                  <li key={step.status} className="relative flex flex-1 flex-col items-center gap-2">
+                    {i > 0 ? (
+                      <span
+                        className={cn("absolute end-1/2 top-5 h-0.5 w-full -translate-y-1/2", i <= activeIdx ? "bg-brand" : "bg-border")}
+                        aria-hidden
+                      />
+                    ) : null}
+                    <span
+                      className={cn(
+                        "relative z-10 flex size-10 items-center justify-center rounded-full border-2 transition",
+                        current
+                          ? "border-brand bg-brand text-white shadow-[0_0_0_6px_color-mix(in_oklab,var(--brand)_18%,transparent)]"
+                          : done
+                            ? "border-brand bg-brand-light text-brand"
+                            : "border-border bg-bg-surface text-text-muted"
+                      )}
+                    >
+                      <Icon className="size-[18px]" />
+                    </span>
+                    <span className={cn("text-[11px] font-semibold", current ? "text-brand" : done ? "text-text-primary" : "text-text-muted")}>
+                      {step.label}
+                    </span>
+                  </li>
+                );
+              })}
+            </ol>
+          )}
+        </section>
 
-          <ul className="mt-4 space-y-3 border-t border-stone-200/90 pt-4 dark:border-stone-700/80">
-            {data.items.map((line) => (
-              <li
-                key={line.id}
-                className="border-b border-stone-100 pb-3 last:border-0 last:pb-0 dark:border-stone-800/80"
-              >
-                <div className="flex justify-between gap-3 text-sm">
-                  <span className="min-w-0 flex-1 font-medium leading-snug text-stone-900 dark:text-stone-50">
-                    {line.menu_item_name}
-                    {line.price_option_label ? (
-                      <span className="text-stone-600 dark:text-stone-400">
-                        {" "}
-                        ({line.price_option_label})
-                      </span>
-                    ) : null}
-                    <span className="text-stone-500 dark:text-stone-400"> × {line.quantity}</span>
-                  </span>
-                  <span
-                    dir="ltr"
-                    className="flex shrink-0 flex-col items-end gap-0.5 text-end tabular-nums text-stone-700 dark:text-stone-300"
-                  >
-                    <span>{formatMenuPrice(line.line_total_cents, data.currency_code)}</span>
-                    {showSecondary && secondaryCurrencyCode ? (
-                      <span className="text-[11px] font-medium text-stone-500 dark:text-stone-400">
-                        {formatMenuPrice(
-                          secondaryCentsFromPrimaryCents(line.line_total_cents, secondaryRate),
-                          secondaryCurrencyCode
-                        )}
-                      </span>
-                    ) : null}
-                  </span>
-                </div>
-                {line.excluded_ingredients && line.excluded_ingredients.length > 0 ? (
-                  <p className="mt-1 text-xs leading-relaxed text-amber-800 dark:text-amber-200/90">
-                    <span className="font-semibold">بدون: </span>
-                    {line.excluded_ingredients.join("، ")}
-                  </p>
-                ) : null}
+        <section className="mt-4 rounded-[26px] border border-border bg-bg-surface p-5">
+          <h2 className="font-display text-lg font-bold">تفاصيل الطلب</h2>
+          <ul className="mt-3 divide-y divide-border">
+            {data.items.map((it) => (
+              <li key={it.id} className="flex items-start justify-between gap-3 py-2.5 text-sm">
+                <span>
+                  <span className="font-bold text-brand">{it.quantity}×</span> <span className="font-semibold">{it.menu_item_name}</span>
+                  {it.price_option_label ? <span className="text-text-muted"> · {it.price_option_label}</span> : null}
+                  {it.excluded_ingredients?.length ? (
+                    <span className="block text-xs text-text-muted">بدون: {it.excluded_ingredients.join("، ")}</span>
+                  ) : null}
+                </span>
+                <span className="shrink-0 font-semibold" dir="ltr">
+                  {formatMenuPrice(it.line_total_cents, data.currency_code)}
+                </span>
               </li>
             ))}
           </ul>
-
-          <div className="mt-4 space-y-2 border-t border-stone-200/90 pt-4 text-sm dark:border-stone-700/80">
+          <div className="mt-2 space-y-1.5 border-t border-border pt-3 text-sm">
             {data.loyalty_discount_cents > 0 || data.owner_discount_cents > 0 ? (
-              <>
-                <div className="flex items-center justify-between gap-2 text-stone-700 dark:text-stone-300">
-                  <span>مجموع الأصناف</span>
-                  <span dir="ltr" className="tabular-nums">
-                    {formatMenuPrice(data.items_subtotal_cents, data.currency_code)}
-                  </span>
-                </div>
-                {data.owner_discount_cents > 0 ? (
-                  <div className="flex items-center justify-between gap-2 text-sky-800 dark:text-sky-300/90">
-                    <span>خصم من المطعم</span>
-                    <span dir="ltr" className="tabular-nums">
-                      −{formatMenuPrice(data.owner_discount_cents, data.currency_code)}
-                    </span>
-                  </div>
-                ) : null}
-                {data.loyalty_discount_cents > 0 ? (
-                  <div className="flex items-center justify-between gap-2 text-emerald-800 dark:text-emerald-300/90">
-                    <span>
-                      خصم نقاط الولاء
-                      {data.loyalty_points_used > 0 ? (
-                        <span className="ms-1 tabular-nums" dir="ltr">
-                          ({data.loyalty_points_used} نقطة)
-                        </span>
-                      ) : null}
-                    </span>
-                    <span dir="ltr" className="tabular-nums">
-                      −{formatMenuPrice(data.loyalty_discount_cents, data.currency_code)}
-                    </span>
-                  </div>
-                ) : null}
-              </>
+              <div className="flex justify-between text-text-secondary">
+                <span>المجموع</span>
+                <span dir="ltr">{formatMenuPrice(data.items_subtotal_cents, data.currency_code)}</span>
+              </div>
             ) : null}
-            <div className="flex items-center justify-between gap-2 font-semibold text-stone-900 dark:text-stone-50">
-              <span>
-                {data.loyalty_discount_cents > 0 || data.owner_discount_cents > 0
-                  ? "المستحق"
-                  : "الإجمالي"}
-              </span>
-              <div dir="ltr" className="flex flex-col items-end gap-0.5 text-end">
-                <span className="text-lg font-bold tabular-nums">
+            {data.owner_discount_cents > 0 ? (
+              <div className="flex justify-between text-text-secondary">
+                <span>خصم</span>
+                <span dir="ltr">−{formatMenuPrice(data.owner_discount_cents, data.currency_code)}</span>
+              </div>
+            ) : null}
+            {data.loyalty_discount_cents > 0 ? (
+              <div className="flex justify-between text-emerald-700 dark:text-emerald-400">
+                <span>خصم النقاط ({data.loyalty_points_used})</span>
+                <span dir="ltr">−{formatMenuPrice(data.loyalty_discount_cents, data.currency_code)}</span>
+              </div>
+            ) : null}
+            <div className="flex items-baseline justify-between pt-1">
+              <span className="font-bold">المستحق</span>
+              <span className="flex flex-col items-end">
+                <span className="font-display text-2xl font-bold" dir="ltr">
                   {formatMenuPrice(data.total_cents, data.currency_code)}
                 </span>
                 {showSecondary && secondaryCurrencyCode ? (
-                  <span className="text-sm font-medium tabular-nums text-stone-600 dark:text-stone-400">
-                    {formatMenuPrice(
-                      secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate),
-                      secondaryCurrencyCode
-                    )}
+                  <span className="text-xs text-text-muted" dir="ltr">
+                    {formatMenuPrice(secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate), secondaryCurrencyCode)}
                   </span>
                 ) : null}
-              </div>
+              </span>
             </div>
           </div>
-
           {data.loyalty_points_earned_on_order > 0 ? (
-            <div
-              className="mt-4 rounded-xl border border-emerald-500/35 bg-emerald-500/10 px-4 py-3 text-center dark:border-emerald-500/25 dark:bg-emerald-950/40"
-              role="status"
-            >
-              <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-100">
-                <span dir="ltr" className="tabular-nums">
-                  +{data.loyalty_points_earned_on_order}
-                </span>{" "}
-                نقطة مكتسبة من هذا الطلب ضمن برنامج الولاء
-              </p>
-              <p className="mt-1 text-[11px] text-emerald-800/90 dark:text-emerald-200/80">
-                تمت إضافة النقاط إلى رصيدك المرتبط بهذا الجوال بعد اكتمال الطلب.
-              </p>
-            </div>
+            <p className="mt-3 flex items-center gap-2 rounded-2xl bg-gold/15 px-3 py-2 text-sm font-semibold">
+              <GiftIcon className="size-4 text-gold" /> كسبت {data.loyalty_points_earned_on_order} نقطة ولاء من هذا الطلب
+            </p>
           ) : null}
         </section>
 
-        {cancelled ? (
-          <div className="rounded-2xl border border-red-500/45 bg-red-950/30 px-4 py-6 text-center dark:bg-red-950/30">
-            <p className="text-lg font-semibold text-red-800 dark:text-red-100">
-              {ORDER_STATUS_LABELS.cancelled}
-            </p>
-            <p className="mt-2 text-sm text-red-700/90 dark:text-red-200/90">
-              لم يعد هذا الطلب نشطاً.
-            </p>
-          </div>
-        ) : (
-          <ol className="relative me-2 space-y-0 border-s-2 border-stone-300 ps-6 dark:border-stone-700">
-            {TRACK_STEPS.map((step, i) => {
-              const done = i < activeIdx;
-              const current = i === activeIdx;
-              return (
-                <li key={step.status} className="relative pb-8 last:pb-0">
-                  <span
-                    className={cn(
-                      "absolute -start-[21px] top-0 flex size-4 shrink-0 rounded-full border-2 border-stone-400 dark:border-stone-800",
-                      done && "bg-emerald-500",
-                      current && !done && "scale-110 bg-amber-400 ring-4 ring-amber-400/30",
-                      !done && !current && "bg-stone-400 dark:bg-stone-700"
-                    )}
-                    aria-hidden
-                  />
-                  <div
-                    className={cn(
-                      "rounded-xl border px-4 py-3",
-                      current
-                        ? "border-amber-500/50 bg-amber-500/10 dark:bg-amber-950/40"
-                        : done
-                          ? "border-emerald-600/40 bg-emerald-500/10 dark:bg-emerald-950/20"
-                          : "border-stone-200 bg-stone-100/80 opacity-90 dark:border-stone-800 dark:bg-stone-900/50 dark:opacity-70"
-                    )}
-                  >
-                    <p className="font-semibold text-stone-900 dark:text-stone-50">{step.label}</p>
-                    {current ? (
-                      <p className="mt-1 text-xs text-stone-600 dark:text-stone-400">
-                        الحالة الحالية لطلبك
-                      </p>
-                    ) : null}
-                  </div>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-
-        <p className="mt-10 text-center text-xs text-stone-500 dark:text-stone-500">
-          هذه الصفحة للاطلاع فقط. للاستفسار تواصل مع المطعم مباشرة.
-        </p>
+        <p className="mt-6 text-center text-xs text-text-muted">للاستفسار عن طلبك تواصل مع المطعم مباشرة.</p>
       </div>
 
       <MenuPublicFooter

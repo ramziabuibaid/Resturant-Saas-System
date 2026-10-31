@@ -52,6 +52,8 @@ type BtnProps = {
   className?: string;
   /** زر مدمج في البطاقة */
   compact?: boolean;
+  /** أيقونة فقط (بطاقة الطلب المختصرة) */
+  iconOnly?: boolean;
 };
 
 export function OrderThermalPrintButton({
@@ -60,7 +62,24 @@ export function OrderThermalPrintButton({
   currencyCode,
   className,
   compact = false,
+  iconOnly = false,
 }: BtnProps) {
+  if (iconOnly) {
+    return (
+      <button
+        type="button"
+        aria-label="طباعة إيصال"
+        title="طباعة إيصال (طابعة حرارية ٨٠مم)"
+        onClick={() => printThermalOrderReceipt(order, { restaurantName, currencyCode })}
+        className={cn(
+          "flex size-11 shrink-0 items-center justify-center rounded-xl border border-border text-text-secondary hover:bg-bg-surface-2",
+          className
+        )}
+      >
+        <Printer className="size-4" />
+      </button>
+    );
+  }
   return (
     <button
       type="button"

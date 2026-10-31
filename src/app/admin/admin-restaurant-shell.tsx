@@ -9,7 +9,6 @@ import {
   ClipboardListIcon,
   UsersIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { DashboardLayout, type NavGroup } from "@/components/dashboard/DashboardLayout";
 
 type AdminRestaurantShellProps = {
@@ -25,26 +24,27 @@ type AdminRestaurantShellProps = {
 function getRestaurantNavGroups(): NavGroup[] {
   return [
     {
-      label: "إدارة القائمة",
+      label: "التشغيل",
       items: [
-        { href: "/admin", label: "نظرة عامة", icon: <LayoutDashboardIcon /> },
-        { href: "/admin/menu", label: "أصناف المنيو", icon: <UtensilsCrossedIcon /> },
-        { href: "/admin/categories", label: "التصنيفات", icon: <FolderIcon /> },
-      ],
-    },
-    {
-      label: "الطلبات والطاولات",
-      items: [
-        { href: "/admin/orders", label: "الطلبات", icon: <ClipboardListIcon /> },
-        { href: "/admin/customers", label: "العملاء والولاء", icon: <UsersIcon /> },
+        { href: "/admin", label: "نظرة عامة", icon: <LayoutDashboardIcon />, mobile: true },
+        { href: "/admin/orders", label: "الطلبات", icon: <ClipboardListIcon />, mobile: true },
         { href: "/admin/tables", label: "الطاولات و QR", icon: <QrCodeIcon /> },
       ],
     },
     {
-      label: "الإعدادات",
+      label: "المنيو",
       items: [
-        { href: "/admin/settings", label: "الإعدادات", icon: <SettingsIcon /> },
+        { href: "/admin/menu", label: "المنيو", icon: <UtensilsCrossedIcon />, mobile: true },
+        { href: "/admin/categories", label: "التصنيفات", icon: <FolderIcon /> },
       ],
+    },
+    {
+      label: "الزبائن",
+      items: [{ href: "/admin/customers", label: "العملاء", icon: <UsersIcon />, mobile: true }],
+    },
+    {
+      label: "المطعم",
+      items: [{ href: "/admin/settings", label: "الإعدادات", icon: <SettingsIcon /> }],
     },
   ];
 }
@@ -65,13 +65,6 @@ export function AdminRestaurantShell({
       previewUrl={livePreviewUrl}
       logoUrl={logoUrl}
       profile={profile}
-      headerRight={
-        <form action="/auth/signout" method="POST">
-          <Button type="submit" variant="ghost" size="sm">
-            تسجيل الخروج
-          </Button>
-        </form>
-      }
     >
       {children}
     </DashboardLayout>

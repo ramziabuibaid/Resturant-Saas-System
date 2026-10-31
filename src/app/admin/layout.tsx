@@ -62,7 +62,7 @@ export default async function AdminLayout({
       restaurantId={restaurant?.id ?? null}
       livePreviewUrl={livePreviewUrl}
       logoUrl={restaurant?.logo_url ?? null}
-      profile={{ name: "صاحب المطعم", role: "owner" }}
+      profile={{ name: profile.full_name || profile.username || "صاحب المطعم", role: "مالك المطعم" }}
     >
       {children}
     </AdminRestaurantShell>
