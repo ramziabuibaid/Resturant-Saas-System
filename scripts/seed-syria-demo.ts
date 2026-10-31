@@ -1,6 +1,6 @@
 /**
  * مطعم تجريبي سوري للعرض والتصوير («sham»): أسعار بالدولار تظهر بالليرة الجديدة.
- * آمن للتشغيل أكثر من مرة: لا يفعل شيئاً إن كان المطعم موجوداً.
+ * آمن للتشغيل أكثر من مرة: إن كان المطعم موجوداً يربط فقط صور الأصناف الناقصة.
  *
  *   محلياً:      npx tsx --env-file=.env.local scripts/seed-syria-demo.ts
  *   على السيرفر: docker compose run --rm tools npx tsx scripts/seed-syria-demo.ts
@@ -9,7 +9,7 @@
  */
 import { randomBytes } from "node:crypto";
 import { appendFileSync, existsSync } from "node:fs";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { db, schema } from "../src/db";
 import { hashPassword } from "../src/lib/auth/password";
 
@@ -20,59 +20,62 @@ const RATE = 122;
 
 type Item = { name: string; description: string; usd: number; image?: string; options?: [string, number][] };
 
+/** صور أصناف المطعم التجريبي (public/images/demo/sham) */
+const SHAM_IMG = (file: string) => `/images/demo/sham/${file}.png`;
+
 // الأسعار بالدولار
 const MENU: { category: string; items: Item[] }[] = [
   {
     category: "المشاوي",
     items: [
       { name: "مشاوي مشكلة", description: "كباب وشيش طاووق وقطع لحم على الفحم مع خبز وبصل بالسماق", usd: 7.75, image: "/images/demo/mixed-grill.png", options: [["نفر", 7.75], ["كيلو", 26]] },
-      { name: "شيش طاووق", description: "صدر دجاج متبّل على الفحم مع ثومية", usd: 5 },
-      { name: "كباب حلبي", description: "لحم غنم مفروم مع بهارات حلبية", usd: 5.75 },
-      { name: "كباب بالكرز", description: "على الطريقة الحلبية بصلصة الكرز الحامض", usd: 6.5 },
+      { name: "شيش طاووق", description: "صدر دجاج متبّل على الفحم مع ثومية", usd: 5, image: SHAM_IMG("shish-tawook") },
+      { name: "كباب حلبي", description: "لحم غنم مفروم مع بهارات حلبية", usd: 5.75, image: SHAM_IMG("kebab-halabi") },
+      { name: "كباب بالكرز", description: "على الطريقة الحلبية بصلصة الكرز الحامض", usd: 6.5, image: SHAM_IMG("kebab-karaz") },
     ],
   },
   {
     category: "السندويشات",
     items: [
       { name: "شاورما دجاج", description: "خبز صاج، ثومية، بطاطا ومخلل", usd: 1.5, image: "/images/demo/chicken-shawarma.png", options: [["عادي", 1.5], ["دبل", 2.5]] },
-      { name: "شاورما لحمة", description: "طرطور وبقدونس وبندورة", usd: 2.5 },
-      { name: "فلافل", description: "فلافل طازجة مع طرطور وخضار", usd: 0.75 },
+      { name: "شاورما لحمة", description: "طرطور وبقدونس وبندورة", usd: 2.5, image: SHAM_IMG("shawarma-meat") },
+      { name: "فلافل", description: "فلافل طازجة مع طرطور وخضار", usd: 0.75, image: SHAM_IMG("falafel") },
     ],
   },
   {
     category: "المقبلات",
     items: [
-      { name: "حمص", description: "حمص بالطحينة وزيت الزيتون", usd: 1.75 },
-      { name: "متبل", description: "باذنجان مشوي بالطحينة ودبس الرمان", usd: 1.75 },
-      { name: "محمرة", description: "فليفلة حمراء وجوز ودبس رمان", usd: 2.25 },
-      { name: "فتوش", description: "خضار طازجة وخبز محمص وسماق", usd: 2 },
-      { name: "تبولة", description: "بقدونس وبرغل وليمون", usd: 2 },
+      { name: "حمص", description: "حمص بالطحينة وزيت الزيتون", usd: 1.75, image: SHAM_IMG("hummus") },
+      { name: "متبل", description: "باذنجان مشوي بالطحينة ودبس الرمان", usd: 1.75, image: SHAM_IMG("mutabbal") },
+      { name: "محمرة", description: "فليفلة حمراء وجوز ودبس رمان", usd: 2.25, image: SHAM_IMG("muhammara") },
+      { name: "فتوش", description: "خضار طازجة وخبز محمص وسماق", usd: 2, image: SHAM_IMG("fattoush") },
+      { name: "تبولة", description: "بقدونس وبرغل وليمون", usd: 2, image: SHAM_IMG("tabbouleh") },
     ],
   },
   {
     category: "أطباق شامية",
     items: [
-      { name: "فتة حمص", description: "خبز محمص وحمص ولبن وسمنة وصنوبر", usd: 2.5 },
-      { name: "كبة مقلية", description: "4 قطع محشوة لحمة وجوز", usd: 3 },
-      { name: "يبرق", description: "ورق عنب محشي بالرز والزيت", usd: 3.5 },
+      { name: "فتة حمص", description: "خبز محمص وحمص ولبن وسمنة وصنوبر", usd: 2.5, image: SHAM_IMG("fatteh") },
+      { name: "كبة مقلية", description: "4 قطع محشوة لحمة وجوز", usd: 3, image: SHAM_IMG("kibbeh") },
+      { name: "يبرق", description: "ورق عنب محشي بالرز والزيت", usd: 3.5, image: SHAM_IMG("yabraq") },
     ],
   },
   {
     category: "الحلويات",
     items: [
       { name: "كنافة", description: "بالجبنة والفستق الحلبي والقطر", usd: 2.5, image: "/images/demo/kunafa.png" },
-      { name: "بوظة عربية بالفستق", description: "بوظة مدقوقة بالقشطة والفستق", usd: 2 },
-      { name: "حلاوة الجبن", description: "حمصية بالقشطة والقطر", usd: 3 },
+      { name: "بوظة عربية بالفستق", description: "بوظة مدقوقة بالقشطة والفستق", usd: 2, image: SHAM_IMG("booza") },
+      { name: "حلاوة الجبن", description: "حمصية بالقشطة والقطر", usd: 3, image: SHAM_IMG("halawet-jibn") },
     ],
   },
   {
     category: "المشروبات",
     items: [
-      { name: "عصير برتقال", description: "طازج", usd: 1.25 },
-      { name: "ليموناضة بالنعنع", description: "", usd: 1.25 },
-      { name: "عرق سوس", description: "", usd: 0.75 },
-      { name: "قهوة عربية", description: "", usd: 0.75 },
-      { name: "شاي", description: "", usd: 0.5 },
+      { name: "عصير برتقال", description: "طازج", usd: 1.25, image: SHAM_IMG("orange-juice") },
+      { name: "ليموناضة بالنعنع", description: "", usd: 1.25, image: SHAM_IMG("lemon-mint") },
+      { name: "عرق سوس", description: "", usd: 0.75, image: SHAM_IMG("erq-sous") },
+      { name: "قهوة عربية", description: "", usd: 0.75, image: SHAM_IMG("arabic-coffee") },
+      { name: "شاي", description: "", usd: 0.5, image: SHAM_IMG("tea") },
     ],
   },
 ];
@@ -82,7 +85,18 @@ const cents = (usd: number) => Math.round(usd * 100);
 async function main() {
   const [existing] = await db.select({ id: schema.restaurants.id }).from(schema.restaurants).where(eq(schema.restaurants.subdomain, SUBDOMAIN)).limit(1);
   if (existing) {
-    console.log(`• المطعم موجود: ${SUBDOMAIN}`);
+    // المطعم موجود: نكمل فقط صور الأصناف التي بلا صورة (بالاسم)
+    let linked = 0;
+    for (const it of MENU.flatMap((g) => g.items)) {
+      if (!it.image) continue;
+      const rows = await db
+        .update(schema.menuItems)
+        .set({ imageUrl: it.image })
+        .where(and(eq(schema.menuItems.restaurantId, existing.id), eq(schema.menuItems.name, it.name), isNull(schema.menuItems.imageUrl)))
+        .returning({ id: schema.menuItems.id });
+      linked += rows.length;
+    }
+    console.log(`• المطعم موجود: ${SUBDOMAIN} — رُبطت ${linked} صورة`);
     process.exit(0);
   }
 
