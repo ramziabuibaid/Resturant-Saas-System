@@ -62,6 +62,12 @@ services:
     environment:
       DATABASE_URL: postgres://restaurant:${POSTGRES_PASSWORD}@db:5432/restaurant_saas
       NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+      # البريد (Resend) ودخول Google — اختيارية؛ بدونها تُخفى الميزة
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-}
+      EMAIL_REPLY_TO: ${EMAIL_REPLY_TO:-}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
     volumes:
       - uploads:/data/uploads
     # محلي على السيرفر فقط — Cloudflare Tunnel يوصل الإنترنت إليه

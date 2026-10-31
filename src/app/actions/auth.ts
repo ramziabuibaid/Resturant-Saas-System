@@ -1,10 +1,12 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { createHash, randomBytes } from "node:crypto";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { db, schema } from "@/db";
-import { getSessionUser, createSession, destroySession } from "@/lib/auth/session";
+import { getSessionUser, createSession, destroySession, destroyAllSessionsForUser } from "@/lib/auth/session";
 import {
   hashPassword,
   verifyPassword,
@@ -14,102 +16,150 @@ import {
 import { isSubdomainTaken, validateSubdomain } from "@/lib/data/restaurants";
 import { TRIAL_DAYS } from "@/lib/plans";
 import { MENU_CURRENCIES } from "@/lib/currencies";
+import { clientIp, rateLimit } from "@/lib/rate-limit";
+import { appUrl } from "@/lib/app-url";
+import { sendEmail } from "@/lib/email/send";
+import { passwordResetEmail, welcomeEmail } from "@/lib/email/templates";
+import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
 
 /*
  * كل دالة هنا endpoint عام. لا تُضف هنا قراءات تأخذ معرّفات — ضعها في src/lib/data.
  */
 
-const USERNAME_REGEX = /^[a-z0-9_-]{3,30}$/;
-const INVALID_LOGIN = "بيانات الدخول غير صحيحة";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+const INVALID_LOGIN = "البريد أو كلمة المرور غير صحيحة";
+const RESET_MINUTES = 60;
 
 type Result = { error: string | null };
 
-/** مالك النظام: البريد + كلمة المرور */
-export async function signInWithEmailPassword(email: string, password: string): Promise<Result> {
-  const key = email.trim().toLowerCase();
+function hashToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+/**
+ * دخول موحّد بالبريد وكلمة المرور (لمالك النظام وأصحاب المطاعم).
+ * الحسابات القديمة بلا بريد: اسم المستخدم في نفس الحقل —
+ * على نطاق مطعم يُبحث داخل المطعم، وعلى الدومين الرئيسي بين مالكي النظام.
+ * على نطاق مطعم لا يدخل إلا صاحب هذا المطعم.
+ */
+export async function signIn(identifier: string, password: string, tenantId?: string | null): Promise<Result> {
+  const key = identifier.trim().toLowerCase();
   if (!key || !password) return { error: "البريد وكلمة المرور مطلوبان" };
+  if (!rateLimit(`login:${clientIp(await headers())}`, 10, 60_000)) {
+    return { error: "محاولات كثيرة، انتظر دقيقة ثم أعد المحاولة" };
+  }
 
-  const [user] = await db.select().from(schema.users).where(eq(schema.users.email, key)).limit(1);
-  if (!user || user.role !== "super_admin") {
+  let user: typeof schema.users.$inferSelect | undefined;
+  if (key.includes("@")) {
+    [user] = await db.select().from(schema.users).where(eq(schema.users.email, key)).limit(1);
+  } else if (tenantId) {
+    [user] = await db
+      .select()
+      .from(schema.users)
+      .where(and(eq(schema.users.restaurantId, tenantId), eq(schema.users.username, key)))
+      .limit(1);
+  } else {
+    [user] = await db
+      .select()
+      .from(schema.users)
+      .where(and(eq(schema.users.username, key), eq(schema.users.role, "super_admin"), isNull(schema.users.restaurantId)))
+      .limit(1);
+  }
+
+  if (!user?.passwordHash) {
     await verifyAgainstDummy(password);
     return { error: INVALID_LOGIN };
   }
   if (!(await verifyPassword(password, user.passwordHash))) return { error: INVALID_LOGIN };
+  if (tenantId && user.restaurantId !== tenantId) return { error: INVALID_LOGIN };
 
   await createSession(user.id);
   return { error: null };
 }
 
-/** مالك النظام: اسم المستخدم + كلمة المرور (على الدومين الرئيسي) */
-export async function signInSuperAdminWithUsernamePassword(
-  username: string,
-  password: string
-): Promise<Result> {
-  const uname = username.trim().toLowerCase();
-  if (!uname || !password) return { error: "اسم المستخدم وكلمة المرور مطلوبان" };
-
-  const [user] = await db
-    .select()
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.username, uname),
-        eq(schema.users.role, "super_admin"),
-        isNull(schema.users.restaurantId)
-      )
-    )
-    .limit(1);
-  if (!user) {
-    await verifyAgainstDummy(password);
-    return { error: INVALID_LOGIN };
-  }
-  if (!(await verifyPassword(password, user.passwordHash))) return { error: INVALID_LOGIN };
-
-  await createSession(user.id);
-  return { error: null };
-}
-
-/** صاحب المطعم: اسم المستخدم + كلمة المرور على نطاق مطعمه */
-export async function signInWithUsernamePassword(
-  restaurantId: string,
-  username: string,
-  password: string
-): Promise<Result> {
-  const uname = username.trim().toLowerCase();
-  if (!uname || !password) return { error: "اسم المستخدم وكلمة المرور مطلوبان" };
-
-  const [user] = await db
-    .select()
-    .from(schema.users)
-    .where(and(eq(schema.users.restaurantId, restaurantId), eq(schema.users.username, uname)))
-    .limit(1);
-  if (!user) {
-    await verifyAgainstDummy(password);
-    return { error: INVALID_LOGIN };
-  }
-  if (!(await verifyPassword(password, user.passwordHash))) return { error: INVALID_LOGIN };
-
-  await createSession(user.id);
-  return { error: null };
-}
-
-/** تسجيل صاحب مطعم جديد (قبل إنشاء المطعم) — يدخل مباشرة ثم يُوجَّه لإنشاء مطعمه */
-export async function signUpOwner(username: string, password: string): Promise<Result> {
-  const uname = username.trim().toLowerCase();
-  if (!USERNAME_REGEX.test(uname))
-    return { error: "اسم المستخدم: حروف إنجليزية صغيرة، أرقام، شرطة أو شرطة سفلية فقط (3–30 حرفاً)" };
-  if (password.length < MIN_PASSWORD_LENGTH)
+/** تسجيل صاحب مطعم جديد بالبريد — يُفعّل مباشرة بلا رمز تأكيد، ثم يُوجَّه لإنشاء مطعمه */
+export async function signUp(input: { email: string; password: string; fullName?: string }): Promise<Result> {
+  const email = input.email.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(email) || email.length > 254) return { error: "أدخل بريداً إلكترونياً صحيحاً" };
+  if (input.password.length < MIN_PASSWORD_LENGTH)
     return { error: `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل` };
+  if (!rateLimit(`signup:${clientIp(await headers())}`, 5, 10 * 60_000)) {
+    return { error: "محاولات كثيرة، انتظر قليلاً" };
+  }
 
-  const passwordHash = await hashPassword(password);
   const inserted = await db
     .insert(schema.users)
-    .values({ username: uname, passwordHash, role: "owner" })
+    .values({
+      email,
+      passwordHash: await hashPassword(input.password),
+      fullName: input.fullName?.trim().slice(0, 80) || null,
+      role: "owner",
+    })
     .onConflictDoNothing()
     .returning({ id: schema.users.id });
-  if (!inserted[0]) return { error: "اسم المستخدم مستخدم، اختر غيره" };
+  if (!inserted[0]) return { error: "هذا البريد مسجّل مسبقاً — سجّل الدخول أو استعد كلمة المرور" };
 
   await createSession(inserted[0].id);
+  return { error: null };
+}
+
+/**
+ * طلب رابط استعادة كلمة المرور. الرد نفسه دائماً (لا نكشف إن كان البريد مسجّلاً).
+ */
+export async function requestPasswordReset(emailRaw: string): Promise<Result> {
+  const email = emailRaw.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(email)) return { error: "أدخل بريداً إلكترونياً صحيحاً" };
+  const ip = clientIp(await headers());
+  if (!rateLimit(`reset:${ip}`, 5, 15 * 60_000) || !rateLimit(`reset-mail:${email}`, 3, 60 * 60_000)) {
+    return { error: "طلبات كثيرة، حاول بعد قليل" };
+  }
+
+  const [user] = await db.select({ id: schema.users.id }).from(schema.users).where(eq(schema.users.email, email)).limit(1);
+  if (!user) return { error: null };
+
+  const token = randomBytes(32).toString("base64url");
+  await db.insert(schema.passwordResetTokens).values({
+    id: hashToken(token),
+    userId: user.id,
+    expiresAt: new Date(Date.now() + RESET_MINUTES * 60_000),
+  });
+  await sendEmail(passwordResetEmail(email, { url: appUrl(`/reset-password?token=${token}`), minutes: RESET_MINUTES }));
+  return { error: null };
+}
+
+/** تعيين كلمة مرور جديدة من رابط الاستعادة — يُنهي كل الجلسات ثم يُدخله */
+export async function resetPassword(token: string, password: string): Promise<Result> {
+  if (password.length < MIN_PASSWORD_LENGTH) return { error: `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل` };
+  if (!token || token.length > 100) return { error: "الرابط غير صالح" };
+
+  const userId = await db.transaction(async (tx) => {
+    const [row] = await tx
+      .update(schema.passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(
+        and(
+          eq(schema.passwordResetTokens.id, hashToken(token)),
+          isNull(schema.passwordResetTokens.usedAt),
+          gt(schema.passwordResetTokens.expiresAt, new Date())
+        )
+      )
+      .returning({ userId: schema.passwordResetTokens.userId });
+    if (!row) return null;
+    await tx
+      .update(schema.users)
+      .set({ passwordHash: await hashPassword(password) })
+      .where(eq(schema.users.id, row.userId));
+    // أي روابط أخرى معلّقة لنفس الحساب تصبح لاغية
+    await tx
+      .update(schema.passwordResetTokens)
+      .set({ usedAt: new Date() })
+      .where(and(eq(schema.passwordResetTokens.userId, row.userId), isNull(schema.passwordResetTokens.usedAt)));
+    return row.userId;
+  });
+  if (!userId) return { error: "الرابط منتهي أو استُخدم من قبل — اطلب رابطاً جديداً" };
+
+  await destroyAllSessionsForUser(userId);
+  await createSession(userId);
   return { error: null };
 }
 
@@ -175,6 +225,13 @@ export async function createRestaurantAndLink(payload: {
   } catch {
     // سباق نادر على نفس النطاق أو اسم المستخدم داخل المطعم
     return { error: "تعذر إنشاء المطعم، جرّب نطاقاً آخر" };
+  }
+
+  // رسالة الترحيب — لا تؤخر ولا تُفشل التسجيل
+  if (user.email) {
+    const h = await headers();
+    const menuUrl = buildTenantPublicSiteUrl(sub.value, h.get("host") ?? "", h.get("x-forwarded-proto") ?? "https");
+    void sendEmail(welcomeEmail(user.email, { name: user.fullName, restaurantName: name, menuUrl }));
   }
 
   revalidatePath("/admin");

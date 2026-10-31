@@ -4,15 +4,11 @@ import { usePathname } from "next/navigation";
 import { AlertTriangleIcon, ClockIcon, LockIcon } from "lucide-react";
 import type { SubscriptionState } from "@/lib/subscription";
 import { cn } from "@/lib/utils";
+import { supportWhatsAppUrl } from "@/lib/app-url";
 
 /** صفحات ميزات «الاحترافية» — تظهر فيها ملاحظة الترقية لخطة الأساسية */
 const PRO_PAGES = ["/admin/orders", "/admin/tables", "/admin/customers"];
 
-const SUPPORT_WHATSAPP = process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP?.replace(/\D/g, "") ?? "";
-
-function supportLink(text: string) {
-  return SUPPORT_WHATSAPP ? `https://wa.me/${SUPPORT_WHATSAPP}?text=${encodeURIComponent(text)}` : null;
-}
 
 function days(n: number) {
   return n === 1 ? "يوم واحد" : n === 2 ? "يومان" : n <= 10 ? `${n} أيام` : `${n} يوماً`;
@@ -60,7 +56,7 @@ export function SubscriptionBanner({
   }
 
   if (!text) return null;
-  const href = supportLink(`مرحباً، بخصوص اشتراك ${restaurantName}`);
+  const href = supportWhatsAppUrl(`مرحباً، بخصوص اشتراك ${restaurantName}`);
   const Icon = tone === "danger" ? LockIcon : tone === "warn" ? AlertTriangleIcon : ClockIcon;
 
   return (

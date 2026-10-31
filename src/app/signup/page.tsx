@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
 import { AuthShell } from "@/components/auth/auth-shell";
 import { SignupForm } from "./signup-form";
+import { googleConfigured } from "@/lib/auth/google";
 
 export const metadata = {
   title: "إنشاء حساب مطعم | منيو",
@@ -14,7 +15,7 @@ export default async function SignupPage() {
 
   return (
     <AuthShell title="أنشئ حساب مطعمك" subtitle="أول شهر مجاناً — بدون بطاقة بنكية." step={1}>
-      <SignupForm />
+      <SignupForm googleEnabled={googleConfigured()} />
     </AuthShell>
   );
 }

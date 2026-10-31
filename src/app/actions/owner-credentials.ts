@@ -7,39 +7,42 @@ import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth/current-user";
 import { hashPassword, MIN_PASSWORD_LENGTH } from "@/lib/auth/password";
 import { destroyAllSessionsForUser } from "@/lib/auth/session";
 
-const USERNAME_REGEX = /^[a-z0-9_-]{3,30}$/;
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 function ownerOf(restaurantId: string) {
   return and(eq(schema.users.restaurantId, restaurantId), eq(schema.users.role, "owner"));
 }
 
 /**
- * إنشاء أو تحديث بيانات دخول صاحب المطعم (اسم مستخدم + كلمة مرور). لمالك النظام فقط.
+ * إنشاء أو تحديث دخول صاحب المطعم (البريد + كلمة المرور). لمالك النظام فقط.
+ * كلمة المرور اختيارية عند تعديل بريد حساب موجود.
  */
 export async function createOrUpdateOwnerCredentials(
   restaurantId: string,
-  username: string,
+  emailRaw: string,
   password: string
 ): Promise<{ error: string | null }> {
   if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
-  const uname = username.trim().toLowerCase();
-  if (!USERNAME_REGEX.test(uname))
-    return { error: "اسم المستخدم: حروف إنجليزية صغيرة، أرقام، شرطة أو شرطة سفلية (3–30)" };
-  if (!password || password.length < MIN_PASSWORD_LENGTH)
+  const email = emailRaw.trim().toLowerCase();
+  if (!EMAIL_REGEX.test(email)) return { error: "أدخل بريداً إلكترونياً صحيحاً" };
+  if (password && password.length < MIN_PASSWORD_LENGTH)
     return { error: `كلمة المرور ${MIN_PASSWORD_LENGTH} أحرف على الأقل` };
 
-  const passwordHash = await hashPassword(password);
   const [existing] = await db.select({ id: schema.users.id }).from(schema.users).where(ownerOf(restaurantId)).limit(1);
+  if (!existing && !password) return { error: "كلمة المرور مطلوبة لحساب جديد" };
 
   try {
     if (existing) {
-      await db.update(schema.users).set({ username: uname, passwordHash }).where(eq(schema.users.id, existing.id));
-      await destroyAllSessionsForUser(existing.id);
+      await db
+        .update(schema.users)
+        .set({ email, ...(password ? { passwordHash: await hashPassword(password) } : {}) })
+        .where(eq(schema.users.id, existing.id));
+      if (password) await destroyAllSessionsForUser(existing.id);
     } else {
-      await db.insert(schema.users).values({ username: uname, passwordHash, role: "owner", restaurantId });
+      await db.insert(schema.users).values({ email, passwordHash: await hashPassword(password), role: "owner", restaurantId });
     }
   } catch {
-    return { error: "اسم المستخدم مستخدم في هذا المطعم" };
+    return { error: "هذا البريد مستخدم لحساب آخر" };
   }
 
   revalidatePath("/admin/restaurants");

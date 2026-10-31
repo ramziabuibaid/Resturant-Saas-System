@@ -47,6 +47,8 @@ const TENANT_APP_PREFIXES = [
   "/admin",
   "/login",
   "/auth",
+  "/forgot-password",
+  "/reset-password",
   "/forbidden",
   "/complete-profile",
   "/loyalty",

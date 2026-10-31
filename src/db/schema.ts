@@ -155,11 +155,14 @@ export const users = pgTable(
   "users",
   {
     id: id(),
-    /** مالك النظام يدخل بالبريد؛ صاحب المطعم قد لا يملك بريداً */
+    /** طريقة الدخول الأساسية (بأحرف صغيرة) — الحسابات القديمة قد لا تملك بريداً */
     email: text("email").unique(),
-    /** بأحرف صغيرة؛ فريد داخل المطعم (أو بين مالكي النظام عندما restaurant_id = null) */
+    /** قديم: دخول باسم المستخدم. بأحرف صغيرة؛ فريد داخل المطعم */
     username: text("username"),
-    passwordHash: text("password_hash").notNull(),
+    /** null لحسابات Google التي لم تضع كلمة مرور */
+    passwordHash: text("password_hash"),
+    /** معرّف حساب Google (sub) بعد أول دخول عبره */
+    googleSub: text("google_sub").unique(),
     fullName: text("full_name"),
     role: userRole("role").notNull().default("owner"),
     restaurantId: uuid("restaurant_id").references(() => restaurants.id, { onDelete: "cascade" }),
@@ -171,6 +174,37 @@ export const users = pgTable(
     unique("users_restaurant_username_key").on(t.restaurantId, t.username).nullsNotDistinct(),
     index("users_restaurant_idx").on(t.restaurantId),
   ]
+);
+
+/** روابط استعادة كلمة المرور — نحفظ SHA-256 للرمز فقط */
+export const passwordResetTokens = pgTable(
+  "password_reset_tokens",
+  {
+    id: text("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    usedAt: timestamp("used_at", { withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("password_reset_tokens_user_idx").on(t.userId)]
+);
+
+/** سجل الرسائل الآلية — المفتاح الفريد يمنع إرسال نفس التنبيه مرتين */
+export const emailLog = pgTable(
+  "email_log",
+  {
+    id: id(),
+    kind: text("kind").notNull(),
+    /** مثل restaurantId:2026-11-30 — فريد مع kind */
+    refKey: text("ref_key").notNull(),
+    toEmail: text("to_email").notNull(),
+    restaurantId: uuid("restaurant_id").references(() => restaurants.id, { onDelete: "cascade" }),
+    error: text("error"),
+    createdAt: createdAt(),
+  },
+  (t) => [unique("email_log_kind_ref_key").on(t.kind, t.refKey)]
 );
 
 export const sessions = pgTable(

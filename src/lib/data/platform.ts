@@ -23,7 +23,8 @@ export type PlatformRestaurantRow = {
   payments: { id: string; plan: PlanId; months: number; amountCents: number; currencyCode: string; note: string | null; periodEnd: string; createdAt: string }[];
   logoUrl: string | null;
   createdAt: string;
-  ownerUsername: string | null;
+  /** بريد صاحب المطعم (أو اسم المستخدم للحسابات القديمة) */
+  ownerLogin: string | null;
   items: number;
   tables: number;
   orders30d: number;
@@ -55,7 +56,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       paid_until: Date | null;
       logo_url: string | null;
       created_at: Date;
-      owner_username: string | null;
+      owner_login: string | null;
       items: number;
       tables: number;
       orders_30d: number;
@@ -63,7 +64,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       last_order_at: Date | null;
     }>(sql`
       select r.id, r.name, r.subdomain, r.status, r.plan, r.trial_ends_at, r.paid_until, r.logo_url, r.created_at,
-        (select u.username from users u where u.restaurant_id = r.id and u.role = 'owner' limit 1) as owner_username,
+        (select coalesce(u.email, u.username) from users u where u.restaurant_id = r.id and u.role = 'owner' limit 1) as owner_login,
         (select count(*)::int from menu_items m where m.restaurant_id = r.id) as items,
         (select count(*)::int from restaurant_tables t where t.restaurant_id = r.id) as tables,
         (select count(*)::int from orders o where o.restaurant_id = r.id and o.created_at > now() - interval '30 days') as orders_30d,
@@ -133,7 +134,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       payments: paymentsByRestaurant.get(r.id) ?? [],
       logoUrl: r.logo_url,
       createdAt: new Date(r.created_at).toISOString(),
-      ownerUsername: r.owner_username,
+      ownerLogin: r.owner_login,
       items: r.items,
       tables: r.tables,
       orders30d: r.orders_30d,

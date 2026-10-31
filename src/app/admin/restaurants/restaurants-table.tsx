@@ -143,10 +143,10 @@ export function RestaurantsTable({
                     <p className="truncate font-semibold">{r.name}</p>
                     <p className="truncate text-xs text-text-muted">
                       <span className="font-mono">{r.subdomain}</span>
-                      {r.ownerUsername ? (
+                      {r.ownerLogin ? (
                         <>
                           {" · "}
-                          <span className="font-mono">{r.ownerUsername}</span>
+                          <span className="font-mono">{r.ownerLogin}</span>
                         </>
                       ) : (
                         <span className="font-semibold text-amber-600 dark:text-amber-400"> · بلا مستخدم دخول</span>
@@ -314,14 +314,15 @@ function NewRestaurantForm({ rootHost, onDone }: { rootHost: string; onDone: () 
             <p className="text-sm font-bold">دخول صاحب المطعم</p>
             <p className="text-xs text-text-muted">اختياري الآن — يمكنك إضافته لاحقاً من إدارة المطعم.</p>
           </div>
-          <Field label="اسم المستخدم">
+          <Field label="بريد صاحب المطعم">
             <input
+              type="email"
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
-              placeholder="owner"
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="owner@example.com"
               dir="ltr"
               autoComplete="off"
-              className={cn(inputCls, "font-mono")}
+              className={inputCls}
             />
           </Field>
           {username.trim() ? (
@@ -348,7 +349,7 @@ function ManageRestaurant({ r, rootHost, onDeleted }: { r: PlatformRestaurantRow
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [subdomain, setSubdomain] = useState(r.subdomain);
-  const [username, setUsername] = useState(r.ownerUsername ?? "");
+  const [username, setUsername] = useState(r.ownerLogin?.includes("@") ? r.ownerLogin : "");
   const [password, setPassword] = useState("");
   const [confirmName, setConfirmName] = useState("");
 
@@ -365,7 +366,7 @@ function ManageRestaurant({ r, rootHost, onDeleted }: { r: PlatformRestaurantRow
     });
   }
 
-  const usernameChanged = username.trim().toLowerCase() !== (r.ownerUsername ?? "");
+  const usernameChanged = username.trim().toLowerCase() !== (r.ownerLogin ?? "");
 
   return (
     <div dir="rtl" className="flex h-full flex-col">
@@ -408,32 +409,35 @@ function ManageRestaurant({ r, rootHost, onDeleted }: { r: PlatformRestaurantRow
             <KeyRoundIcon className="size-4 text-text-muted" />
             <p className="text-sm font-bold">دخول صاحب المطعم</p>
           </div>
-          <Field label="اسم المستخدم">
+          <Field label="البريد الإلكتروني">
             <input
+              type="email"
               value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              onChange={(e) => setUsername(e.target.value)}
               dir="ltr"
               autoComplete="off"
-              placeholder="owner"
-              className={cn(inputCls, "font-mono")}
+              placeholder="owner@example.com"
+              className={inputCls}
             />
           </Field>
-          <Field label={r.ownerUsername ? "كلمة مرور جديدة" : "كلمة المرور"}>
+          <Field label={r.ownerLogin ? "كلمة مرور جديدة" : "كلمة المرور"} hint={r.ownerLogin ? "اتركها فارغة لتغيير البريد فقط" : undefined}>
             <PasswordInput value={password} onChange={setPassword} />
           </Field>
           <button
             type="button"
-            disabled={pending || !username.trim() || !password}
+            disabled={pending || !username.trim() || (!password && (!r.ownerLogin || !usernameChanged))}
             onClick={() =>
-              r.ownerUsername && !usernameChanged
+              r.ownerLogin && !usernameChanged
                 ? run(() => updateOwnerPassword(r.id, password), "تم تغيير كلمة المرور وتسجيل خروجه من كل الأجهزة", () => setPassword(""))
                 : run(() => createOrUpdateOwnerCredentials(r.id, username, password), "تم حفظ بيانات الدخول", () => setPassword(""))
             }
             className="h-11 w-full rounded-xl border border-brand text-sm font-bold text-brand transition hover:bg-brand-light disabled:opacity-50"
           >
-            {r.ownerUsername ? "حفظ بيانات الدخول" : "إنشاء مستخدم الدخول"}
+            {r.ownerLogin ? "حفظ بيانات الدخول" : "إنشاء حساب الدخول"}
           </button>
-          <p className="text-[11px] text-text-muted">أرسل البيانات لصاحب المطعم بطريقة آمنة؛ تغيير كلمة المرور ينهي جلساته المفتوحة.</p>
+          <p className="text-[11px] text-text-muted">
+            يستطيع صاحب المطعم أيضاً الدخول عبر Google بنفس البريد، أو استعادة كلمة المرور بنفسه. تغيير كلمة المرور ينهي جلساته المفتوحة.
+          </p>
         </section>
 
         <section className="space-y-3 rounded-2xl border border-red-300/60 p-4 dark:border-red-500/30">
