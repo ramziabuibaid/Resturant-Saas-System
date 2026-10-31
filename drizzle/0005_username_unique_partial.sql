@@ -1,0 +1,2 @@
+ALTER TABLE "users" DROP CONSTRAINT "users_restaurant_username_key";--> statement-breakpoint
+CREATE UNIQUE INDEX "users_restaurant_username_key" ON "users" USING btree ("restaurant_id","username") NULLS NOT DISTINCT WHERE "users"."username" is not null;

@@ -171,7 +171,9 @@ export const users = pgTable(
     updatedAt: updatedAt(),
   },
   (t) => [
-    unique("users_restaurant_username_key").on(t.restaurantId, t.username).nullsNotDistinct(),
+    // فريد للحسابات التي لها اسم مستخدم فقط (الحسابات الجديدة بالبريد بلا اسم مستخدم).
+    // في قاعدة البيانات: NULLS NOT DISTINCT حتى يتفرد اسم مالك النظام (restaurant_id = null) — انظر 0005.
+    uniqueIndex("users_restaurant_username_key").on(t.restaurantId, t.username).where(sql`${t.username} is not null`),
     index("users_restaurant_idx").on(t.restaurantId),
   ]
 );

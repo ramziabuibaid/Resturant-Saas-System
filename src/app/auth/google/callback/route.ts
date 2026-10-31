@@ -30,7 +30,7 @@ export async function GET(req: NextRequest) {
   if (!identity) return fail();
 
   let [user] = await db.select().from(schema.users).where(eq(schema.users.googleSub, identity.sub)).limit(1);
-  if (!user) {
+  if (!user) try {
     const [byEmail] = await db.select().from(schema.users).where(eq(schema.users.email, identity.email)).limit(1);
     if (byEmail) {
       // البريد موثّق من Google: نربط الحساب الموجود (إلا إن كان مربوطاً بحساب Google آخر)
@@ -46,7 +46,11 @@ export async function GET(req: NextRequest) {
         .values({ email: identity.email, googleSub: identity.sub, fullName: identity.name, role: "owner" })
         .returning();
     }
+  } catch (e) {
+    console.error("[google] account link/create failed", e);
+    return fail();
   }
+  if (!user) return fail();
 
   await createSession(user.id);
   const next = user.role === "super_admin" || user.restaurantId ? "/admin" : "/complete-profile";

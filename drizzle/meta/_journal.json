@@ -36,6 +36,13 @@
       "when": 1793468907250,
       "tag": "0004_email_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793471121603,
+      "tag": "0005_username_unique_partial",
+      "breakpoints": true
     }
   ]
 }
