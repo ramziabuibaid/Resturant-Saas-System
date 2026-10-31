@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
-import { ShoppingBagIcon, PlusIcon, MinusIcon, Trash2Icon } from "lucide-react";
+import { PlusIcon, MinusIcon, Trash2Icon } from "lucide-react";
 
 export type CartLine = {
   menuItemId: string;
@@ -40,165 +40,6 @@ export type TableContext = {
 export function cartLineKey(line: CartLine): string {
   const ex = [...line.excludedIngredients].sort().join("|\u0001|");
   return `${line.menuItemId}::${line.priceOptionLabel ?? ""}::${ex}`;
-}
-
-/** سياق المنيو: طاولة عبر QR أو زيارة عامة (رابط/سوشال) */
-export type AddItemOrderContext = "table_qr" | "remote";
-
-function addItemButtonLabel(ctx: AddItemOrderContext): string {
-  return ctx === "table_qr" ? "أضف إلى الطاولة" : "أضف إلى طلبك";
-}
-
-export function AddItemButton({
-  item,
-  unavailable,
-  onAdd,
-  orderContext = "remote",
-}: {
-  item: MenuItem;
-  unavailable: boolean;
-  onAdd: (line: CartLine) => void;
-  /** من رمز QR للطاولة → صياغة الطاولة؛ غير ذلك → طلب طعام عام */
-  orderContext?: AddItemOrderContext;
-}) {
-  const addLabel = addItemButtonLabel(orderContext);
-  const [open, setOpen] = useState(false);
-  const [option, setOption] = useState<string>("");
-  const [qty, setQty] = useState(1);
-  const [excludedText, setExcludedText] = useState("");
-  const priceOpts = Array.isArray(item.price_options) ? item.price_options : [];
-  const optionCount = priceOpts.length;
-  /** شاشة الاختيار فقط عند وجود أكثر من حجم/وزن */
-  const needsSizeDialog = optionCount > 1;
-
-  function confirm() {
-    if (needsSizeDialog && !option) return;
-    onAdd({
-      menuItemId: item.id,
-      quantity: qty,
-      priceOptionLabel: option,
-      excludedIngredients: parseExcludedIngredients(excludedText),
-    });
-    setOpen(false);
-    setQty(1);
-    setOption("");
-    setExcludedText("");
-  }
-
-  if (unavailable) return null;
-
-  return (
-    <>
-      <Button
-        type="button"
-        size="sm"
-        variant="default"
-        className={cn(
-          "mt-2 shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500",
-          "text-xs leading-snug sm:text-sm"
-        )}
-        onClick={() => {
-          if (optionCount === 0) {
-            onAdd({
-              menuItemId: item.id,
-              quantity: 1,
-              priceOptionLabel: null,
-              excludedIngredients: [],
-            });
-          } else if (optionCount === 1) {
-            onAdd({
-              menuItemId: item.id,
-              quantity: 1,
-              priceOptionLabel: priceOpts[0]!.label,
-              excludedIngredients: [],
-            });
-          } else {
-            setOption(priceOpts[0]!.label);
-            setExcludedText("");
-            setOpen(true);
-          }
-        }}
-      >
-        <PlusIcon className="size-4 shrink-0" />
-        {addLabel}
-      </Button>
-
-      <Dialog
-        open={open}
-        onOpenChange={(v) => {
-          setOpen(v);
-          if (!v) setExcludedText("");
-        }}
-      >
-        <DialogContent className="sm:max-w-md" scrollable>
-          <DialogHeader className="p-4 pb-0">
-            <DialogTitle>{item.name}</DialogTitle>
-            <DialogDescription>اختر الحجم أو الوزن ثم الكمية.</DialogDescription>
-          </DialogHeader>
-          <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-2">
-            {needsSizeDialog ? (
-              <div className="space-y-2">
-                <label className="text-xs font-medium text-stone-600 dark:text-stone-400">الخيار</label>
-                <select
-                  className="w-full rounded-lg border border-stone-200 bg-white px-3 py-2 text-sm dark:border-stone-600 dark:bg-stone-900"
-                  value={option}
-                  onChange={(e) => setOption(e.target.value)}
-                >
-                  {priceOpts.map((o) => (
-                    <option key={o.label} value={o.label}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            ) : null}
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm text-stone-600 dark:text-stone-400">الكمية</span>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={() => setQty((q) => Math.max(1, q - 1))}
-                >
-                  <MinusIcon className="size-4" />
-                </Button>
-                <span className="min-w-[2ch] text-center tabular-nums">{qty}</span>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={() => setQty((q) => Math.min(99, q + 1))}
-                >
-                  <PlusIcon className="size-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-stone-600 dark:text-stone-400">
-                بدون مكونات (اختياري)
-              </label>
-              <Textarea
-                value={excludedText}
-                onChange={(e) => setExcludedText(e.target.value)}
-                placeholder="مثال: حار، بصل، صوص…"
-                rows={2}
-                className="min-h-0 resize-none text-sm"
-              />
-            </div>
-          </div>
-          <DialogFooter className="border-t-0 p-4 pt-0 sm:justify-between">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              إلغاء
-            </Button>
-            <Button type="button" onClick={confirm} disabled={Boolean(needsSizeDialog && !option)}>
-              {addLabel}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
 }
 
 export function MenuCartBar({
@@ -255,51 +96,38 @@ export function MenuCartBar({
   }, [cart, menuById, secondaryEnabled, secondaryCurrencyCode, secondaryExchangeRate]);
 
   if (cart.length === 0) return null;
-
+  const count = cart.reduce((s, l) => s + l.quantity, 0);
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-stone-200/90 bg-white/95 px-4 py-3 shadow-[0_-8px_30px_rgba(0,0,0,0.08)] backdrop-blur dark:border-white/10 dark:bg-stone-950/95">
-      <div className="mx-auto flex max-w-5xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <p className="text-xs text-stone-500 dark:text-stone-400">
-            {cart.reduce((s, l) => s + l.quantity, 0)} صنف في السلة
-          </p>
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-            <p
-              className="text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
-              dir="ltr"
-            >
-              {formatMenuPrice(totalCents, currencyCode)}
-            </p>
+    <div className="fixed inset-x-0 bottom-0 z-40 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3" dir="rtl">
+      <div className="mx-auto flex max-w-3xl items-center gap-2">
+        <button
+          type="button"
+          onClick={onCheckout}
+          className="flex h-14 flex-1 items-center justify-between rounded-full bg-brand pe-5 ps-2 text-white shadow-[0_16px_40px_-12px_var(--brand)] transition active:scale-[0.99]"
+        >
+          <span className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-full bg-white/20 text-base font-bold tabular-nums">
+              {count}
+            </span>
+            <span className="text-[15px] font-bold">عرض الطلب</span>
+          </span>
+          <span className="flex flex-col items-end leading-tight" dir="ltr">
+            <span className="text-[15px] font-bold tabular-nums">{formatMenuPrice(totalCents, currencyCode)}</span>
             {totalSecondaryCents != null && secondaryCurrencyCode ? (
-              <p
-                className="text-xs font-medium tabular-nums text-stone-500 dark:text-stone-400"
-                dir="ltr"
-              >
+              <span className="text-[11px] opacity-80 tabular-nums">
                 {formatMenuPrice(totalSecondaryCents, secondaryCurrencyCode)}
-              </p>
+              </span>
             ) : null}
-          </div>
-        </div>
-        <div className="flex w-full min-w-0 items-stretch gap-2 sm:w-auto sm:shrink-0 sm:justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            className="min-w-0 flex-1 border-stone-300 text-stone-700 hover:bg-stone-100 dark:border-stone-600 dark:text-stone-200 dark:hover:bg-stone-900 sm:flex-initial"
-            onClick={onCancelOrder}
-          >
-            إلغاء الطلب
-          </Button>
-          <Button
-            type="button"
-            size="lg"
-            className="min-w-0 flex-1 shrink-0 gap-2 sm:flex-initial"
-            onClick={onCheckout}
-          >
-            <ShoppingBagIcon className="size-5 shrink-0" />
-            إتمام الطلب
-          </Button>
-        </div>
+          </span>
+        </button>
+        <button
+          type="button"
+          aria-label="إفراغ السلة"
+          onClick={onCancelOrder}
+          className="flex size-14 shrink-0 items-center justify-center rounded-full border border-border bg-bg-surface text-text-secondary shadow-lg"
+        >
+          <Trash2Icon className="size-5" />
+        </button>
       </div>
     </div>
   );
@@ -868,9 +696,9 @@ export function MenuCheckoutDialog({
             />
           </div>
 
-          <div className="rounded-2xl border border-stone-200/90 bg-gradient-to-b from-emerald-50/90 to-white px-4 py-4 dark:border-stone-700 dark:from-emerald-950/40 dark:to-stone-900/80">
+          <div className="rounded-2xl border border-brand/25 bg-brand-light px-4 py-4">
             {discountPreviewCents > 0 ? (
-              <div className="mb-3 space-y-1 border-b border-emerald-200/60 pb-3 text-center text-[11px] text-stone-600 dark:border-emerald-800/50 dark:text-stone-400">
+              <div className="mb-3 space-y-1 border-b border-brand/20 pb-3 text-center text-[11px] text-text-secondary">
                 <div className="flex justify-between gap-2">
                   <span>مجموع الأصناف</span>
                   <span dir="ltr" className="tabular-nums">
@@ -887,14 +715,14 @@ export function MenuCheckoutDialog({
             ) : null}
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
               <span
-                className="text-2xl font-bold tabular-nums text-emerald-600 dark:text-emerald-400"
+                className="font-display text-3xl font-bold tabular-nums text-brand"
                 dir="ltr"
               >
                 {formatMenuPrice(netCents, currencyCode)}
               </span>
               {netSecondaryCents != null && secondaryCode ? (
                 <span
-                  className="inline-flex items-center gap-2 border-s border-emerald-200/90 ps-4 text-sm font-semibold tabular-nums text-stone-600 dark:border-emerald-800 dark:text-stone-300"
+                  className="inline-flex items-center gap-2 border-s border-brand/25 ps-4 text-sm font-semibold tabular-nums text-text-secondary"
                   dir="ltr"
                 >
                   {formatMenuPrice(netSecondaryCents, secondaryCode)}

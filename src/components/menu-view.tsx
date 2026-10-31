@@ -1,156 +1,69 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
 import Image from "next/image";
-import { motion } from "framer-motion";
-import { MenuItemImagePlaceholder } from "@/components/menu-item-image-placeholder";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MapPin, Phone, Plus, Search, Sparkles, UtensilsCrossed, X } from "lucide-react";
+import { toast } from "sonner";
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
+import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
-  AddItemButton,
   MenuCartBar,
   MenuCheckoutDialog,
   cartLineKey,
   type CartLine,
   type TableContext,
 } from "@/components/menu-ordering";
-import { MenuRestaurantBrand } from "@/components/menu-restaurant-brand";
 import { MenuPublicFooter } from "@/components/menu-public-footer";
-import { MenuFeaturedStoriesBanner } from "@/components/menu-featured-stories-banner";
 import { MenuPromoBanner } from "@/components/menu-promo-banner";
+import { ItemSheet, type PriceContext } from "@/components/menu/item-sheet";
 
-/** يعرض سطر الأسعار بعملة المطعم — أرقام إنجليزية، شعار العملة، حجم أوضح */
-function PriceDisplay({
-  item,
-  unavailable,
-  currencyCode,
-  secondaryCurrencyEnabled,
-  secondaryCurrencyCode,
-  exchangeRate,
-}: {
-  item: MenuItem;
-  unavailable: boolean;
-  currencyCode: string;
-  secondaryCurrencyEnabled: boolean;
-  secondaryCurrencyCode: string | null;
-  exchangeRate: number | null;
-}) {
-  const opts = item.price_options;
-  const priceClass = unavailable
-    ? "text-stone-500 dark:text-stone-500"
-    : "font-bold tabular-nums text-[var(--success)]";
-  if (opts && Array.isArray(opts) && opts.length > 0) {
-    return (
-      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1.5 text-base">
-        {opts.map((o) => (
-          <span key={o.label} className={priceClass}>
-            <span className="font-medium text-stone-600 dark:text-stone-400">{o.label}:</span>{" "}
-            <span className="inline-flex flex-col align-top">
-              <span className="inline-block text-lg" dir="ltr" style={{ unicodeBidi: "isolate" }}>
-                {formatMenuPrice(o.price_cents, currencyCode)}
-              </span>
-              {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
-                (() => {
-                  const secondary = resolveSecondaryUnitCents(
-                    item,
-                    o.price_cents,
-                    o.label,
-                    exchangeRate
-                  );
-                  if (secondary == null) return null;
-                  return (
-                    <span
-                      className="inline-block text-xs font-medium text-stone-500 dark:text-stone-400"
-                      dir="ltr"
-                      style={{ unicodeBidi: "isolate" }}
-                    >
-                      {formatMenuPrice(secondary, secondaryCurrencyCode)}
-                    </span>
-                  );
-                })()
-              ) : null}
-            </span>
-          </span>
-        ))}
-      </div>
-    );
-  }
-  return (
-    <div className={`mt-2 flex flex-col tabular-nums ${priceClass}`}>
-      <span className="inline-block text-lg font-bold" dir="ltr" style={{ unicodeBidi: "isolate" }}>
-        {formatMenuPrice(item.price, currencyCode)}
-      </span>
-      {secondaryCurrencyEnabled && secondaryCurrencyCode ? (
-        (() => {
-          const secondary = resolveSecondaryUnitCents(
-            item,
-            item.price,
-            null,
-            exchangeRate
-          );
-          if (secondary == null) return null;
-          return (
-            <span
-              className="inline-block text-xs font-medium text-stone-500 dark:text-stone-400"
-              dir="ltr"
-              style={{ unicodeBidi: "isolate" }}
-            >
-              {formatMenuPrice(secondary, secondaryCurrencyCode)}
-            </span>
-          );
-        })()
-      ) : null}
-    </div>
-  );
-}
+/* ------------------------------------------------------------------ */
+/* أدوات                                                               */
+/* ------------------------------------------------------------------ */
 
-/** Group menu items by category; each group has a unique id for React keys */
-function groupItemsByCategory(
-  menuItems: MenuItem[],
-  categories: Category[]
-): Array<{ id: string; name: string; items: MenuItem[] }> {
-  const byId = new Map(categories.map((c) => [c.id, c.name]));
-  const groupsById = new Map<string, MenuItem[]>();
+type Group = { id: string; name: string; items: MenuItem[] };
 
+/** التصنيفات بترتيبها، ثم الأصناف بلا تصنيف تحت «أخرى» */
+function groupItemsByCategory(menuItems: MenuItem[], categories: Category[]): Group[] {
+  const byCategory = new Map<string, MenuItem[]>();
+  const uncategorized: MenuItem[] = [];
+  const known = new Set(categories.map((c) => c.id));
   for (const item of menuItems) {
-    const categoryName =
-      (item.category_id && byId.get(item.category_id)) ||
-      item.category ||
-      "Other";
-    const key = item.category_id ?? `other-${categoryName}`;
-    const list = groupsById.get(key) ?? [];
-    list.push(item);
-    groupsById.set(key, list);
+    if (item.category_id && known.has(item.category_id)) {
+      const list = byCategory.get(item.category_id) ?? [];
+      list.push(item);
+      byCategory.set(item.category_id, list);
+    } else {
+      uncategorized.push(item);
+    }
   }
-
-  const ordered = categories.map((c) => ({
-    id: c.id,
-    name: c.name,
-    items: groupsById.get(c.id) ?? [],
-  }));
-  const uncategorized = groupsById.get("uncategorized") ?? groupsById.get("other-Other") ?? [];
-  const usedIds = new Set(categories.map((c) => c.id));
-  const rest = [...groupsById.entries()].filter(
-    ([key, items]) =>
-      items.length > 0 &&
-      !usedIds.has(key) &&
-      key !== "uncategorized" &&
-      !key.startsWith("other-Other")
-  );
-
-  return [
-    ...ordered.filter((g) => g.items.length > 0),
-    ...rest.map(([id, items]) => {
-      const name = categories.find((c) => c.id === id)?.name ?? id;
-      return { id: `extra-${id}`, name, items };
-    }),
-    ...(uncategorized.length
-      ? [{ id: "other-Other", name: "Other", items: uncategorized }]
-      : []),
-  ];
+  const groups = categories
+    .map((c) => ({ id: c.id, name: c.name, items: byCategory.get(c.id) ?? [] }))
+    .filter((g) => g.items.length > 0);
+  if (uncategorized.length) groups.push({ id: "other", name: "أخرى", items: uncategorized });
+  return groups;
 }
+
+function minPriceCents(item: MenuItem): { cents: number; hasOptions: boolean } {
+  const opts = Array.isArray(item.price_options) ? item.price_options : [];
+  if (opts.length > 1) return { cents: Math.min(...opts.map((o) => o.price_cents)), hasOptions: true };
+  if (opts.length === 1) return { cents: opts[0].price_cents, hasOptions: false };
+  return { cents: item.price, hasOptions: false };
+}
+
+function normalize(s: string) {
+  return s
+    .toLowerCase()
+    .replace(/[ً-ْ]/g, "") // تشكيل
+    .replace(/[أإآ]/g, "ا")
+    .replace(/ة/g, "ه")
+    .replace(/ى/g, "ي");
+}
+
+/* ------------------------------------------------------------------ */
 
 export type MenuViewProps = {
   restaurant: Restaurant;
@@ -166,8 +79,6 @@ export type MenuViewProps = {
   publicTables?: { id: string; label: string }[];
 };
 
-const ALL_KEY = "__all__";
-
 export function MenuView({
   restaurant,
   categories,
@@ -177,316 +88,121 @@ export function MenuView({
   tableToken = null,
   publicTables = [],
 }: MenuViewProps) {
-  const currencyCode = restaurant.currency_code ?? "SAR";
-  const secondaryCurrencyEnabled = restaurant.secondary_currency_enabled === true;
-  const secondaryCurrencyCode = restaurant.secondary_currency_code ?? null;
-  const exchangeRate =
-    restaurant.secondary_currency_exchange_rate != null
-      ? Number(restaurant.secondary_currency_exchange_rate)
-      : null;
+  const currencyCode = restaurant.currency_code ?? "ILS";
+  const secondaryOn = restaurant.secondary_currency_enabled === true && !!restaurant.secondary_currency_code;
+  const price: PriceContext = useMemo(
+    () => ({
+      currencyCode,
+      secondaryCode: secondaryOn ? restaurant.secondary_currency_code ?? null : null,
+      exchangeRate:
+        restaurant.secondary_currency_exchange_rate != null ? Number(restaurant.secondary_currency_exchange_rate) : null,
+    }),
+    [currencyCode, secondaryOn, restaurant.secondary_currency_code, restaurant.secondary_currency_exchange_rate]
+  );
 
   const [cart, setCart] = useState<CartLine[]>([]);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [sheetItem, setSheetItem] = useState<MenuItem | null>(null);
+  const [query, setQuery] = useState("");
 
-  const menuById = useMemo(
-    () => new Map(menuItems.map((i) => [i.id, i] as const)),
-    [menuItems]
+  const menuById = useMemo(() => new Map(menuItems.map((i) => [i.id, i] as const)), [menuItems]);
+  const addLabel = tableFromQr ? "أضف إلى الطاولة" : "أضف إلى الطلب";
+
+  const mergeAdd = useCallback(
+    (line: CartLine) => {
+      setCart((prev) => {
+        const i = prev.findIndex((l) => cartLineKey(l) === cartLineKey(line));
+        if (i < 0) return [...prev, line];
+        const copy = [...prev];
+        copy[i] = { ...copy[i], quantity: Math.min(99, copy[i].quantity + line.quantity) };
+        return copy;
+      });
+      const name = menuById.get(line.menuItemId)?.name;
+      if (name) toast.success(`أُضيف: ${name}`, { duration: 1500 });
+    },
+    [menuById]
   );
 
-  const mergeAdd = useCallback((line: CartLine) => {
-    setCart((prev) => {
-      const i = prev.findIndex((l) => cartLineKey(l) === cartLineKey(line));
-      if (i >= 0) {
-        const copy = [...prev];
-        copy[i] = {
-          ...copy[i],
-          quantity: Math.min(99, copy[i].quantity + line.quantity),
-        };
-        return copy;
-      }
-      return [...prev, line];
-    });
-  }, []);
+  /** نقرة «+»: صنف بسعر واحد يُضاف مباشرة، وغير ذلك يفتح ورقة التفاصيل */
+  const quickAdd = useCallback(
+    (item: MenuItem) => {
+      const opts = Array.isArray(item.price_options) ? item.price_options : [];
+      if (opts.length > 1) return setSheetItem(item);
+      mergeAdd({
+        menuItemId: item.id,
+        quantity: 1,
+        priceOptionLabel: opts[0]?.label ?? null,
+        excludedIngredients: [],
+      });
+    },
+    [mergeAdd]
+  );
 
   const tableCtx: TableContext = useMemo(
-    () => ({
-      fromQr: tableFromQr,
-      token: tableToken,
-      publicTables,
-    }),
+    () => ({ fromQr: tableFromQr, token: tableToken, publicTables }),
     [tableFromQr, tableToken, publicTables]
   );
 
-  /** رابط ?t= صالح للطاولة → صياغة «إلى الطاولة»؛ وإلا زيارة عامة (سوشال، رابط مباشر…) */
-  const addItemOrderContext = tableFromQr ? "table_qr" : "remote";
+  const groups = useMemo(() => groupItemsByCategory(menuItems, categories), [menuItems, categories]);
+  const filteredGroups = useMemo(() => {
+    const q = normalize(query.trim());
+    if (!q) return groups;
+    return groups
+      .map((g) => ({
+        ...g,
+        items: g.items.filter((i) => normalize(`${i.name} ${i.description ?? ""}`).includes(q)),
+      }))
+      .filter((g) => g.items.length > 0);
+  }, [groups, query]);
 
-  const grouped = useMemo(
-    () => groupItemsByCategory(menuItems, categories),
-    [menuItems, categories]
-  );
-
-  const [activeCategoryId, setActiveCategoryId] = useState<string>(ALL_KEY);
-
-  const visibleGroups =
-    activeCategoryId === ALL_KEY
-      ? grouped
-      : grouped.filter((g) => g.id === activeCategoryId);
-
-  const featuredItems = useMemo(
-    () =>
-      [...menuItems]
-        .filter((i) => i.image_url)
-        .slice(0, 8),
+  const featured = useMemo(
+    () => menuItems.filter((i) => i.image_url && i.is_available !== false).slice(0, 8),
     [menuItems]
   );
 
-  const heroTitle =
-    restaurant.headline || `مرحبا بك في ${restaurant.name}`;
-  const heroSubtitle =
-    restaurant.subheadline ||
-    "تصفّح قائمتنا واختر وجبتك المفضلة في ثوانٍ.";
-
-  const titleAnimationEnabled =
-    restaurant.menu_title_animation_enabled === true;
-
-  const menuBannerUrl = restaurant.menu_banner_url?.trim() ?? "";
-  let menuBannerKind: "image" | "video" | null = null;
-  if (menuBannerUrl) {
-    if (
-      restaurant.menu_banner_kind === "video" ||
-      restaurant.menu_banner_kind === "image"
-    ) {
-      menuBannerKind = restaurant.menu_banner_kind;
-    } else if (/\.(mp4|webm)(\?|$)/i.test(menuBannerUrl)) {
-      menuBannerKind = "video";
-    } else {
-      menuBannerKind = "image";
-    }
-  }
+  const bannerUrl = restaurant.menu_banner_url?.trim() ?? "";
+  const bannerKind: "image" | "video" | null = bannerUrl
+    ? restaurant.menu_banner_kind ?? (/\.(mp4|webm)(\?|$)/i.test(bannerUrl) ? "video" : "image")
+    : null;
 
   return (
-    <div
-      className="min-h-screen bg-gradient-to-b from-stone-100 via-stone-50 to-stone-100 text-stone-900 transition-colors duration-300 dark:from-stone-950 dark:via-stone-900 dark:to-stone-950 dark:text-stone-50"
-    >
-      <header className="border-b border-stone-200/90 bg-gradient-to-b from-white/95 via-stone-50/95 to-stone-100/90 backdrop-blur dark:border-white/5 dark:from-stone-950/80 dark:via-stone-950/90 dark:to-stone-900/90">
-        <div className="mx-auto max-w-5xl px-4 pt-5 pb-6 sm:pb-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-            <MenuRestaurantBrand
-              logoUrl={restaurant.logo_url ?? null}
-              name={restaurant.name}
-              menuTitleAnimationEnabled={titleAnimationEnabled}
-            />
-            <div className="flex min-w-0 items-center gap-3 text-xs text-stone-600 sm:text-sm dark:text-stone-400">
-              <ThemeToggle />
-              <p
-                dir="rtl"
-                className="max-w-[min(100%,18rem)] text-[11px] leading-relaxed text-stone-600 dark:text-stone-500 sm:text-xs"
-              >
-                أضف الأصناف ثم أرسل الطلب من أسفل الصفحة.
-              </p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-bg-base text-text-primary" dir="rtl">
+      <MenuHero restaurant={restaurant} tableLabel={tableFromQr?.label ?? null} />
 
-          {menuBannerUrl && menuBannerKind ? (
-            <MenuPromoBanner
-              url={menuBannerUrl}
-              kind={menuBannerKind}
-              caption={restaurant.menu_banner_caption}
-              alt={
-                restaurant.menu_banner_caption?.trim() ||
-                `بانر ترويجي — ${restaurant.name}`
-              }
-            />
-          ) : null}
+      <CategoryNav groups={filteredGroups} query={query} onQuery={setQuery} />
 
-          {featuredItems.length > 0 ? (
-            <MenuFeaturedStoriesBanner
-              items={featuredItems}
-              currencyCode={currencyCode}
-              secondaryCurrencyEnabled={secondaryCurrencyEnabled}
-              secondaryCurrencyCode={secondaryCurrencyCode}
-              exchangeRate={exchangeRate}
-              onAdd={mergeAdd}
-              orderContext={addItemOrderContext}
-            />
-          ) : (
-            <div className="relative mt-6 overflow-hidden rounded-3xl border border-stone-200/90 bg-gradient-to-br from-amber-500/25 via-amber-400/10 to-stone-200/80 p-5 shadow-sm shadow-stone-900/5 dark:border-white/10 dark:from-amber-500/20 dark:via-amber-400/5 dark:to-stone-900/80 dark:shadow-none sm:p-6">
-              {restaurant.hero_background_url && (
-                <div className="pointer-events-none absolute inset-0 opacity-25">
-                  <Image
-                    src={restaurant.hero_background_url}
-                    alt={restaurant.name}
-                    fill
-                    priority
-                    className="object-cover"
-                    sizes="(max-width: 768px) 100vw, 640px"
-                    unoptimized
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-br from-white/88 via-stone-100/82 to-stone-50/92 dark:from-stone-950/80 dark:via-stone-900/80 dark:to-stone-950/90" />
-                </div>
-              )}
-              <div className="relative space-y-2">
-                <h2 className="text-balance text-xl font-semibold leading-tight text-stone-900 dark:text-stone-50 sm:text-2xl">
-                  {heroTitle}
-                </h2>
-                <p className="text-sm leading-relaxed text-stone-700 dark:text-stone-200/90 sm:text-[15px]">
-                  {heroSubtitle}
-                </p>
-                <p className="text-xs text-stone-600 dark:text-stone-500">
-                  أضف صوراً لبعض الأصناف لعرضها هنا كأطباق مقترحة.
-                </p>
-              </div>
-            </div>
-          )}
+      <main className={cn("mx-auto max-w-3xl px-4", cart.length ? "pb-36" : "pb-16")}>
+        {bannerUrl && bannerKind ? (
+          <MenuPromoBanner
+            url={bannerUrl}
+            kind={bannerKind}
+            caption={restaurant.menu_banner_caption}
+            alt={restaurant.menu_banner_caption?.trim() || `عرض — ${restaurant.name}`}
+          />
+        ) : null}
 
-          {grouped.length > 0 && (
-            <div className="mt-6 flex items-center gap-2 overflow-x-auto rounded-2xl border border-stone-200/90 bg-stone-100/90 p-2 text-xs text-stone-800 dark:border-white/10 dark:bg-stone-900/60 dark:text-stone-100">
-              <button
-                type="button"
-                onClick={() => setActiveCategoryId(ALL_KEY)}
-                className={`whitespace-nowrap rounded-full px-3 py-1.5 transition ${
-                  activeCategoryId === ALL_KEY
-                    ? "bg-amber-400 text-stone-950 shadow-sm shadow-amber-500/60"
-                    : "bg-white text-stone-700 shadow-sm hover:bg-stone-200 dark:bg-stone-900/70 dark:text-stone-200 dark:shadow-none dark:hover:bg-stone-800"
-                }`}
-              >
-                الكل
-              </button>
-              {grouped.map((g) => (
-                <button
-                  key={g.id}
-                  type="button"
-                  onClick={() => setActiveCategoryId(g.id)}
-                  className={`whitespace-nowrap rounded-full px-3 py-1.5 transition ${
-                    activeCategoryId === g.id
-                      ? "bg-amber-400 text-stone-950 shadow-sm shadow-amber-500/60"
-                      : "bg-white text-stone-700 shadow-sm hover:bg-stone-200 dark:bg-stone-900/70 dark:text-stone-200 dark:shadow-none dark:hover:bg-stone-800"
-                  }`}
-                >
-                  {g.name}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-      </header>
+        {featured.length >= 3 && !query ? (
+          <FeaturedRow items={featured} price={price} onOpen={setSheetItem} onAdd={quickAdd} />
+        ) : null}
 
-      <main
-        className={`mx-auto max-w-5xl px-4 pt-6 sm:pt-8 ${cart.length > 0 ? "pb-32" : "pb-16"}`}
-      >
         {menuItems.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-stone-300 bg-stone-100/80 p-10 text-center shadow-inner shadow-stone-900/5 dark:border-stone-700/80 dark:bg-stone-900/70 dark:shadow-inner dark:shadow-black/40">
-            <p className="text-base font-medium text-stone-900 dark:text-stone-100">
-              لم تتم إضافة أصناف بعد.
-            </p>
-            <p className="mt-2 text-sm text-stone-600 dark:text-stone-400">
-              عند إضافة الأصناف من لوحة التحكم ستظهر قائمتك هنا تلقائياً.
-            </p>
-          </div>
+          <EmptyState title="المنيو قيد التحضير" text="سيظهر المنيو هنا قريباً." />
+        ) : filteredGroups.length === 0 ? (
+          <EmptyState title="لا توجد نتائج" text={`لم نجد أطباقاً تطابق «${query}».`} />
         ) : (
-          <div className="space-y-10">
-            {visibleGroups.map(({ id, name, items }, groupIndex) => (
-              <motion.section
-                key={id}
-                aria-label={name}
-                className="space-y-4"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.3, delay: groupIndex * 0.06 }}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-semibold uppercase tracking-[0.25em] text-stone-500 dark:text-stone-400">
-                    {name}
-                  </h2>
-                  <span className="text-[11px] text-stone-600 dark:text-stone-500">
-                    {items.length} {items.length === 1 ? "طبق" : "أطباق"}
-                  </span>
+          <div className="mt-6 space-y-10">
+            {filteredGroups.map((g) => (
+              <section key={g.id} id={`cat-${g.id}`} data-cat={g.id} className="scroll-mt-32">
+                <div className="mb-4 flex items-baseline justify-between">
+                  <h2 className="font-display text-2xl font-bold">{g.name}</h2>
+                  <span className="text-xs text-text-muted">{g.items.length} أصناف</span>
                 </div>
-                <ul className="grid gap-3 sm:grid-cols-2">
-                  {items.map((item, index) => {
-                    const unavailable = item.is_available === false;
-                    return (
-                      <motion.li
-                        key={item.id}
-                        initial={{ opacity: 0, y: 12 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ duration: 0.25, delay: index * 0.04 }}
-                        className={`group relative flex items-start gap-3 rounded-2xl border border-stone-200/90 bg-white/95 p-3.5 shadow-sm ring-1 ring-stone-900/5 transition-all duration-200 hover:-translate-y-[1px] hover:shadow-lg hover:shadow-stone-900/10 dark:border-stone-700/80 dark:bg-stone-900/80 dark:ring-white/5 dark:hover:shadow-black/30 sm:gap-3.5 ${
-                          unavailable
-                            ? "opacity-60 grayscale-[0.2]"
-                            : ""
-                        }`}
-                      >
-                        {item.image_url ? (
-                          <div className="relative h-20 w-20 shrink-0 self-start overflow-hidden rounded-[var(--radius-md)] bg-stone-100 dark:bg-stone-900 sm:h-24 sm:w-24">
-                            <Image
-                              src={item.image_url}
-                              alt={item.name}
-                              fill
-                              className="object-cover transition-transform duration-500 group-hover:scale-[1.04]"
-                              sizes="96px"
-                              unoptimized
-                            />
-                            <div className="pointer-events-none absolute inset-0 bg-gradient-to-tr from-black/40 via-transparent to-transparent" />
-                          </div>
-                        ) : (
-                          <MenuItemImagePlaceholder className="h-20 w-20 shrink-0 self-start sm:h-24 sm:w-24" />
-                        )}
-                        <div className="flex min-w-0 flex-1 flex-col">
-                          <p
-                            className={`text-sm font-semibold ${
-                              unavailable ? "text-stone-500 dark:text-stone-400" : "text-stone-900 dark:text-stone-50"
-                            }`}
-                          >
-                            {item.name}
-                            <span
-                              className={`ms-2 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
-                                unavailable
-                                  ? "border border-red-500/35 bg-red-500/15 text-red-400"
-                                  : "border border-emerald-500/35 bg-emerald-500/15 text-emerald-400"
-                              }`}
-                            >
-                              {unavailable ? "غير متاح حالياً" : "متاح"}
-                            </span>
-                          </p>
-                          {item.description ? (
-                            <p
-                              className={`mt-1 line-clamp-2 text-[12px] leading-snug ${
-                                unavailable
-                                  ? "text-stone-500 dark:text-stone-500"
-                                  : "text-stone-600 dark:text-stone-300"
-                              }`}
-                            >
-                              {item.description}
-                            </p>
-                          ) : null}
-                          <PriceDisplay
-                            item={item}
-                            unavailable={unavailable}
-                            currencyCode={currencyCode}
-                            secondaryCurrencyEnabled={secondaryCurrencyEnabled}
-                            secondaryCurrencyCode={secondaryCurrencyCode}
-                            exchangeRate={exchangeRate}
-                          />
-                          {item.calories ? (
-                            <p className="mt-1 text-[11px] text-stone-600 dark:text-stone-500">
-                              {item.calories}
-                            </p>
-                          ) : null}
-                          <div className="mt-auto pt-2">
-                            <AddItemButton
-                              item={item}
-                              unavailable={unavailable}
-                              onAdd={mergeAdd}
-                              orderContext={addItemOrderContext}
-                            />
-                          </div>
-                        </div>
-                      </motion.li>
-                    );
-                  })}
+                <ul className="divide-y divide-border overflow-hidden rounded-[22px] border border-border bg-bg-surface">
+                  {g.items.map((item) => (
+                    <MenuItemRow key={item.id} item={item} price={price} onOpen={setSheetItem} onAdd={quickAdd} />
+                  ))}
                 </ul>
-              </motion.section>
+              </section>
             ))}
           </div>
         )}
@@ -506,14 +222,16 @@ export function MenuView({
         socialTiktokUrl={restaurant.social_tiktok_url ?? null}
       />
 
+      <ItemSheet item={sheetItem} onClose={() => setSheetItem(null)} onAdd={mergeAdd} price={price} addLabel={addLabel} />
+
       <MenuCartBar
         cart={cart}
         setCart={setCart}
         menuById={menuById}
         currencyCode={currencyCode}
-        secondaryEnabled={secondaryCurrencyEnabled}
-        secondaryCurrencyCode={secondaryCurrencyCode}
-        secondaryExchangeRate={exchangeRate}
+        secondaryEnabled={secondaryOn}
+        secondaryCurrencyCode={price.secondaryCode}
+        secondaryExchangeRate={price.exchangeRate}
         onCheckout={() => setCheckoutOpen(true)}
         onCancelOrder={() => {
           setCart([]);
@@ -535,3 +253,311 @@ export function MenuView({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* الأجزاء                                                             */
+/* ------------------------------------------------------------------ */
+
+function MenuHero({ restaurant, tableLabel }: { restaurant: Restaurant; tableLabel: string | null }) {
+  const cover = restaurant.hero_background_url?.trim() || null;
+  const logo = restaurant.logo_url?.trim() || null;
+  const phone = restaurant.public_phone_1?.trim() || null;
+
+  return (
+    <header className="relative">
+      <div className="relative h-56 overflow-hidden sm:h-72">
+        {cover ? (
+          <Image src={cover} alt="" fill priority className="object-cover" sizes="100vw" />
+        ) : (
+          <div className="absolute inset-0 bg-[radial-gradient(80%_120%_at_80%_0%,color-mix(in_oklab,var(--brand)_55%,transparent),transparent_70%),linear-gradient(160deg,#2a1810,#0e0d0c)]" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-bg-base" />
+        <div className="absolute inset-x-0 top-0 mx-auto flex max-w-3xl items-center justify-between p-4">
+          {tableLabel ? (
+            <span className="rounded-full bg-brand px-3 py-1.5 text-xs font-bold text-white shadow-lg">
+              {tableLabel}
+            </span>
+          ) : (
+            <span />
+          )}
+          <div className="rounded-xl bg-black/30 backdrop-blur [&_.theme-toggle-btn]:border-white/20 [&_.theme-toggle-btn]:bg-transparent [&_.theme-toggle-btn]:text-white">
+            <ThemeToggle />
+          </div>
+        </div>
+      </div>
+
+      <div className="relative mx-auto -mt-14 max-w-3xl px-4">
+        <div className="flex items-end gap-4">
+          <div className="relative size-24 shrink-0 overflow-hidden rounded-[26px] border-4 border-bg-base bg-bg-surface shadow-lg">
+            {logo ? (
+              <Image src={logo} alt={restaurant.name} fill className="object-cover" sizes="96px" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center bg-brand font-display text-4xl font-bold text-white">
+                {restaurant.name.trim().replace(/^(مطعم|مطاعم|مقهى|كافيه)\s+/, "").replace(/^ال/, "").charAt(0)}
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 pb-1">
+            <h1 className="font-display text-[28px] font-bold leading-tight sm:text-4xl">{restaurant.name}</h1>
+            {restaurant.headline ? <p className="mt-0.5 text-sm text-text-secondary">{restaurant.headline}</p> : null}
+          </div>
+        </div>
+
+        {restaurant.subheadline ? (
+          <p className="mt-4 text-[15px] leading-7 text-text-secondary">{restaurant.subheadline}</p>
+        ) : null}
+
+        {restaurant.public_address || phone ? (
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            {restaurant.public_address ? (
+              <a
+                href={restaurant.public_maps_url || undefined}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-text-secondary"
+              >
+                <MapPin className="size-4 text-brand" />
+                {restaurant.public_address}
+              </a>
+            ) : null}
+            {phone ? (
+              <a href={`tel:${phone}`} className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-surface px-3 py-1.5 text-text-secondary">
+                <Phone className="size-4 text-brand" />
+                <span dir="ltr">{phone}</span>
+              </a>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+/** شريط لاصق: بحث + تصنيفات تتبع موضع التمرير */
+function CategoryNav({ groups, query, onQuery }: { groups: Group[]; query: string; onQuery: (q: string) => void }) {
+  const [active, setActive] = useState<string | null>(groups[0]?.id ?? null);
+  const [searching, setSearching] = useState(false);
+  const chipsRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const sections = [...document.querySelectorAll<HTMLElement>("section[data-cat]")];
+    if (!sections.length) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const visible = entries.filter((e) => e.isIntersecting).sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top);
+        if (visible[0]) setActive(visible[0].target.getAttribute("data-cat"));
+      },
+      { rootMargin: "-140px 0px -55% 0px" }
+    );
+    sections.forEach((s) => observer.observe(s));
+    return () => observer.disconnect();
+  }, [groups]);
+
+  // إبقاء التصنيف النشط ظاهراً في الشريط
+  useEffect(() => {
+    chipsRef.current?.querySelector(`[data-chip="${active}"]`)?.scrollIntoView({ block: "nearest", inline: "center", behavior: "smooth" });
+  }, [active]);
+
+  return (
+    <nav className="sticky top-0 z-30 mt-6 border-b border-border bg-bg-base/85 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-3xl items-center gap-2 px-4 py-3">
+        {searching ? (
+          <div className="flex h-10 flex-1 items-center gap-2 rounded-full border border-border bg-bg-surface px-4">
+            <Search className="size-4 shrink-0 text-text-muted" />
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => onQuery(e.target.value)}
+              placeholder="ابحث عن طبق…"
+              className="h-full flex-1 bg-transparent text-[15px] outline-none placeholder:text-text-muted"
+            />
+            <button
+              type="button"
+              aria-label="إغلاق البحث"
+              onClick={() => {
+                onQuery("");
+                setSearching(false);
+              }}
+            >
+              <X className="size-4 text-text-muted" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              aria-label="بحث"
+              onClick={() => setSearching(true)}
+              className="flex size-10 shrink-0 items-center justify-center rounded-full border border-border bg-bg-surface text-text-secondary"
+            >
+              <Search className="size-4" />
+            </button>
+            <div ref={chipsRef} className="flex flex-1 gap-2 overflow-x-auto [scrollbar-width:none]">
+              {groups.map((g) => (
+                <button
+                  key={g.id}
+                  type="button"
+                  data-chip={g.id}
+                  onClick={() => {
+                    setActive(g.id);
+                    document.getElementById(`cat-${g.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+                  }}
+                  className={cn(
+                    "h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-sm font-semibold transition",
+                    active === g.id ? "bg-brand text-white" : "border border-border bg-bg-surface text-text-secondary"
+                  )}
+                >
+                  {g.name}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </nav>
+  );
+}
+
+function PriceTag({ item, price, className }: { item: MenuItem; price: PriceContext; className?: string }) {
+  const { cents, hasOptions } = minPriceCents(item);
+  const secondary =
+    price.secondaryCode && !hasOptions ? resolveSecondaryUnitCents(item, cents, null, price.exchangeRate) : null;
+  return (
+    <span className={cn("inline-flex flex-wrap items-baseline gap-x-1.5", className)}>
+      {hasOptions ? <span className="text-xs font-medium text-text-muted">من</span> : null}
+      <span className="font-bold text-brand" dir="ltr">
+        {formatMenuPrice(cents, price.currencyCode)}
+      </span>
+      {secondary != null && price.secondaryCode ? (
+        <span className="text-xs text-text-muted" dir="ltr">
+          {formatMenuPrice(secondary, price.secondaryCode)}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function AddButton({ onClick, label }: { onClick: () => void; label: string }) {
+  return (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      className="flex size-9 shrink-0 items-center justify-center rounded-full bg-brand text-white shadow-[0_6px_16px_-6px_var(--brand)] transition active:scale-90"
+    >
+      <Plus className="size-5" />
+    </button>
+  );
+}
+
+function MenuItemRow({
+  item,
+  price,
+  onOpen,
+  onAdd,
+}: {
+  item: MenuItem;
+  price: PriceContext;
+  onOpen: (i: MenuItem) => void;
+  onAdd: (i: MenuItem) => void;
+}) {
+  const unavailable = item.is_available === false;
+  return (
+    <li>
+      <div
+        role={unavailable ? undefined : "button"}
+        tabIndex={unavailable ? -1 : 0}
+        onClick={() => !unavailable && onOpen(item)}
+        onKeyDown={(e) => !unavailable && (e.key === "Enter" || e.key === " ") && onOpen(item)}
+        className={cn(
+          "flex gap-4 p-4 text-start transition",
+          unavailable ? "opacity-55" : "cursor-pointer hover:bg-bg-surface-2/60 active:bg-bg-surface-2"
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          <p className="font-bold leading-snug">{item.name}</p>
+          {item.description ? (
+            <p className="mt-1 line-clamp-2 text-sm leading-6 text-text-secondary">{item.description}</p>
+          ) : null}
+          <div className="mt-2 flex items-center gap-2">
+            <PriceTag item={item} price={price} />
+            {unavailable ? (
+              <span className="rounded-full bg-bg-surface-2 px-2 py-0.5 text-[11px] font-semibold text-text-muted">نفد حالياً</span>
+            ) : null}
+          </div>
+        </div>
+        <div className="relative shrink-0">
+          {item.image_url ? (
+            <div className="relative size-24 overflow-hidden rounded-2xl bg-bg-surface-2 sm:size-28">
+              <Image src={item.image_url} alt={item.name} fill className="object-cover" sizes="112px" />
+            </div>
+          ) : (
+            <div className="flex size-24 items-center justify-center rounded-2xl bg-bg-surface-2 text-text-muted sm:size-28">
+              <UtensilsCrossed className="size-7 opacity-50" />
+            </div>
+          )}
+          {!unavailable ? (
+            <div className="absolute -bottom-2 -start-2">
+              <AddButton onClick={() => onAdd(item)} label={`أضف ${item.name}`} />
+            </div>
+          ) : null}
+        </div>
+      </div>
+    </li>
+  );
+}
+
+function FeaturedRow({
+  items,
+  price,
+  onOpen,
+  onAdd,
+}: {
+  items: MenuItem[];
+  price: PriceContext;
+  onOpen: (i: MenuItem) => void;
+  onAdd: (i: MenuItem) => void;
+}) {
+  return (
+    <section className="mt-6" aria-label="أطباق مختارة">
+      <h2 className="mb-3 flex items-center gap-2 font-display text-xl font-bold">
+        <Sparkles className="size-5 text-gold" /> أطباق مختارة
+      </h2>
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
+        {items.map((item) => (
+          <div
+            key={item.id}
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(item)}
+            onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpen(item)}
+            className="w-44 shrink-0 snap-start overflow-hidden rounded-[22px] border border-border bg-bg-surface text-start"
+          >
+            <div className="relative aspect-square">
+              <Image src={item.image_url!} alt={item.name} fill className="object-cover" sizes="176px" />
+              <div className="absolute bottom-2 start-2">
+                <AddButton onClick={() => onAdd(item)} label={`أضف ${item.name}`} />
+              </div>
+            </div>
+            <div className="p-3">
+              <p className="truncate text-sm font-bold">{item.name}</p>
+              <PriceTag item={item} price={price} className="mt-1 text-sm" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function EmptyState({ title, text }: { title: string; text: string }) {
+  return (
+    <div className="mt-10 rounded-[22px] border border-dashed border-border-strong p-10 text-center">
+      <UtensilsCrossed className="mx-auto size-10 text-text-muted" />
+      <p className="mt-4 font-bold">{title}</p>
+      <p className="mt-1 text-sm text-text-secondary">{text}</p>
+    </div>
+  );
+}
