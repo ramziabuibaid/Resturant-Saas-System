@@ -12,6 +12,7 @@ import {
   MIN_PASSWORD_LENGTH,
 } from "@/lib/auth/password";
 import { isSubdomainTaken, validateSubdomain } from "@/lib/data/restaurants";
+import { TRIAL_DAYS } from "@/lib/plans";
 
 /*
  * كل دالة هنا endpoint عام. لا تُضف هنا قراءات تأخذ معرّفات — ضعها في src/lib/data.
@@ -128,7 +129,7 @@ export async function createRestaurantAndLink(payload: { name: string; subdomain
     await db.transaction(async (tx) => {
       const [restaurant] = await tx
         .insert(schema.restaurants)
-        .values({ name, subdomain: sub.value, status: "trial" })
+        .values({ name, subdomain: sub.value, status: "trial", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) })
         .returning({ id: schema.restaurants.id });
       await tx
         .update(schema.users)
