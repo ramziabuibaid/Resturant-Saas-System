@@ -44,6 +44,7 @@ export type SecondaryPriceOption = { label: string; price_cents: number };
 
 export const restaurantStatus = pgEnum("restaurant_status", ["active", "trial", "suspended"]);
 export const menuBannerKind = pgEnum("menu_banner_kind", ["image", "video"]);
+export const subscriptionPlan = pgEnum("subscription_plan", ["basic", "pro", "chain"]);
 
 export const restaurants = pgTable("restaurants", {
   id: id(),
@@ -52,6 +53,12 @@ export const restaurants = pgTable("restaurants", {
   subdomain: text("subdomain").notNull().unique(),
   customDomain: text("custom_domain").unique(),
   status: restaurantStatus("status").notNull().default("trial"),
+
+  // الاشتراك — انظر src/lib/subscription.ts
+  plan: subscriptionPlan("plan").notNull().default("pro"),
+  trialEndsAt: timestamp("trial_ends_at", { withTimezone: true }),
+  /** null مع status=active يعني اشتراكاً بلا انتهاء (مثل المطعم التجريبي) */
+  paidUntil: timestamp("paid_until", { withTimezone: true }),
 
   // الهوية
   logoUrl: text("logo_url"),
@@ -96,6 +103,26 @@ export const restaurants = pgTable("restaurants", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/** دفعات الاشتراك — يسجلها مالك النظام يدوياً (تحويل/نقدي) */
+export const subscriptionPayments = pgTable(
+  "subscription_payments",
+  {
+    id: id(),
+    restaurantId: uuid("restaurant_id")
+      .notNull()
+      .references(() => restaurants.id, { onDelete: "cascade" }),
+    plan: subscriptionPlan("plan").notNull(),
+    months: integer("months").notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currencyCode: text("currency_code").notNull().default("USD"),
+    note: text("note"),
+    /** نهاية الاشتراك بعد هذه الدفعة */
+    periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("subscription_payments_restaurant_idx").on(t.restaurantId, t.createdAt)]
+);
 
 // ---------------------------------------------------------------------------
 // المستخدمون والجلسات (بديل Supabase Auth + profiles)

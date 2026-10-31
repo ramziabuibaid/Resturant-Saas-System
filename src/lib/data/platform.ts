@@ -1,6 +1,8 @@
 import { sql } from "drizzle-orm";
 import { db } from "@/db";
 import { RESTAURANT_TZ } from "@/lib/data/dashboard";
+import type { PlanId } from "@/lib/plans";
+import { getSubscriptionInfo, type SubscriptionState } from "@/lib/subscription";
 
 /*
  * أرقام لوحة مالك النظام — للخادم فقط.
@@ -12,6 +14,13 @@ export type PlatformRestaurantRow = {
   name: string;
   subdomain: string;
   status: "active" | "trial" | "suspended";
+  plan: PlanId;
+  trialEndsAt: string | null;
+  paidUntil: string | null;
+  subState: SubscriptionState;
+  /** أيام حتى نهاية التجربة/الاشتراك (null = بلا انتهاء) */
+  daysLeft: number | null;
+  payments: { id: string; plan: PlanId; months: number; amountCents: number; currencyCode: string; note: string | null; periodEnd: string; createdAt: string }[];
   logoUrl: string | null;
   createdAt: string;
   ownerUsername: string | null;
@@ -35,12 +44,15 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
   const tz = RESTAURANT_TZ;
   const today = sql`(now() at time zone ${tz})::date`;
 
-  const [restaurants, totals, daily] = await Promise.all([
+  const [restaurants, totals, daily, payments] = await Promise.all([
     db.execute<{
       id: string;
       name: string;
       subdomain: string;
       status: PlatformRestaurantRow["status"];
+      plan: PlanId;
+      trial_ends_at: Date | null;
+      paid_until: Date | null;
       logo_url: string | null;
       created_at: Date;
       owner_username: string | null;
@@ -50,7 +62,7 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       orders_today: number;
       last_order_at: Date | null;
     }>(sql`
-      select r.id, r.name, r.subdomain, r.status, r.logo_url, r.created_at,
+      select r.id, r.name, r.subdomain, r.status, r.plan, r.trial_ends_at, r.paid_until, r.logo_url, r.created_at,
         (select u.username from users u where u.restaurant_id = r.id and u.role = 'owner' limit 1) as owner_username,
         (select count(*)::int from menu_items m where m.restaurant_id = r.id) as items,
         (select count(*)::int from restaurant_tables t where t.restaurant_id = r.id) as tables,
@@ -71,7 +83,38 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
         (select count(*)::int from orders o where (o.created_at at time zone ${tz})::date = d) as orders
       from generate_series(${today} - 13, ${today}, interval '1 day') as g(d)
     `),
+    db.execute<{
+      id: string;
+      restaurant_id: string;
+      plan: PlanId;
+      months: number;
+      amount_cents: number;
+      currency_code: string;
+      note: string | null;
+      period_end: Date;
+      created_at: Date;
+    }>(sql`
+      select id, restaurant_id, plan, months, amount_cents, currency_code, note, period_end, created_at
+      from subscription_payments order by created_at desc limit 500
+    `),
   ]);
+
+  const paymentsByRestaurant = new Map<string, PlatformRestaurantRow["payments"]>();
+  for (const p of payments) {
+    const list = paymentsByRestaurant.get(p.restaurant_id) ?? [];
+    list.push({
+      id: p.id,
+      plan: p.plan,
+      months: p.months,
+      amountCents: p.amount_cents,
+      currencyCode: p.currency_code,
+      note: p.note,
+      periodEnd: new Date(p.period_end).toISOString(),
+      createdAt: new Date(p.created_at).toISOString(),
+    });
+    paymentsByRestaurant.set(p.restaurant_id, list);
+  }
+  const iso = (d: Date | null) => (d ? new Date(d).toISOString() : null);
 
   const t = totals[0];
   return {
@@ -80,6 +123,14 @@ export async function getPlatformOverview(): Promise<PlatformOverview> {
       name: r.name,
       subdomain: r.subdomain,
       status: r.status,
+      plan: r.plan,
+      trialEndsAt: iso(r.trial_ends_at),
+      paidUntil: iso(r.paid_until),
+      ...(() => {
+        const info = getSubscriptionInfo({ status: r.status, plan: r.plan, trialEndsAt: r.trial_ends_at, paidUntil: r.paid_until });
+        return { subState: info.state, daysLeft: info.daysLeft };
+      })(),
+      payments: paymentsByRestaurant.get(r.id) ?? [],
       logoUrl: r.logo_url,
       createdAt: new Date(r.created_at).toISOString(),
       ownerUsername: r.owner_username,

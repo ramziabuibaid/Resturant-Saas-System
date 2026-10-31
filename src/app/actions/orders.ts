@@ -10,7 +10,6 @@ import { toMenuItemDto } from "@/lib/data/menu";
 import {
   ensureCustomer,
   finalizeCompletedOrder,
-  findCustomerByPhone,
   normalizePhone,
   redeemCashInTx,
 } from "@/lib/loyalty/core";
@@ -23,9 +22,10 @@ import type {
   OrderFulfillment,
   OrderStatus,
 } from "@/lib/types/database";
+import { getSubscriptionInfo } from "@/lib/subscription";
 
 /*
- * الطلبات. دوال الزبون (createGuestOrder، getCheckoutLoyaltyPreview، getOrderTrackingByToken)
+ * الطلبات. دوال الزبون (createGuestOrder، getOrderTrackingByToken)
  * عامة بطبيعتها؛ بقية الدوال تتطلب جلسة صاحب المطعم وتعمل على طلبات مطعمه فقط.
  */
 
@@ -46,7 +46,7 @@ async function findRestaurantBySubdomain(subdomain: string) {
 }
 
 // ---------------------------------------------------------------------------
-// الزبون: معاينة النقاط وإنشاء الطلب
+// الزبون: إنشاء الطلب
 // ---------------------------------------------------------------------------
 
 export type CreateGuestOrderInput = {
@@ -65,38 +65,7 @@ export type CreateGuestOrderInput = {
     /** مكوّنات لا يريدها الزبون في الطبق */
     excludedIngredients?: string[];
   }[];
-  /** عدد النقاط المراد استبدالها نقدياً ضمن هذا الطلب (اختياري) */
-  loyaltyPointsToRedeem?: number;
 };
-
-/** معاينة رصيد النقاط لصفحة إتمام الطلب من المنيو (بدون تسجيل دخول). */
-export async function getCheckoutLoyaltyPreview(input: { subdomain: string; customerPhone: string }): Promise<
-  | {
-      ok: true;
-      programEnabled: boolean;
-      pointsBalance: number;
-      pointValueCents: number;
-      spendCentsPerPoint: number;
-    }
-  | { ok: false; error: string }
-> {
-  const phone = normalizePhone(input.customerPhone);
-  if (!input.subdomain?.trim() || !phone) return { ok: false, error: "بيانات غير صالحة" };
-  if (!rateLimit(`preview:${clientIp(await headers())}`, 30, 60_000)) {
-    return { ok: false, error: "محاولات كثيرة، انتظر قليلاً" };
-  }
-
-  const restaurant = await findRestaurantBySubdomain(input.subdomain);
-  if (!restaurant) return { ok: false, error: "المطعم غير موجود" };
-  const customer = await findCustomerByPhone(restaurant.id, phone);
-  return {
-    ok: true,
-    programEnabled: restaurant.loyaltyProgramEnabled,
-    pointsBalance: customer?.pointsBalance ?? 0,
-    pointValueCents: Math.max(1, restaurant.loyaltyPointValueCents),
-    spendCentsPerPoint: Math.max(1, restaurant.loyaltySpendCentsPerPoint),
-  };
-}
 
 export type CreateGuestOrderResult =
   | { ok: true; orderId: string; displayNumber: number; trackingToken: string }
@@ -114,7 +83,9 @@ export async function createGuestOrder(input: CreateGuestOrderInput): Promise<Cr
 
   const restaurant = await findRestaurantBySubdomain(input.subdomain ?? "");
   if (!restaurant) return { ok: false, error: "المطعم غير موجود" };
-  if (restaurant.status === "suspended") return { ok: false, error: "المطعم غير متاح حالياً" };
+  const sub = getSubscriptionInfo(restaurant);
+  if (!sub.canServe) return { ok: false, error: "المطعم غير متاح حالياً" };
+  if (!sub.features.ordering) return { ok: false, error: "الطلب من المنيو غير متاح لهذا المطعم" };
 
   // حد بسيط ضد الإغراق: 10 طلبات كل 10 دقائق لكل جهاز ومطعم
   if (!rateLimit(`order:${restaurant.id}:${clientIp(await headers())}`, 10, 10 * 60_000)) {
@@ -185,8 +156,6 @@ export async function createGuestOrder(input: CreateGuestOrderInput): Promise<Cr
     });
   }
   const orderTotalCents = lines.reduce((s, l) => s + l.lineTotalCents, 0);
-  const requestedRedeem = Math.max(0, Math.floor(Number(input.loyaltyPointsToRedeem ?? 0)));
-  const pointValueCents = Math.max(1, restaurant.loyaltyPointValueCents);
 
   try {
     const created = await db.transaction(async (tx) => {
@@ -221,24 +190,8 @@ export async function createGuestOrder(input: CreateGuestOrderInput): Promise<Cr
 
       await tx.insert(schema.orderItems).values(lines.map((l) => ({ ...l, orderId: order.id })));
 
-      // استبدال النقاط (الكسب يحدث عند اكتمال الطلب)
-      if (restaurant.loyaltyProgramEnabled && requestedRedeem > 0 && orderTotalCents > 0) {
-        const maxByOrder = Math.floor(orderTotalCents / pointValueCents);
-        const r = await redeemCashInTx(tx, {
-          restaurantId,
-          customerId: customer.id,
-          orderId: order.id,
-          pointsRequested: Math.min(requestedRedeem, maxByOrder),
-          pointValueCents,
-        });
-        if (r.points < Math.min(requestedRedeem, maxByOrder)) {
-          throw new OrderError("رصيد النقاط غير كافٍ. قلّل عدد النقاط ثم أعد المحاولة.");
-        }
-        await tx
-          .update(schema.orders)
-          .set({ loyaltyPointsUsed: r.points, loyaltyDiscountCents: r.discountCents })
-          .where(eq(schema.orders.id, order.id));
-      }
+      // لا استبدال للنقاط من صفحة الزبون: أي شخص قد يكتب رقم غيره.
+      // الموظف يطبّق الخصم من بطاقة الطلب بعد التحقق من الزبون (applyOwnerLoyaltyRedeemToOrder).
 
       return { orderId: order.id, displayNumber: n, trackingToken };
     });

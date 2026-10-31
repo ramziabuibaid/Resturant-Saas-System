@@ -5,7 +5,7 @@ import type { MenuItem, OrderFulfillment, Restaurant } from "@/lib/types/databas
 import { formatMenuPrice } from "@/lib/currencies";
 import { resolveUnitPriceCents } from "@/lib/order-pricing";
 import { resolveSecondaryUnitCents } from "@/lib/secondary-currency";
-import { createGuestOrder, getCheckoutLoyaltyPreview } from "@/app/actions/orders";
+import { createGuestOrder } from "@/app/actions/orders";
 import { parseExcludedIngredients } from "@/lib/order-exclusions";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -306,15 +306,6 @@ export function MenuCheckoutDialog({
     trackingToken: string;
   } | null>(null);
 
-  const [loyaltyPreviewState, setLoyaltyPreview] = useState<{
-    programEnabled: boolean;
-    pointsBalance: number;
-    pointValueCents: number;
-  } | null>(null);
-  const [loyaltyLoading, setLoyaltyLoading] = useState(false);
-  const [loyaltyPointsToRedeem, setLoyaltyPointsToRedeem] = useState(0);
-  /** المعاينة تخص رقماً مكتملاً فقط — رقم قصير يعني لا معاينة */
-  const loyaltyPreview = phone.trim().length >= 8 ? loyaltyPreviewState : null;
 
   // تصفير حالة النافذة عند إغلاقها (أثناء الرسم بدل useEffect + setState)
   const [wasOpen, setWasOpen] = useState(open);
@@ -324,9 +315,6 @@ export function MenuCheckoutDialog({
       setSuccess(false);
       setMessage(null);
       setSuccessMeta(null);
-      setLoyaltyPreview(null);
-      setLoyaltyPointsToRedeem(0);
-      setLoyaltyLoading(false);
     }
   }
 
@@ -377,50 +365,10 @@ export function MenuCheckoutDialog({
     return t;
   }, [cart, menuById, secondaryOn, secondaryCode, secondaryExchangeRate]);
 
-  useEffect(() => {
-    if (!open) return;
-    const raw = phone.trim();
-    if (raw.length < 8) return;
-    let cancelled = false;
-    const t = setTimeout(async () => {
-      setLoyaltyLoading(true);
-      const r = await getCheckoutLoyaltyPreview({ subdomain, customerPhone: raw });
-      if (cancelled) return;
-      setLoyaltyLoading(false);
-      if (r.ok) {
-        setLoyaltyPreview({
-          programEnabled: r.programEnabled,
-          pointsBalance: r.pointsBalance,
-          pointValueCents: r.pointValueCents,
-        });
-      } else {
-        setLoyaltyPreview(null);
-      }
-    }, 450);
-    return () => {
-      cancelled = true;
-      clearTimeout(t);
-    };
-  }, [open, phone, subdomain]);
-
-  const maxRedeemPoints = useMemo(() => {
-    if (!loyaltyPreview?.programEnabled || totalCents <= 0) return 0;
-    const pv = Math.max(1, loyaltyPreview.pointValueCents);
-    const capByOrder = Math.floor(totalCents / pv);
-    return Math.min(loyaltyPreview.pointsBalance, capByOrder);
-  }, [loyaltyPreview, totalCents]);
-
-  const appliedLoyaltyPoints = Math.min(loyaltyPointsToRedeem, maxRedeemPoints);
-  const pointVal = Math.max(1, loyaltyPreview?.pointValueCents ?? 1);
-  const discountPreviewCents = Math.min(
-    totalCents,
-    appliedLoyaltyPoints * pointVal
-  );
-  const netCents = Math.max(0, totalCents - discountPreviewCents);
-  const netSecondaryCents =
-    totalCents > 0 && totalSecondaryCents != null
-      ? Math.round((netCents / totalCents) * totalSecondaryCents)
-      : totalSecondaryCents;
+  // نقاط متوقعة عند اكتمال الطلب — الاستبدال يتم عند الموظف فقط
+  const loyaltyOn = restaurant.loyalty_program_enabled === true;
+  const spendPerPoint = Math.max(1, Number(restaurant.loyalty_spend_cents_per_point ?? 100));
+  const pointsToEarn = loyaltyOn ? Math.floor(totalCents / spendPerPoint) : 0;
 
   async function submit() {
     setMessage(null);
@@ -445,8 +393,6 @@ export function MenuCheckoutDialog({
     }
 
     setSubmitting(true);
-    const redeemPts =
-      loyaltyPreview?.programEnabled && appliedLoyaltyPoints > 0 ? appliedLoyaltyPoints : undefined;
     const res = await createGuestOrder({
       subdomain,
       tableToken: tableCtx.token,
@@ -460,7 +406,6 @@ export function MenuCheckoutDialog({
         priceOptionLabel: l.priceOptionLabel,
         excludedIngredients: l.excludedIngredients,
       })),
-      loyaltyPointsToRedeem: redeemPts,
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -628,53 +573,19 @@ export function MenuCheckoutDialog({
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
             />
-            {loyaltyLoading ? (
-              <p className="text-[11px] text-stone-500 dark:text-stone-400">جاري التحقق من رصيد النقاط…</p>
-            ) : null}
           </div>
 
-          {loyaltyPreview?.programEnabled ? (
-            <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-3 py-3 text-sm dark:border-amber-900/50 dark:bg-amber-950/30">
-              <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">نقاط الولاء</p>
-              <p className="mt-1 text-[13px] text-stone-800 dark:text-stone-200">
-                رصيدك الحالي:{" "}
-                <span className="font-bold tabular-nums" dir="ltr">
-                  {loyaltyPreview.pointsBalance}
-                </span>{" "}
-                نقطة
+          {loyaltyOn ? (
+            <div className="flex items-start gap-2.5 rounded-xl bg-gold/15 px-3 py-2.5 text-[13px] text-text-primary">
+              <span aria-hidden className="text-base leading-5">✨</span>
+              <p className="leading-5">
+                {pointsToEarn > 0 ? (
+                  <>
+                    ستكسب <span className="font-bold tabular-nums">{pointsToEarn}</span> نقطة عند اكتمال طلبك.{" "}
+                  </>
+                ) : null}
+                <span className="text-text-secondary">لاستخدام نقاطك، اطلب ذلك من الموظف عند الدفع.</span>
               </p>
-              {maxRedeemPoints > 0 ? (
-                <div className="mt-3 space-y-2">
-                  <div className="flex items-center justify-between gap-2 text-xs text-stone-700 dark:text-stone-300">
-                    <span>استخدام نقاط على هذا الطلب</span>
-                    <span className="tabular-nums font-medium" dir="ltr">
-                      {appliedLoyaltyPoints} / {maxRedeemPoints}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={maxRedeemPoints}
-                    value={appliedLoyaltyPoints}
-                    onChange={(e) => setLoyaltyPointsToRedeem(Number(e.target.value))}
-                    className="w-full accent-amber-600"
-                  />
-                  <p className="text-[11px] text-stone-600 dark:text-stone-400">
-                    قيمة النقطة ≈ {formatMenuPrice(pointVal, currencyCode)} — خصم متوقع{" "}
-                    <span className="font-semibold text-emerald-700 dark:text-emerald-400">
-                      {formatMenuPrice(discountPreviewCents, currencyCode)}
-                    </span>
-                  </p>
-                </div>
-              ) : totalCents > 0 ? (
-                <p className="mt-2 text-[11px] text-amber-800 dark:text-amber-200/90">
-                  لا يمكن تطبيق نقاط على هذا المبلغ (الرصيد غير كافٍ أو قيمة الطلب أقل من نقطة واحدة).
-                </p>
-              ) : (
-                <p className="mt-2 text-[11px] text-stone-600 dark:text-stone-400">
-                  أضف أصنافاً لاستخدام النقاط.
-                </p>
-              )}
             </div>
           ) : null}
 
@@ -697,40 +608,24 @@ export function MenuCheckoutDialog({
           </div>
 
           <div className="rounded-2xl border border-brand/25 bg-brand-light px-4 py-4">
-            {discountPreviewCents > 0 ? (
-              <div className="mb-3 space-y-1 border-b border-brand/20 pb-3 text-center text-[11px] text-text-secondary">
-                <div className="flex justify-between gap-2">
-                  <span>مجموع الأصناف</span>
-                  <span dir="ltr" className="tabular-nums">
-                    {formatMenuPrice(totalCents, currencyCode)}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2 text-emerald-800 dark:text-emerald-300/90">
-                  <span>خصم نقاط الولاء</span>
-                  <span dir="ltr" className="tabular-nums">
-                    −{formatMenuPrice(discountPreviewCents, currencyCode)}
-                  </span>
-                </div>
-              </div>
-            ) : null}
             <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
               <span
                 className="font-display text-3xl font-bold tabular-nums text-brand"
                 dir="ltr"
               >
-                {formatMenuPrice(netCents, currencyCode)}
+                {formatMenuPrice(totalCents, currencyCode)}
               </span>
-              {netSecondaryCents != null && secondaryCode ? (
+              {totalSecondaryCents != null && secondaryCode ? (
                 <span
                   className="inline-flex items-center gap-2 border-s border-brand/25 ps-4 text-sm font-semibold tabular-nums text-text-secondary"
                   dir="ltr"
                 >
-                  {formatMenuPrice(netSecondaryCents, secondaryCode)}
+                  {formatMenuPrice(totalSecondaryCents, secondaryCode)}
                 </span>
               ) : null}
             </div>
             <p className="mt-2 text-center text-[11px] text-stone-500 dark:text-stone-400">
-              {discountPreviewCents > 0 ? "المبلغ المستحق بعد خصم النقاط" : "الإجمالي المقدّر للطلب"}
+              الإجمالي المقدّر للطلب
             </p>
           </div>
 

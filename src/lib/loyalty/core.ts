@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { db, schema } from "@/db";
 import { enqueuePointsBalanceNotification } from "@/lib/notifications";
+import { getSubscriptionInfo } from "@/lib/subscription";
 
 /*
  * عمليات الولاء الأساسية — للخادم فقط.
@@ -30,15 +31,6 @@ export async function ensureCustomer(ex: Executor, restaurantId: string, phone: 
     })
     .returning();
   return row;
-}
-
-export async function findCustomerByPhone(restaurantId: string, phone: string) {
-  const [row] = await db
-    .select()
-    .from(schema.customers)
-    .where(and(eq(schema.customers.restaurantId, restaurantId), eq(schema.customers.phoneNormalized, phone)))
-    .limit(1);
-  return row ?? null;
 }
 
 /**
@@ -122,10 +114,16 @@ export async function finalizeCompletedOrder(orderId: string, restaurantId: stri
       .select({
         enabled: schema.restaurants.loyaltyProgramEnabled,
         spendPer: schema.restaurants.loyaltySpendCentsPerPoint,
+        status: schema.restaurants.status,
+        plan: schema.restaurants.plan,
+        trialEndsAt: schema.restaurants.trialEndsAt,
+        paidUntil: schema.restaurants.paidUntil,
       })
       .from(schema.restaurants)
       .where(eq(schema.restaurants.id, restaurantId));
-    const points = restaurant?.enabled ? Math.floor(payable / Math.max(1, restaurant.spendPer)) : 0;
+    // الكسب يحتاج تفعيل البرنامج + خطة تشمل الولاء
+    const earns = restaurant?.enabled && getSubscriptionInfo(restaurant).features.loyalty;
+    const points = earns ? Math.floor(payable / Math.max(1, restaurant.spendPer)) : 0;
 
     const customer = await ensureCustomer(tx, restaurantId, phone);
     const [updated] = await tx

@@ -4,15 +4,23 @@ import Link from "next/link";
 import { useState } from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { PLAN_LIST } from "@/lib/plans";
 
-const BASE_FEATURES = ["صفحة المنيو الرقمية", "لوحة تحكم المطعم", "رمز QR للمطعم"];
-const PRO_FEATURES = ["رمز QR لكل طاولة", "الطلب من الصفحة", "نقاط ولاء ومكافآت", "دومين خاص بالمطعم", "طباعة فاتورة حرارية"];
+// النصوص التسويقية فقط — الأسعار والميزات من src/lib/plans.ts
+const PLAN_COPY = {
+  basic: { cta: "ابدأ بالأساسية", trial: true, featured: false },
+  pro: { cta: "ابدأ بالاحترافية", trial: true, featured: true },
+  chain: { cta: "تواصل معنا", trial: false, featured: false },
+} as const;
 
-const PLANS = [
-  { name: "الأساسية", desc: "للمطاعم الصغيرة والكافيهات", monthly: 8, yearly: 5, features: BASE_FEATURES, cta: "ابدأ بالأساسية", trial: true },
-  { name: "الاحترافية", desc: "الطلب من الطاولة والولاء", monthly: 15, yearly: 10, features: [...BASE_FEATURES, ...PRO_FEATURES], cta: "ابدأ بالاحترافية", trial: true, featured: true },
-  { name: "السلاسل", desc: "للمطاعم متعددة الفروع", monthly: 30, yearly: 20, features: [...BASE_FEATURES, ...PRO_FEATURES, "إدارة عدة فروع", "إعدادات متقدمة"], cta: "تواصل معنا", trial: false },
-];
+const PLANS = PLAN_LIST.map((p) => ({
+  name: p.name,
+  desc: p.desc,
+  monthly: p.monthlyCents / 100,
+  yearly: p.yearlyMonthlyCents / 100,
+  features: p.highlights,
+  ...PLAN_COPY[p.id],
+}));
 
 export function PricingSection() {
   const [yearly, setYearly] = useState(true);

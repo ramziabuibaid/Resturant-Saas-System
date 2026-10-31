@@ -2,6 +2,7 @@ import { getMenuItemsBySubdomain } from "@/lib/data/menu";
 import { getRestaurantTableByToken, listPublicTablesForRestaurant } from "@/lib/data/tables";
 import { notFound } from "next/navigation";
 import { MenuView } from "@/components/menu-view";
+import { getSubscriptionInfo } from "@/lib/subscription";
 
 type Props = {
   params: Promise<{ subdomain: string }>;
@@ -38,7 +39,13 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
     notFound();
   }
 
-  if (restaurant.status === "suspended") {
+  const sub = getSubscriptionInfo({
+    status: restaurant.status,
+    plan: restaurant.plan,
+    trialEndsAt: restaurant.trial_ends_at,
+    paidUntil: restaurant.paid_until,
+  });
+  if (!sub.canServe) {
     return (
       <main dir="rtl" className="flex min-h-svh flex-col items-center justify-center gap-3 bg-bg-base px-6 text-center">
         <p className="font-display text-2xl font-bold text-text-primary">{restaurant.name}</p>
@@ -46,6 +53,11 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
       </main>
     );
   }
+
+  // بيانات الاشتراك لا تخص الزبون
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { plan, trial_ends_at, paid_until, ...publicRestaurant } = restaurant;
+  if (!sub.features.loyalty) publicRestaurant.loyalty_program_enabled = false;
 
   const urlToken = typeof sp?.t === "string" ? sp.t : null;
   const tableFromQr = urlToken
@@ -57,7 +69,8 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
 
   return (
     <MenuView
-      restaurant={restaurant}
+      restaurant={publicRestaurant}
+      orderingEnabled={sub.features.ordering}
       categories={categories ?? []}
       menuItems={menuItems ?? []}
       subdomain={restaurant.subdomain}

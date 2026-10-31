@@ -77,6 +77,8 @@ export type MenuViewProps = {
   tableToken?: string | null;
   /** طاولات المطعم لاختيار «داخل المطعم» بدون QR */
   publicTables?: { id: string; label: string }[];
+  /** false = عرض المنيو فقط بدون سلة وطلب (حسب خطة الاشتراك) */
+  orderingEnabled?: boolean;
 };
 
 export function MenuView({
@@ -87,6 +89,7 @@ export function MenuView({
   tableFromQr = null,
   tableToken = null,
   publicTables = [],
+  orderingEnabled = true,
 }: MenuViewProps) {
   const currencyCode = restaurant.currency_code ?? "ILS";
   const secondaryOn = restaurant.secondary_currency_enabled === true && !!restaurant.secondary_currency_code;
@@ -182,7 +185,7 @@ export function MenuView({
         ) : null}
 
         {featured.length >= 3 && !query ? (
-          <FeaturedRow items={featured} price={price} onOpen={setSheetItem} onAdd={quickAdd} />
+          <FeaturedRow items={featured} price={price} onOpen={setSheetItem} onAdd={orderingEnabled ? quickAdd : undefined} />
         ) : null}
 
         {menuItems.length === 0 ? (
@@ -199,7 +202,7 @@ export function MenuView({
                 </div>
                 <ul className="divide-y divide-border overflow-hidden rounded-[22px] border border-border bg-bg-surface">
                   {g.items.map((item) => (
-                    <MenuItemRow key={item.id} item={item} price={price} onOpen={setSheetItem} onAdd={quickAdd} />
+                    <MenuItemRow key={item.id} item={item} price={price} onOpen={setSheetItem} onAdd={orderingEnabled ? quickAdd : undefined} />
                   ))}
                 </ul>
               </section>
@@ -222,8 +225,10 @@ export function MenuView({
         socialTiktokUrl={restaurant.social_tiktok_url ?? null}
       />
 
-      <ItemSheet item={sheetItem} onClose={() => setSheetItem(null)} onAdd={mergeAdd} price={price} addLabel={addLabel} />
+      <ItemSheet item={sheetItem} onClose={() => setSheetItem(null)} onAdd={orderingEnabled ? mergeAdd : undefined} price={price} addLabel={addLabel} />
 
+      {orderingEnabled ? (
+        <>
       <MenuCartBar
         cart={cart}
         setCart={setCart}
@@ -249,6 +254,8 @@ export function MenuView({
         menuById={menuById}
         tableCtx={tableCtx}
       />
+        </>
+      ) : null}
     </div>
   );
 }
@@ -461,7 +468,7 @@ function MenuItemRow({
   item: MenuItem;
   price: PriceContext;
   onOpen: (i: MenuItem) => void;
-  onAdd: (i: MenuItem) => void;
+  onAdd?: (i: MenuItem) => void;
 }) {
   const unavailable = item.is_available === false;
   return (
@@ -498,7 +505,7 @@ function MenuItemRow({
               <UtensilsCrossed className="size-7 opacity-50" />
             </div>
           )}
-          {!unavailable ? (
+          {!unavailable && onAdd ? (
             <div className="absolute -bottom-2 -start-2">
               <AddButton onClick={() => onAdd(item)} label={`أضف ${item.name}`} />
             </div>
@@ -518,7 +525,7 @@ function FeaturedRow({
   items: MenuItem[];
   price: PriceContext;
   onOpen: (i: MenuItem) => void;
-  onAdd: (i: MenuItem) => void;
+  onAdd?: (i: MenuItem) => void;
 }) {
   return (
     <section className="mt-6" aria-label="أطباق مختارة">
@@ -537,9 +544,11 @@ function FeaturedRow({
           >
             <div className="relative aspect-square">
               <Image src={item.image_url!} alt={item.name} fill className="object-cover" sizes="176px" />
-              <div className="absolute bottom-2 start-2">
-                <AddButton onClick={() => onAdd(item)} label={`أضف ${item.name}`} />
-              </div>
+              {onAdd ? (
+                <div className="absolute bottom-2 start-2">
+                  <AddButton onClick={() => onAdd(item)} label={`أضف ${item.name}`} />
+                </div>
+              ) : null}
             </div>
             <div className="p-3">
               <p className="truncate text-sm font-bold">{item.name}</p>

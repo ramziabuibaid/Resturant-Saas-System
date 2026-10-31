@@ -7,6 +7,9 @@ import { getAdminContext } from "@/lib/admin-context";
 import { AdminShell } from "./admin-shell";
 import { AdminRestaurantShell } from "./admin-restaurant-shell";
 import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
+import { getSubscriptionInfo } from "@/lib/subscription";
+import { planOf } from "@/lib/plans";
+import { SubscriptionBanner } from "@/components/dashboard/subscription-banner";
 
 export async function generateMetadata(): Promise<Metadata> {
   const tenant = await resolveAdminTenant();
@@ -56,6 +59,13 @@ export default async function AdminLayout({
     livePreviewUrl = built || null;
   }
 
+  const sub = getSubscriptionInfo({
+    status: restaurant?.status,
+    plan: restaurant?.plan,
+    trialEndsAt: restaurant?.trial_ends_at,
+    paidUntil: restaurant?.paid_until,
+  });
+
   return (
     <AdminRestaurantShell
       restaurantName={restaurant?.name ?? "المطعم"}
@@ -64,6 +74,13 @@ export default async function AdminLayout({
       logoUrl={restaurant?.logo_url ?? null}
       profile={{ name: profile.full_name || profile.username || "صاحب المطعم", role: "مالك المطعم" }}
     >
+      <SubscriptionBanner
+        state={sub.state}
+        daysLeft={sub.daysLeft}
+        planName={planOf(restaurant?.plan).name}
+        orderingIncluded={sub.features.ordering}
+        restaurantName={restaurant?.name ?? "المطعم"}
+      />
       {children}
     </AdminRestaurantShell>
   );

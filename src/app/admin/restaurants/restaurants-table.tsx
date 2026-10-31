@@ -16,20 +16,21 @@ import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/
 import {
   createRestaurant,
   deleteRestaurant,
+  extendTrial,
+  recordSubscriptionPayment,
+  updateRestaurantPlan,
   updateRestaurantStatus,
   updateRestaurantSubdomain,
 } from "@/app/actions/super-admin";
+import { PLAN_LIST, PLANS, suggestedAmountCents, type PlanId } from "@/lib/plans";
+import type { SubscriptionState } from "@/lib/subscription";
+import { formatDateAr, SUB_STATE_UI, subscriptionSummary } from "@/lib/subscription-ui";
 import { createOrUpdateOwnerCredentials, updateOwnerPassword } from "@/app/actions/owner-credentials";
 import type { PlatformRestaurantRow } from "@/lib/data/platform";
 import { cn } from "@/lib/utils";
 
-type Status = PlatformRestaurantRow["status"];
-
-const STATUS: Record<Status, { label: string; cls: string; hint: string }> = {
-  active: { label: "نشط", cls: "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300", hint: "مشترك فعّال" },
-  trial: { label: "تجريبي", cls: "bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300", hint: "فترة تجربة" },
-  suspended: { label: "موقوف", cls: "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300", hint: "المنيو والطلبات متوقفة" },
-};
+const STATES = Object.keys(SUB_STATE_UI) as SubscriptionState[];
+const usd = (cents: number) => `$${(cents / 100).toLocaleString("en", { maximumFractionDigits: 2 })}`;
 
 const inputCls =
   "h-11 w-full rounded-xl border border-border bg-bg-base px-3.5 text-[15px] text-text-primary outline-none placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20";
@@ -58,7 +59,7 @@ export function RestaurantsTable({
   openNew: boolean;
 }) {
   const [q, setQ] = useState("");
-  const [filter, setFilter] = useState<Status | "all">("all");
+  const [filter, setFilter] = useState<SubscriptionState | "all">("all");
   const router = useRouter();
   const [creating, setCreatingState] = useState(openNew);
   const [manageId, setManageId] = useState<string | null>(null);
@@ -67,7 +68,7 @@ export function RestaurantsTable({
     const query = q.trim().toLowerCase();
     return restaurants.filter(
       (r) =>
-        (filter === "all" || r.status === filter) &&
+        (filter === "all" || r.subState === filter) &&
         (!query || r.name.toLowerCase().includes(query) || r.subdomain.includes(query))
     );
   }, [restaurants, q, filter]);
@@ -90,14 +91,14 @@ export function RestaurantsTable({
         <div className="flex gap-2">
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value as Status | "all")}
+            onChange={(e) => setFilter(e.target.value as SubscriptionState | "all")}
             className={cn(inputCls, "bg-bg-surface sm:w-40")}
             aria-label="تصفية حسب الحالة"
           >
             <option value="all">كل الحالات ({restaurants.length})</option>
-            {(Object.keys(STATUS) as Status[]).map((s) => (
+            {STATES.map((s) => (
               <option key={s} value={s}>
-                {STATUS[s].label} ({restaurants.filter((r) => r.status === s).length})
+                {SUB_STATE_UI[s].label} ({restaurants.filter((r) => r.subState === s).length})
               </option>
             ))}
           </select>
@@ -117,7 +118,7 @@ export function RestaurantsTable({
           <span>المطعم</span>
           <span>المنيو</span>
           <span>الطلبات (30 يوماً)</span>
-          <span>الحالة</span>
+          <span>الاشتراك</span>
           <span className="w-20" />
         </div>
         {shown.length === 0 ? (
@@ -160,11 +161,14 @@ export function RestaurantsTable({
                   <span className="font-semibold tabular-nums">{r.orders30d}</span>
                   {r.ordersToday ? <span className="text-xs text-emerald-600 dark:text-emerald-400"> · {r.ordersToday} اليوم</span> : null}
                 </p>
-                <span className={cn("hidden w-fit rounded-full px-2.5 py-1 text-[11px] font-bold md:inline-block", STATUS[r.status].cls)}>
-                  {STATUS[r.status].label}
-                </span>
+                <div className="hidden md:block">
+                  <span className={cn("inline-block rounded-full px-2.5 py-1 text-[11px] font-bold", SUB_STATE_UI[r.subState].cls)}>
+                    {SUB_STATE_UI[r.subState].label} · {PLANS[r.plan].name}
+                  </span>
+                  <p className="mt-1 text-[11px] text-text-muted">{subscriptionSummary(r.subState, r.daysLeft, r.subState === "trial" ? r.trialEndsAt : r.paidUntil)}</p>
+                </div>
                 <div className="flex items-center gap-1">
-                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold md:hidden", STATUS[r.status].cls)}>{STATUS[r.status].label}</span>
+                  <span className={cn("rounded-full px-2.5 py-1 text-[11px] font-bold md:hidden", SUB_STATE_UI[r.subState].cls)}>{SUB_STATE_UI[r.subState].label}</span>
                   <a
                     href={siteUrl(r.subdomain, rootHost, proto)}
                     target="_blank"
@@ -184,7 +188,7 @@ export function RestaurantsTable({
                   </button>
                 </div>
                 <p className="col-span-2 text-xs text-text-muted md:hidden">
-                  {r.items} صنف · {r.tables} طاولة · {r.orders30d} طلب في 30 يوماً
+                  {PLANS[r.plan].name} · {subscriptionSummary(r.subState, r.daysLeft, r.subState === "trial" ? r.trialEndsAt : r.paidUntil)} · {r.orders30d} طلب في 30 يوماً
                 </p>
               </li>
             ))}
@@ -250,7 +254,7 @@ function NewRestaurantForm({ rootHost, onDone }: { rootHost: string; onDone: () 
   const [pending, startTransition] = useTransition();
   const [name, setName] = useState("");
   const [subdomain, setSubdomain] = useState("");
-  const [status, setStatus] = useState<Status>("trial");
+  const [plan, setPlan] = useState<PlanId>("pro");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -259,7 +263,7 @@ function NewRestaurantForm({ rootHost, onDone }: { rootHost: string; onDone: () 
     e.preventDefault();
     setError(null);
     startTransition(async () => {
-      const res = await createRestaurant({ name, subdomain, status });
+      const res = await createRestaurant({ name, subdomain, plan });
       if (res.error || !res.data) {
         setError(res.error ?? "تعذر إنشاء المطعم");
         return;
@@ -301,19 +305,8 @@ function NewRestaurantForm({ rootHost, onDone }: { rootHost: string; onDone: () 
             {rootHost ? <span className="pe-3.5 font-mono text-sm text-text-muted">.{rootHost}</span> : null}
           </div>
         </Field>
-        <Field label="الحالة">
-          <div className="grid grid-cols-3 gap-1 rounded-xl bg-bg-surface-2 p-1">
-            {(Object.keys(STATUS) as Status[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setStatus(s)}
-                className={cn("h-9 rounded-lg text-sm font-semibold transition", status === s ? "bg-bg-surface shadow-sm" : "text-text-muted")}
-              >
-                {STATUS[s].label}
-              </button>
-            ))}
-          </div>
+        <Field label="الخطة" hint="تبدأ بتجربة مجانية 30 يوماً بكل الميزات">
+          <PlanPicker value={plan} onChange={setPlan} />
         </Field>
 
         <div className="space-y-4 rounded-2xl border border-border p-4">
@@ -383,26 +376,7 @@ function ManageRestaurant({ r, rootHost, onDeleted }: { r: PlatformRestaurantRow
         </SheetDescription>
       </div>
       <div className="flex-1 space-y-5 overflow-y-auto p-5">
-        <section className="space-y-2">
-          <p className="text-sm font-bold">حالة الاشتراك</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(Object.keys(STATUS) as Status[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={pending || r.status === s}
-                onClick={() => run(() => updateRestaurantStatus(r.id, s), `أصبحت الحالة: ${STATUS[s].label}`)}
-                className={cn(
-                  "rounded-xl border px-2 py-2.5 text-center transition disabled:cursor-default",
-                  r.status === s ? "border-brand bg-brand-light" : "border-border hover:border-border-strong"
-                )}
-              >
-                <span className={cn("inline-block rounded-full px-2 py-0.5 text-[11px] font-bold", STATUS[s].cls)}>{STATUS[s].label}</span>
-                <span className="mt-1 block text-[11px] text-text-muted">{STATUS[s].hint}</span>
-              </button>
-            ))}
-          </div>
-        </section>
+        <SubscriptionPanel r={r} pending={pending} run={run} />
 
         <section className="space-y-3 rounded-2xl border border-border p-4">
           <p className="text-sm font-bold">النطاق الفرعي</p>
@@ -480,5 +454,207 @@ function ManageRestaurant({ r, rootHost, onDeleted }: { r: PlatformRestaurantRow
         </section>
       </div>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+
+function PlanPicker({ value, onChange, disabled }: { value: PlanId; onChange: (p: PlanId) => void; disabled?: boolean }) {
+  return (
+    <div className="grid grid-cols-3 gap-2">
+      {PLAN_LIST.map((p) => (
+        <button
+          key={p.id}
+          type="button"
+          disabled={disabled}
+          onClick={() => onChange(p.id)}
+          className={cn(
+            "rounded-xl border px-2 py-2.5 text-center transition disabled:opacity-60",
+            value === p.id ? "border-brand bg-brand-light" : "border-border hover:border-border-strong"
+          )}
+        >
+          <span className="block text-sm font-bold">{p.name}</span>
+          <span className="block text-[11px] text-text-muted" dir="ltr">
+            {usd(p.monthlyCents)}/mo
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const MONTH_CHOICES = [1, 3, 6, 12];
+
+function SubscriptionPanel({
+  r,
+  pending,
+  run,
+}: {
+  r: PlatformRestaurantRow;
+  pending: boolean;
+  run: (fn: () => Promise<{ error: string | null }>, ok: string, after?: () => void) => void;
+}) {
+  const [payPlan, setPayPlan] = useState<PlanId>(r.plan);
+  const [months, setMonths] = useState(12);
+  const [amount, setAmount] = useState(String(suggestedAmountCents(r.plan, 12) / 100));
+  const [note, setNote] = useState("");
+
+  function pick(plan: PlanId, m: number) {
+    setPayPlan(plan);
+    setMonths(m);
+    setAmount(String(suggestedAmountCents(plan, m) / 100));
+  }
+
+  const ui = SUB_STATE_UI[r.subState];
+  const endsAt = r.subState === "trial" ? r.trialEndsAt : r.paidUntil;
+
+  return (
+    <section className="space-y-4 rounded-2xl border border-border p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold">الاشتراك</p>
+          <p className="mt-0.5 text-xs text-text-muted">{subscriptionSummary(r.subState, r.daysLeft, endsAt)}</p>
+        </div>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold", ui.cls)}>{ui.label}</span>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold text-text-muted">الخطة الحالية</p>
+        <PlanPicker
+          value={r.plan}
+          disabled={pending}
+          onChange={(p) => p !== r.plan && run(() => updateRestaurantPlan(r.id, p), `أصبحت الخطة: ${PLANS[p].name}`)}
+        />
+      </div>
+
+      {r.status === "trial" ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-semibold text-text-muted">تمديد التجربة:</span>
+          {[7, 14, 30].map((d) => (
+            <button
+              key={d}
+              type="button"
+              disabled={pending}
+              onClick={() => run(() => extendTrial(r.id, d), `مُددت التجربة ${d} يوماً`)}
+              className="h-8 rounded-lg border border-border px-3 text-xs font-semibold hover:border-brand hover:text-brand disabled:opacity-50"
+            >
+              +{d} يوم
+            </button>
+          ))}
+        </div>
+      ) : null}
+
+      <div className="space-y-3 rounded-xl bg-bg-surface-2/60 p-3">
+        <p className="text-sm font-bold">تسجيل دفعة</p>
+        <div className="grid grid-cols-4 gap-1.5">
+          {MONTH_CHOICES.map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => pick(payPlan, m)}
+              className={cn(
+                "h-9 rounded-lg text-xs font-semibold transition",
+                months === m ? "bg-brand text-white" : "bg-bg-surface text-text-secondary"
+              )}
+            >
+              {m === 12 ? "سنة" : `${m} ${m === 1 ? "شهر" : "أشهر"}`}
+            </button>
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <select
+            value={payPlan}
+            onChange={(e) => pick(e.target.value as PlanId, months)}
+            className={cn(inputCls, "h-10 bg-bg-surface text-sm")}
+            aria-label="خطة الدفعة"
+          >
+            {PLAN_LIST.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <div className="flex h-10 w-36 shrink-0 items-center rounded-xl border border-border bg-bg-surface focus-within:border-brand" dir="ltr">
+            <span className="ps-3 text-sm text-text-muted">$</span>
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              inputMode="decimal"
+              aria-label="المبلغ بالدولار"
+              className="h-full min-w-0 flex-1 bg-transparent px-2 text-sm font-semibold outline-none"
+            />
+          </div>
+        </div>
+        <input
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="ملاحظة (اختياري): تحويل بنكي، نقداً…"
+          className={cn(inputCls, "h-10 bg-bg-surface text-sm")}
+        />
+        <button
+          type="button"
+          disabled={pending || !amount}
+          onClick={() =>
+            run(
+              () =>
+                recordSubscriptionPayment({
+                  restaurantId: r.id,
+                  plan: payPlan,
+                  months,
+                  amountCents: Math.round(Number(amount) * 100),
+                  note,
+                }),
+              "سُجّلت الدفعة وفُعّل الاشتراك",
+              () => setNote("")
+            )
+          }
+          className="h-10 w-full rounded-xl bg-brand text-sm font-bold text-white transition hover:bg-brand-dark disabled:opacity-50"
+        >
+          تسجيل الدفعة وتفعيل {months === 12 ? "سنة" : `${months} ${months === 1 ? "شهر" : "أشهر"}`}
+        </button>
+      </div>
+
+      {r.payments.length ? (
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold text-text-muted">الدفعات</p>
+          <ul className="divide-y divide-border rounded-xl border border-border">
+            {r.payments.slice(0, 6).map((p) => (
+              <li key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                <span className="min-w-0">
+                  <span className="block font-semibold">
+                    {PLANS[p.plan].name} · {p.months === 12 ? "سنة" : `${p.months} ${p.months === 1 ? "شهر" : "أشهر"}`}
+                  </span>
+                  <span className="block truncate text-text-muted">
+                    {formatDateAr(p.createdAt)}
+                    {p.note ? ` · ${p.note}` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 font-bold tabular-nums" dir="ltr">
+                  {usd(p.amountCents)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() =>
+          r.status === "suspended"
+            ? run(() => updateRestaurantStatus(r.id, r.paidUntil ? "active" : "trial"), "أُعيد تفعيل المطعم")
+            : run(() => updateRestaurantStatus(r.id, "suspended"), "أُوقف المطعم")
+        }
+        className={cn(
+          "h-10 w-full rounded-xl border text-sm font-semibold transition disabled:opacity-50",
+          r.status === "suspended"
+            ? "border-emerald-500 text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-300"
+            : "border-border text-text-secondary hover:border-red-400 hover:text-danger"
+        )}
+      >
+        {r.status === "suspended" ? "إعادة تفعيل المطعم" : "إيقاف المطعم مؤقتاً (المنيو والطلبات)"}
+      </button>
+    </section>
   );
 }

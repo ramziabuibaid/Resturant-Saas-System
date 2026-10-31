@@ -33,6 +33,7 @@ services:
       target: build
       args:
         NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
     environment:
       DATABASE_URL: postgres://restaurant:${POSTGRES_PASSWORD}@db:5432/restaurant_saas
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@resturant.app}
@@ -56,6 +57,7 @@ services:
       target: run
       args:
         NEXT_PUBLIC_ROOT_DOMAIN: ${ROOT_DOMAIN}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
     restart: unless-stopped
     environment:
       DATABASE_URL: postgres://restaurant:${POSTGRES_PASSWORD}@db:5432/restaurant_saas

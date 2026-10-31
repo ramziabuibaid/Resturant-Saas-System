@@ -53,6 +53,10 @@ export type Restaurant = {
   /** عند التفعيل: إدارة أسماء الويترز وربطهم بالطاولات وفلترة الطلبات */
   waiters_system_enabled?: boolean | null;
   status?: "active" | "suspended" | "trial" | null;
+  /** الاشتراك — لا يُرسل للمتصفح في الصفحات العامة */
+  plan?: "basic" | "pro" | "chain";
+  trial_ends_at?: string | null;
+  paid_until?: string | null;
   created_at?: string;
   updated_at?: string;
 };

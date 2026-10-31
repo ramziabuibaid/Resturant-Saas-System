@@ -27,7 +27,8 @@ export function ItemSheet({
 }: {
   item: MenuItem | null;
   onClose: () => void;
-  onAdd: (line: CartLine) => void;
+  /** بدونها: عرض فقط (الخطة لا تشمل الطلب من المنيو) */
+  onAdd?: (line: CartLine) => void;
   price: PriceContext;
   addLabel: string;
 }) {
@@ -51,7 +52,7 @@ function ItemSheetBody({
   addLabel,
 }: {
   item: MenuItem;
-  onAdd: (line: CartLine) => void;
+  onAdd?: (line: CartLine) => void;
   onClose: () => void;
   price: PriceContext;
   addLabel: string;
@@ -66,7 +67,7 @@ function ItemSheetBody({
     price.secondaryCode != null ? resolveSecondaryUnitCents(item, unitCents, option, price.exchangeRate) : null;
 
   function add() {
-    onAdd({
+    onAdd?.({
       menuItemId: item.id,
       quantity: qty,
       priceOptionLabel: options.length ? option : null,
@@ -127,7 +128,8 @@ function ItemSheetBody({
             </div>
           ) : null}
 
-          <div>
+          {onAdd ? (
+            <div>
             <label htmlFor="excluded" className="mb-2 block text-sm font-bold text-text-primary">
               بدون مكونات <span className="font-normal text-text-muted">(اختياري)</span>
             </label>
@@ -138,10 +140,12 @@ function ItemSheetBody({
               placeholder="مثال: بصل، حار، صوص"
               className="h-12 w-full rounded-2xl border border-border bg-bg-surface px-4 text-[15px] text-text-primary outline-none placeholder:text-text-muted focus:border-brand focus:ring-2 focus:ring-brand/20"
             />
-          </div>
+            </div>
+          ) : null}
         </div>
       </div>
 
+      {onAdd ? (
       <div className="flex items-center gap-3 border-t border-border bg-bg-base p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center rounded-full border border-border bg-bg-surface">
           <button type="button" aria-label="زيادة" onClick={() => setQty((q) => Math.min(99, q + 1))} className="flex size-11 items-center justify-center text-text-primary">
@@ -166,6 +170,7 @@ function ItemSheetBody({
           </span>
         </button>
       </div>
+      ) : null}
     </div>
   );
 }
