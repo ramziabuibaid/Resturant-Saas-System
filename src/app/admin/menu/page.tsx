@@ -1,43 +1,33 @@
 import { requireRestaurantAdmin } from "@/lib/admin-context";
 import { getRestaurantForProfile } from "@/lib/data/restaurants";
-import { getCategoriesForRestaurant as getCategories, getMenuItems } from "@/lib/data/menu";
-import { AdminItemsManager } from "@/app/admin/items/admin-items-manager";
+import { getCategoriesForRestaurant, getMenuItems } from "@/lib/data/menu";
+import { MenuManager } from "./menu-manager";
 
 export const metadata = {
-  title: "أصناف المنيو | لوحة المطعم",
-  description: "إدارة أصناف المنيو",
+  title: "المنيو | لوحة المطعم",
+  description: "إدارة التصنيفات والأصناف",
 };
 
-/** صفحة لوحة المطعم فقط — عند الدخول بدون subdomain نوجّه إلى /admin */
 export default async function AdminMenuPage() {
   const { profile } = await requireRestaurantAdmin();
   const restaurantId = profile.restaurant_id!;
   const [categories, items, restaurant] = await Promise.all([
-    getCategories(restaurantId),
+    getCategoriesForRestaurant(restaurantId),
     getMenuItems(restaurantId),
     getRestaurantForProfile(profile),
   ]);
+  const rate = restaurant?.secondary_currency_exchange_rate;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-[32px] font-bold leading-tight text-[var(--text-primary)]">
-          أصناف المنيو
-        </h1>
-      </div>
-      <AdminItemsManager
-        restaurantId={restaurantId}
-        initialCategories={categories}
-        initialItems={items}
-        secondaryCurrencyEnabled={restaurant?.secondary_currency_enabled === true}
-        secondaryCurrencyCode={restaurant?.secondary_currency_code ?? null}
-        secondaryExchangeRate={
-          restaurant?.secondary_currency_exchange_rate != null
-            ? Number(restaurant.secondary_currency_exchange_rate)
-            : null
-        }
-        primaryCurrencyCode={restaurant?.currency_code ?? null}
-      />
-    </div>
+    <MenuManager
+      initialCategories={categories}
+      initialItems={items}
+      currencyCode={restaurant?.currency_code ?? "ILS"}
+      currency={{
+        secondaryEnabled: restaurant?.secondary_currency_enabled === true && !!restaurant.secondary_currency_code,
+        secondaryCode: restaurant?.secondary_currency_code ?? null,
+        hasExchangeRate: rate != null && Number(rate) > 0,
+      }}
+    />
   );
 }

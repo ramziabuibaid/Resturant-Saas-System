@@ -213,7 +213,7 @@ async function RestaurantOverview({ restaurantId }: { restaurantId: string }) {
 
   const steps = [
     { done: o.setup.hasLogo && o.setup.hasCover, label: "أضف الشعار وصورة الغلاف", href: "/admin/settings" },
-    { done: o.setup.categories > 0, label: "أنشئ تصنيفات المنيو", href: "/admin/categories" },
+    { done: o.setup.categories > 0, label: "أنشئ تصنيفات المنيو", href: "/admin/menu" },
     { done: o.setup.items >= 3, label: "أضف 3 أصناف على الأقل مع صورها", href: "/admin/menu" },
     { done: o.setup.tables > 0, label: "أنشئ الطاولات واطبع رموز QR", href: "/admin/tables" },
     { done: o.setup.orders > 0, label: "استقبل أول طلب", href: "/admin/orders" },

@@ -83,14 +83,18 @@ export function RestaurantLogoForm({ restaurantId, currentLogoUrl }: Props) {
         <div className="min-w-0 flex-1 space-y-3">
           <div>
             <Label htmlFor="logo-file">صورة الشعار (JPG, PNG, WebP)</Label>
-            <input
-              id="logo-file"
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="mt-1 block w-full text-sm text-muted-foreground file:mr-2 file:rounded-md file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-primary-foreground file:transition-colors"
-              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-              disabled={loading}
-            />
+            <label className="mt-2 flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border-strong px-4 py-3 text-sm hover:border-brand">
+              <span className="rounded-lg bg-brand-light px-3 py-1.5 font-semibold text-brand">اختيار صورة</span>
+              <span className="min-w-0 truncate text-text-muted">{file ? file.name : "لم تُختر صورة بعد"}</span>
+              <input
+                id="logo-file"
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif"
+                className="sr-only"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+                disabled={loading}
+              />
+            </label>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           {success && <p className="text-sm text-green-600">تم حفظ الشعار.</p>}

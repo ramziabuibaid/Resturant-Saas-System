@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, max } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { getProfileOrRedirect } from "@/lib/auth/current-user";
@@ -109,9 +109,21 @@ export async function createMenuItem(
   );
   if (secondaryError) return { data: null, error: secondaryError };
 
+  // الصنف الجديد في آخر تصنيفه
+  const [{ last }] = await db
+    .select({ last: max(schema.menuItems.sortOrder) })
+    .from(schema.menuItems)
+    .where(
+      and(
+        eq(schema.menuItems.restaurantId, restaurantId),
+        input.category_id ? eq(schema.menuItems.categoryId, input.category_id) : isNull(schema.menuItems.categoryId)
+      )
+    );
+
   const [row] = await db
     .insert(schema.menuItems)
     .values({
+      sortOrder: (last ?? -1) + 1,
       restaurantId,
       name,
       description: input.description?.trim() || null,
@@ -189,6 +201,28 @@ export async function deleteMenuItem(id: string): Promise<{ error: string | null
     .where(and(eq(schema.menuItems.id, id), eq(schema.menuItems.restaurantId, restaurant_id!)))
     .returning({ id: schema.menuItems.id });
   if (!deleted.length) return { error: "الصنف غير موجود." };
+  revalidateMenu();
+  return { error: null };
+}
+
+/** ترتيب أصناف تصنيف واحد بالسحب — ids بالترتيب الجديد */
+export async function reorderMenuItems(ids: string[]): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const restaurantId = restaurant_id!;
+  if (!Array.isArray(ids) || ids.length > 1000) return { error: "طلب غير صالح" };
+
+  const owned = await db
+    .select({ id: schema.menuItems.id })
+    .from(schema.menuItems)
+    .where(eq(schema.menuItems.restaurantId, restaurantId));
+  const ownedIds = new Set(owned.map((m) => m.id));
+  if (ids.some((id) => !ownedIds.has(id))) return { error: "صنف غير موجود" };
+
+  await db.transaction(async (tx) => {
+    for (const [i, id] of ids.entries()) {
+      await tx.update(schema.menuItems).set({ sortOrder: i }).where(eq(schema.menuItems.id, id));
+    }
+  });
   revalidateMenu();
   return { error: null };
 }

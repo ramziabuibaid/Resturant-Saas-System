@@ -13,6 +13,17 @@ import { RestaurantPublicContentForm } from "./restaurant-public-content-form";
 import { RestaurantLoyaltySettingsForm } from "./restaurant-loyalty-settings-form";
 import { RestaurantPhoneCountryForm } from "./restaurant-phone-country-form";
 import { RestaurantWaitersSettingsForm } from "./restaurant-waiters-settings-form";
+import { headers } from "next/headers";
+import { buildTenantPublicSiteUrl } from "@/lib/tenant-public-url";
+import { CopyLinkButton } from "@/components/dashboard/copy-link-button";
+
+const SECTIONS = [
+  { id: "brand", label: "الشعار" },
+  { id: "orders", label: "الطلبات والجوال" },
+  { id: "content", label: "صفحة المنيو والتواصل" },
+  { id: "staff", label: "الويترز" },
+  { id: "loyalty", label: "الولاء والنقاط" },
+];
 
 export const metadata = {
   title: "الإعدادات | لوحة المطعم",
@@ -24,32 +35,49 @@ export default async function AdminSettingsPage() {
   const { profile } = await requireRestaurantAdmin();
   const restaurant = await getRestaurantForProfile(profile);
   const { waiters: restaurantWaiters } = await listRestaurantWaiters();
+  const h = await headers();
+  const menuUrl = restaurant
+    ? buildTenantPublicSiteUrl(restaurant.subdomain, h.get("host") ?? "", h.get("x-forwarded-proto") ?? "http")
+    : "";
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">الإعدادات</h1>
-        <p className="text-muted-foreground">
-          إعدادات المطعم والحساب.
-        </p>
-      </div>
+      {restaurant ? (
+        <div className="flex flex-wrap items-center gap-4 rounded-[20px] border border-border bg-bg-surface p-5">
+          <div className="min-w-0 flex-1">
+            <p className="font-display text-xl font-bold">{restaurant.name}</p>
+            <p className="mt-1 truncate text-sm text-text-muted" dir="ltr">
+              {menuUrl.replace(/^https?:\/\//, "")}
+            </p>
+          </div>
+          <CopyLinkButton url={menuUrl} />
+          <a
+            href={menuUrl}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex h-10 items-center gap-2 rounded-xl bg-brand px-4 text-sm font-bold text-white hover:bg-brand-dark"
+          >
+            فتح المنيو
+          </a>
+        </div>
+      ) : null}
 
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
+      <div className="grid gap-6 lg:grid-cols-[200px_1fr]">
+        <nav className="hidden lg:block">
+          <ul className="sticky top-24 space-y-1 text-sm">
+            {SECTIONS.map((sec) => (
+              <li key={sec.id}>
+                <a href={`#${sec.id}`} className="block rounded-xl px-3 py-2 font-medium text-text-secondary hover:bg-bg-surface-2 hover:text-text-primary">
+                  {sec.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+        <div className="min-w-0 space-y-6">
+      <Card id="brand" className="scroll-mt-24 rounded-[20px] border-border bg-bg-surface shadow-none">
         <CardHeader>
-          <CardTitle>المطعم</CardTitle>
-          <CardDescription>المطعم المرتبط بحسابك</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <p className="text-sm font-medium">{restaurant?.name ?? "—"}</p>
-          <p className="text-xs text-muted-foreground">
-            النطاق الفرعي: <code className="rounded bg-muted px-1">{restaurant?.subdomain ?? "—"}</code>
-          </p>
-        </CardContent>
-      </Card>
-
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
-        <CardHeader>
-          <CardTitle>شعار المطعم</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">شعار المطعم</CardTitle>
           <CardDescription>
             يظهر الشعار في ترويسة صفحة المنيو للعملاء عند زيارة نطاق مطعمك.
           </CardDescription>
@@ -64,9 +92,9 @@ export default async function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
+      <Card id="orders" className="scroll-mt-24 rounded-[20px] border-border bg-bg-surface shadow-none">
         <CardHeader>
-          <CardTitle>الجوال والواتساب (الطلبات)</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">الجوال والواتساب (الطلبات)</CardTitle>
           <CardDescription>
             حدّد مقدمة الدولة لدمجها مع أرقام الزبائن في قائمة الطلبات — اتصال وواتساب برسالة جاهزة ورابط التتبع.
           </CardDescription>
@@ -81,9 +109,9 @@ export default async function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
+      <Card id="content" className="scroll-mt-24 rounded-[20px] border-border bg-bg-surface shadow-none">
         <CardHeader>
-          <CardTitle>محتوى صفحة المنيو العامة</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">محتوى صفحة المنيو العامة</CardTitle>
           <CardDescription>
             تحكم في نصوص الهيرو والفوتر التي تظهر لعملائك في صفحة المنيو.
           </CardDescription>
@@ -132,9 +160,9 @@ export default async function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
+      <Card id="staff" className="scroll-mt-24 rounded-[20px] border-border bg-bg-surface shadow-none">
         <CardHeader>
-          <CardTitle>الويترز والطاولات</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">الويترز والطاولات</CardTitle>
           <CardDescription>
             فعّل نظام الويترز لإضافة أسماء الموظفين المسؤولين عن خدمة الطاولات، ثم اربط كل طاولة بويتر
             من صفحة الطاولات. يظهر اسم الويتر في الطلبات وتتوفر فلاتر حسب الطاولة والويتر.
@@ -151,9 +179,9 @@ export default async function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      <Card className="border-border/50 bg-card/80 backdrop-blur">
+      <Card id="loyalty" className="scroll-mt-24 rounded-[20px] border-border bg-bg-surface shadow-none">
         <CardHeader>
-          <CardTitle>الولاء والنقاط</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">الولاء والنقاط</CardTitle>
           <CardDescription>
             حدّد كم يدفع الزبون لكسب نقطة واحدة، وما قيمة النقطة عند الخصم. يُطبَّق على الطلبات
             الجديدة عند تفعيل البرنامج.
@@ -173,6 +201,8 @@ export default async function AdminSettingsPage() {
           )}
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   );
 }

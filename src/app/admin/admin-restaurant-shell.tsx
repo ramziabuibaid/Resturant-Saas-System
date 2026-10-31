@@ -2,7 +2,6 @@
 
 import {
   LayoutDashboardIcon,
-  FolderIcon,
   UtensilsCrossedIcon,
   SettingsIcon,
   QrCodeIcon,
@@ -34,8 +33,7 @@ function getRestaurantNavGroups(): NavGroup[] {
     {
       label: "المنيو",
       items: [
-        { href: "/admin/menu", label: "المنيو", icon: <UtensilsCrossedIcon />, mobile: true },
-        { href: "/admin/categories", label: "التصنيفات", icon: <FolderIcon /> },
+        { href: "/admin/menu", label: "الأصناف والتصنيفات", icon: <UtensilsCrossedIcon />, mobile: true },
       ],
     },
     {

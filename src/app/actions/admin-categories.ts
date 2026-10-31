@@ -71,3 +71,25 @@ export async function deleteCategory(id: string, _restaurantId: string): Promise
   revalidateMenu();
   return { error: null };
 }
+
+/** ترتيب التصنيفات بالسحب — ids بالترتيب الجديد (كلها يجب أن تتبع المطعم) */
+export async function reorderCategories(ids: string[]): Promise<{ error: string | null }> {
+  const { restaurant_id } = await getProfileOrRedirect();
+  const restaurantId = restaurant_id!;
+  if (!Array.isArray(ids) || ids.length > 500) return { error: "طلب غير صالح" };
+
+  const owned = await db
+    .select({ id: schema.categories.id })
+    .from(schema.categories)
+    .where(eq(schema.categories.restaurantId, restaurantId));
+  const ownedIds = new Set(owned.map((c) => c.id));
+  if (ids.some((id) => !ownedIds.has(id))) return { error: "تصنيف غير موجود" };
+
+  await db.transaction(async (tx) => {
+    for (const [i, id] of ids.entries()) {
+      await tx.update(schema.categories).set({ orderIndex: i }).where(eq(schema.categories.id, id));
+    }
+  });
+  revalidateMenu();
+  return { error: null };
+}
