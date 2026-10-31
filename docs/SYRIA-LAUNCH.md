@@ -180,3 +180,76 @@ Top-down professional food photography of [DISH], served on a matte dark stone p
 | شاي | `tea.png` | Syrian black tea in a small clear glass tea cup with a sprig of mint on a brass tray |
 
 > للمشروبات احذف كلمة «Top-down» من البادئة واستبدلها بـ «Eye-level».
+
+---
+
+## 7. الفيديو الثاني — «كيف تشترك» (التسجيل، الرابط، الدومين، المندوبين)
+
+**الفكرة:** صاحب المطعم لا يحتاج أن يتعب. يصوّر منيوه الورقي ونحن نحوّله لمنيو رقمي بصور احترافية مجاناً، أو يأتيه مندوب. بلا رقم واتساب في الخاتمة.
+**الصيغة:** عمودي 9:16، حوالي 60–70 ثانية، نفس الصوت (Ghaida) ونفس الهوية الداكنة.
+
+### نص التعليق الصوتي (للصق في ElevenLabs)
+
+```
+عندك منيو ورق؟ صوّرو… وابعتلنا ياه. والباقي علينا.
+
+مع «منيو»، مطعمك بيصير إلو منيو إلكتروني… بدون ما تتعب.
+
+بتفوت على ريستورانت دوت آب، بتعمل حساب، وبتكتب اسم مطعمك…
+وفوراً بيصيرلك رابط خاص فيك، متل: شام، دوت ريستورانت دوت آب.
+
+وإذا بدّك دومين باسم مطعمك، متل: شام ريست دوت كوم… منربطلك ياه، وبيصير منيوك عرابطك إنت.
+
+ما عندك وئت تدخّل الأصناف؟ ابعتلنا صورة منيوك الورقي…
+ونحنا منحوّلو لمنيو رقمي، مع صور احترافية لكل صنف… ببلاش.
+
+وإذا بتحب حدا يجي لعندك، عنا مندوبين بكل المناطق…
+بيجهّزولك المطعم، بيصوّرو الأكلات، وبيرفعو الصور.
+
+وإذا ما بدّك تشيل همّ أبداً، اشترك بخدمة إدارة المنيو الشهرية…
+ومندوبنا بيضل يحدّثلك الأسعار والأصناف أول بأول.
+
+أول شهر ببلاش، وبدون بطاقة بنكية.
+سجّل هلّأ على ريستورانت دوت آب… وخلّي منيوك يشتغل عنك.
+```
+
+### المشاهد
+
+| المقطع | المشهد |
+|---|---|
+| عندك منيو ورق؟ صوّرو… | N1: يد تصوّر منيو ورقي بالموبايل، وميض الكاميرا |
+| وابعتلنا ياه. والباقي علينا. | الصورة «تطير» من الهاتف وتتحوّل إلى بطاقات أصناف رقمية |
+| مع «منيو»… بدون ما تتعب | شعار منيو |
+| بتفوت… بتعمل حساب… اسم مطعمك | لقطات حقيقية: إنشاء حساب ← بيانات المطعم (حقل رابط المنيو يُكتب `sham`) |
+| رابط خاص فيك: sham.resturant.app | شريط عنوان متصفح يكتب `sham.resturant.app` ← المنيو يفتح |
+| دومين باسم مطعمك: shamrest.com | الشريط نفسه: `sham.resturant.app` يتحوّل إلى `shamrest.com`، شارة «منربطلك ياه» |
+| ابعتلنا صورة منيوك… | N2: صورة المنيو الورقي ← سهم ← المنيو الرقمي الحقيقي (قبل/بعد) |
+| صور احترافية لكل صنف… ببلاش | صور الأصناف (من بيت الشام) تظهر واحدة واحدة + ختم «مجاناً» |
+| مندوبين بكل المناطق | خريطة سوريا مبسّطة تضيء عليها نقاط المدن (دمشق، حلب، حمص، حماة، اللاذقية، طرطوس…) |
+| بيجهّزولك… بيصوّرو… بيرفعو | N3: مندوب يصوّر طبقاً بإضاءة احترافية ← N4: مندوب مع صاحب المطعم والتابلت |
+| إدارة المنيو الشهرية… أول بأول | بطاقة «خدمة إدارة المنيو» + تقويم شهري، أسعار تتحدّث |
+| أول شهر ببلاش… | شعار + «أول شهر مجاناً» + `resturant.app` (بلا رقم واتساب) |
+
+### صور Nano Banana المطلوبة (1080×1920، ضعها في `public/images/video2/` بالأسماء)
+
+**N1 — `n1-snap-menu.png` (الهوك)**
+```
+Vertical 9:16 photo, over-the-shoulder view of a Syrian restaurant owner holding a smartphone above a worn printed paper menu on a wooden counter, taking a photo of it, the phone screen completely blank pure white, warm evening light of a small Damascus restaurant, brass details and blurred customers in background, shallow depth of field, photorealistic, no text on the phone
+```
+
+**N2 — `n2-paper-menu.png` (قبل التحويل)**
+```
+Vertical 9:16 top-down photo of a simple folded paper restaurant menu with Arabic handwritten-style dish names and prices, slightly creased with a coffee ring stain, on a dark wooden table, soft natural light, realistic texture, no logos
+```
+
+**N3 — `n3-rep-shoot.png` (المندوب يصوّر)**
+```
+Vertical 9:16 photo of a young Syrian field representative in a plain dark orange polo shirt photographing a plate of mixed grill with a professional camera, a small softbox light beside the table, inside a cozy traditional restaurant with arched stone walls, warm light, behind-the-scenes food photography mood, photorealistic, no logos, no text
+```
+
+**N4 — `n4-rep-owner.png` (المندوب مع صاحب المطعم)**
+```
+Vertical 9:16 photo of a young field representative in a plain dark orange polo shirt sitting with a smiling middle-aged Syrian restaurant owner at a restaurant table, showing him a tablet whose screen is completely blank pure white, coffee cups on the table, friendly trustworthy mood, warm evening light, photorealistic, no logos, no text
+```
+
+> الشاشات تبقى بيضاء حتى نركّب عليها لقطات حقيقية من التطبيق.
