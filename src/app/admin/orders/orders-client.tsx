@@ -29,6 +29,7 @@ type Props = {
   currencyCode: string;
   secondaryCurrencyCode?: string | null;
   secondaryExchangeRate?: number | null;
+  secondaryRoundStep?: number;
   phoneCountryPrefix: string | null;
   subdomain: string;
   publicBaseUrl: string;
@@ -50,6 +51,7 @@ export function OrdersClient({
   currencyCode,
   secondaryCurrencyCode = null,
   secondaryExchangeRate = null,
+  secondaryRoundStep = 0,
   phoneCountryPrefix,
   subdomain,
   publicBaseUrl,
@@ -335,6 +337,7 @@ export function OrdersClient({
                 currencyCode={currencyCode}
                 showSecondary={showSecondary}
                 rate={rate}
+                roundStep={secondaryRoundStep}
                 secondaryCurrencyCode={secondaryCurrencyCode}
                 updating={updating === o.id}
                 onStatusChange={setStatus}
@@ -364,6 +367,7 @@ export function OrdersClient({
         currencyCode={currencyCode}
         showSecondary={showSecondary}
         rate={rate}
+        roundStep={secondaryRoundStep}
         secondaryCurrencyCode={secondaryCurrencyCode}
         updating={detailOrder ? updating === detailOrder.id : false}
         onStatusChange={setStatus}

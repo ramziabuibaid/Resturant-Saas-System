@@ -75,7 +75,13 @@ export const restaurants = pgTable("restaurants", {
   currencyCode: text("currency_code").notNull().default("ILS"),
   secondaryCurrencyEnabled: boolean("secondary_currency_enabled").notNull().default(false),
   secondaryCurrencyCode: text("secondary_currency_code"),
-  secondaryCurrencyExchangeRate: numeric("secondary_currency_exchange_rate", { precision: 14, scale: 6 }),
+  secondaryCurrencyExchangeRate: numeric("secondary_currency_exchange_rate", { precision: 24, scale: 12 }),
+  /** تقريب أسعار العملة الثانية المحسوبة بالصرف لأقرب مضاعف (بالوحدة الكاملة، 0 = بلا تقريب) */
+  secondaryRoundStep: integer("secondary_round_step").notNull().default(0),
+  /** عرض العملة الثانية (مثل الليرة) بالخط الكبير قبل الأساسية */
+  showSecondaryFirst: boolean("show_secondary_first").notNull().default(false),
+  /** آخر تحديث للأسعار أو سعر الصرف — يظهر للزبون «الأسعار محدّثة اليوم» */
+  pricesUpdatedAt: timestamp("prices_updated_at", { withTimezone: true }),
 
   // التواصل
   phoneCountryPrefix: text("phone_country_prefix"),
@@ -103,6 +109,21 @@ export const restaurants = pgTable("restaurants", {
   createdAt: createdAt(),
   updatedAt: updatedAt(),
 });
+
+/** سجل أسعار الصرف لكل مطعم (آخر التحديثات تظهر في بطاقة سعر الصرف) */
+export const exchangeRateHistory = pgTable(
+  "exchange_rate_history",
+  {
+    id: id(),
+    restaurantId: uuid("restaurant_id")
+      .notNull()
+      .references(() => restaurants.id, { onDelete: "cascade" }),
+    currencyCode: text("currency_code").notNull(),
+    rate: numeric("rate", { precision: 24, scale: 12 }).notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [index("exchange_rate_history_restaurant_idx").on(t.restaurantId, t.createdAt)]
+);
 
 /** دفعات الاشتراك — يسجلها مالك النظام يدوياً (تحويل/نقدي) */
 export const subscriptionPayments = pgTable(

@@ -3,70 +3,43 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { signUpOwner } from "@/app/actions/auth";
-import { Button, buttonVariants } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { authButtonCls, authInputCls } from "@/components/auth/auth-shell";
 
 export function SignupForm() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [show, setShow] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
-
     const raw = username.trim().toLowerCase();
-    if (raw.length < 3) {
-      setError("اسم المستخدم 3 أحرف على الأقل");
-      setLoading(false);
-      return;
-    }
-    if (!/^[a-z0-9_-]+$/.test(raw)) {
-      setError("اسم المستخدم: حروف إنجليزية صغيرة، أرقام، شرطة أو شرطة سفلية فقط");
-      setLoading(false);
-      return;
-    }
+    if (raw.length < 3) return setError("اسم المستخدم 3 أحرف على الأقل");
+    if (!/^[a-z0-9_-]+$/.test(raw)) return setError("اسم المستخدم: حروف إنجليزية صغيرة وأرقام فقط");
 
+    setLoading(true);
     const { error: signUpErr } = await signUpOwner(raw, password);
     if (signUpErr) {
       setError(signUpErr);
       setLoading(false);
       return;
     }
-    setLoading(false);
-    setSuccess(true);
     router.refresh();
     router.push("/complete-profile");
   }
 
-  if (success) {
-    return (
-      <div className="space-y-4 text-center text-sm" dir="rtl">
-        <p className="text-green-600">
-          تم إنشاء الحساب بنجاح. جاري توجيهك لإنشاء مطعمك…
-        </p>
-        <Link href="/complete-profile" className={cn(buttonVariants({ variant: "default" }), "w-full inline-flex justify-center")}>
-          إنشاء مطعمي الآن
-        </Link>
-      </div>
-    );
-  }
-
   return (
-    <form onSubmit={handleSubmit} className="space-y-4" dir="rtl">
-      <div className="space-y-2">
-        <Label htmlFor="username">اسم المستخدم</Label>
-        <Input
-          id="username"
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <label className="block space-y-1.5">
+        <span className="text-sm font-bold">اسم المستخدم</span>
+        <input
           type="text"
-          placeholder="مثال: ahmad أو مطعم_النخيل"
+          placeholder="مثال: ahmad"
           value={username}
           onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ""))}
           required
@@ -74,35 +47,44 @@ export function SignupForm() {
           maxLength={30}
           autoComplete="username"
           disabled={loading}
-          className="text-right"
+          dir="ltr"
+          className={authInputCls}
         />
-        <p className="text-xs text-muted-foreground">
-          حروف إنجليزية صغيرة، أرقام، شرطة أو شرطة سفلية (3–30 حرفاً). ستستخدمه لتسجيل الدخول إلى لوحة مطعمك.
-        </p>
-      </div>
-      <div className="space-y-2">
-        <Label htmlFor="password">كلمة المرور</Label>
-        <Input
-          id="password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          minLength={8}
-          autoComplete="new-password"
-          disabled={loading}
-          className="text-right"
-        />
-      </div>
-      {error && (
-        <p className="text-sm text-destructive">{error}</p>
-      )}
-      <Button type="submit" className="w-full" disabled={loading}>
-        {loading ? "جاري الإنشاء…" : "إنشاء حساب"}
-      </Button>
-      <p className="text-center text-xs text-muted-foreground">
-        <Link href="/login" className="underline hover:text-foreground">
-          لديك حساب؟ تسجيل الدخول
+        <span className="block text-xs text-text-muted">حروف إنجليزية صغيرة وأرقام — تدخل به إلى لوحة مطعمك.</span>
+      </label>
+      <label className="block space-y-1.5">
+        <span className="text-sm font-bold">كلمة المرور</span>
+        <span className="relative block">
+          <input
+            type={show ? "text" : "password"}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            placeholder="8 أحرف على الأقل"
+            disabled={loading}
+            dir="ltr"
+            className={`${authInputCls} pl-12`}
+          />
+          <button
+            type="button"
+            onClick={() => setShow((v) => !v)}
+            aria-label={show ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+            className="absolute inset-y-0 left-0 flex w-12 items-center justify-center text-text-muted"
+          >
+            {show ? <EyeOffIcon className="size-4" /> : <EyeIcon className="size-4" />}
+          </button>
+        </span>
+      </label>
+      {error ? <p className="rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300">{error}</p> : null}
+      <button type="submit" disabled={loading} className={authButtonCls}>
+        {loading ? "جارٍ إنشاء الحساب…" : "التالي: بيانات المطعم"}
+      </button>
+      <p className="text-center text-sm text-text-muted">
+        لديك حساب؟{" "}
+        <Link href="/login" className="font-semibold text-brand hover:underline">
+          تسجيل الدخول
         </Link>
       </p>
     </form>

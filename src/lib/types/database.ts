@@ -32,6 +32,11 @@ export type Restaurant = {
   secondary_currency_code?: string | null;
   /** وحدات العملة الثانية لكل 1 وحدة من العملة الأساسية (مثال: 1 USD = 3.7 ILS) */
   secondary_currency_exchange_rate?: number | null;
+  /** تقريب أسعار العملة الثانية المحسوبة (بالوحدة الكاملة، 0 = بلا تقريب) */
+  secondary_round_step?: number;
+  /** الليرة (العملة الثانية) بالخط الكبير أولاً */
+  show_secondary_first?: boolean;
+  prices_updated_at?: string | null;
   /** عند التفعيل: تأثير لون وتوهج ووميض لاسم المطعم في المنيو العام */
   menu_title_animation_enabled?: boolean | null;
   /** بانر ترويجي (صورة أو فيديو) في أعلى صفحة المنيو */

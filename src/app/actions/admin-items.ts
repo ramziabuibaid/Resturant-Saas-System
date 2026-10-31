@@ -190,6 +190,12 @@ export async function updateMenuItem(
   if (secondaryError) return { data: null, error: secondaryError };
 
   const [row] = await db.update(schema.menuItems).set(patch).where(own).returning();
+  const priceChanged =
+    (patch.price !== undefined && patch.price !== existing.price) ||
+    (patch.priceOptions !== undefined && JSON.stringify(patch.priceOptions) !== JSON.stringify(existing.priceOptions));
+  if (priceChanged) {
+    await db.update(schema.restaurants).set({ pricesUpdatedAt: new Date() }).where(eq(schema.restaurants.id, restaurantId));
+  }
   revalidateMenu();
   return { data: toMenuItemDto(row), error: null };
 }

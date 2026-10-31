@@ -13,6 +13,7 @@ import {
 } from "@/lib/auth/password";
 import { isSubdomainTaken, validateSubdomain } from "@/lib/data/restaurants";
 import { TRIAL_DAYS } from "@/lib/plans";
+import { MENU_CURRENCIES } from "@/lib/currencies";
 
 /*
  * كل دالة هنا endpoint عام. لا تُضف هنا قراءات تأخذ معرّفات — ضعها في src/lib/data.
@@ -113,7 +114,14 @@ export async function signUpOwner(username: string, password: string): Promise<R
 }
 
 /** إنشاء مطعم جديد وربط الحساب الحالي به (بداية الفترة التجريبية) */
-export async function createRestaurantAndLink(payload: { name: string; subdomain: string }): Promise<Result> {
+export async function createRestaurantAndLink(payload: {
+  name: string;
+  subdomain: string;
+  currencyCode?: string;
+  /** عملة ثانية بسعر صرف — مثل الليرة عند التسعير بالدولار */
+  secondaryCurrencyCode?: string;
+  exchangeRate?: number | null;
+}): Promise<Result> {
   const user = await getSessionUser();
   if (!user) return { error: "يجب تسجيل الدخول أولاً" };
   if (user.role !== "owner") return { error: "هذا الحساب لا يمكنه إنشاء مطعم" };
@@ -125,12 +133,40 @@ export async function createRestaurantAndLink(payload: { name: string; subdomain
   if ("error" in sub) return { error: sub.error };
   if (await isSubdomainTaken(sub.value)) return { error: "النطاق الفرعي مستخدم لمطعم آخر. اختر غيره." };
 
+  const known = (c?: string) => (c && MENU_CURRENCIES.some((m) => m.code === c) ? c : null);
+  const currencyCode = known(payload.currencyCode) ?? "USD";
+  const secondaryCode = known(payload.secondaryCurrencyCode);
+  if (secondaryCode && secondaryCode === currencyCode) return { error: "العملة الثانية يجب أن تختلف عن الأساسية" };
+  const rate = Number(payload.exchangeRate);
+  const hasRate = secondaryCode != null && Number.isFinite(rate) && rate > 0 && rate < 100_000_000;
+
   try {
     await db.transaction(async (tx) => {
       const [restaurant] = await tx
         .insert(schema.restaurants)
-        .values({ name, subdomain: sub.value, status: "trial", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) })
+        .values({
+          name,
+          subdomain: sub.value,
+          status: "trial",
+          trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000),
+          currencyCode,
+          ...(secondaryCode
+            ? {
+                secondaryCurrencyEnabled: true,
+                secondaryCurrencyCode: secondaryCode,
+                secondaryCurrencyExchangeRate: hasRate ? String(rate) : null,
+                // الليرة بأرقام كبيرة: تقريب لأقرب 5 وعرضها أولاً
+                ...(secondaryCode === "SYP" ? { secondaryRoundStep: 5, showSecondaryFirst: true } : {}),
+                ...(hasRate ? { pricesUpdatedAt: new Date() } : {}),
+              }
+            : {}),
+        })
         .returning({ id: schema.restaurants.id });
+      if (hasRate) {
+        await tx
+          .insert(schema.exchangeRateHistory)
+          .values({ restaurantId: restaurant.id, currencyCode: secondaryCode!, rate: String(rate) });
+      }
       await tx
         .update(schema.users)
         .set({ restaurantId: restaurant.id })

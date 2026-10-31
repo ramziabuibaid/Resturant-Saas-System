@@ -29,14 +29,14 @@ import {
   SearchIcon,
   Trash2Icon,
   UtensilsCrossedIcon,
-  XIcon,
-} from "lucide-react";
+  XIcon, TagIcon } from "lucide-react";
 import { deleteMenuItem, reorderMenuItems, updateMenuItem } from "@/app/actions/admin-items";
 import { createCategory, deleteCategory, reorderCategories, updateCategory } from "@/app/actions/admin-categories";
 import type { Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
 import { cn } from "@/lib/utils";
 import { ItemEditor, type CurrencySetup } from "./item-editor";
+import { PriceEditor } from "./price-editor";
 
 const UNCATEGORIZED = "__none__";
 
@@ -53,6 +53,13 @@ export function MenuManager({
 }) {
   const [categories, setCategories] = useState(initialCategories);
   const [items, setItems] = useState(initialItems);
+  const [priceEditorOpen, setPriceEditorOpen] = useState(false);
+  // مزامنة بعد router.refresh (مثل التعديل الجماعي للأسعار) — أثناء الرسم بدل useEffect
+  const [prevInitialItems, setPrevInitialItems] = useState(initialItems);
+  if (prevInitialItems !== initialItems) {
+    setPrevInitialItems(initialItems);
+    setItems(initialItems);
+  }
   const [activeCat, setActiveCat] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [editor, setEditor] = useState<{ item: MenuItem | null; categoryId: string | null } | null>(null);
@@ -212,6 +219,14 @@ export function MenuManager({
           </div>
           <button
             type="button"
+            onClick={() => setPriceEditorOpen(true)}
+            disabled={items.length === 0}
+            className="inline-flex h-11 items-center gap-2 rounded-xl border border-border bg-bg-surface px-4 text-sm font-bold text-text-primary hover:border-brand hover:text-brand disabled:opacity-50"
+          >
+            <TagIcon className="size-4" /> تعديل الأسعار
+          </button>
+          <button
+            type="button"
             onClick={() => setEditor({ item: null, categoryId: activeCat && activeCat !== UNCATEGORIZED ? activeCat : categories[0]?.id ?? null })}
             className="inline-flex h-11 items-center gap-2 rounded-xl bg-brand px-5 text-sm font-bold text-white hover:bg-brand-dark"
           >
@@ -267,6 +282,14 @@ export function MenuManager({
           ))
         )}
       </section>
+
+      <PriceEditor
+        open={priceEditorOpen}
+        onClose={() => setPriceEditorOpen(false)}
+        items={items}
+        categories={categories}
+        currencyCode={currencyCode}
+      />
 
       <ItemEditor
         open={editor !== null}

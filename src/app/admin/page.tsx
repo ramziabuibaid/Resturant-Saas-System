@@ -7,6 +7,9 @@ import { ORDER_STATUS_LABELS, orderStatusBadgeClasses } from "@/lib/order-status
 import type { OrderStatus } from "@/lib/types/database";
 import { cn } from "@/lib/utils";
 import { OverviewChart } from "./overview-chart";
+import { ExchangeRateCard } from "./exchange-rate-card";
+import { getMenuItems } from "@/lib/data/menu";
+import { getExchangeRateHistory } from "@/lib/data/pricing";
 import { SuperOverview } from "./super-overview";
 import {
   UtensilsCrossedIcon,
@@ -38,7 +41,12 @@ export default async function AdminDashboardPage() {
 /* ------------------------------------------------------------------ */
 
 async function RestaurantOverview({ restaurantId }: { restaurantId: string }) {
-  const [o, restaurant] = await Promise.all([getDashboardOverview(restaurantId), getRestaurantById(restaurantId)]);
+  const [o, restaurant, items, rateHistory] = await Promise.all([
+    getDashboardOverview(restaurantId),
+    getRestaurantById(restaurantId),
+    getMenuItems(restaurantId),
+    getExchangeRateHistory(restaurantId),
+  ]);
   const currency = restaurant?.currency_code ?? "ILS";
   const money = (c: number) => formatMenuPrice(c, currency);
   const revenueDelta =
@@ -102,6 +110,18 @@ async function RestaurantOverview({ restaurantId }: { restaurantId: string }) {
           </div>
         ))}
       </div>
+
+      <ExchangeRateCard
+        currencyCode={currency}
+        secondaryEnabled={restaurant?.secondary_currency_enabled === true && !!restaurant.secondary_currency_code}
+        secondaryCode={restaurant?.secondary_currency_code ?? null}
+        rate={restaurant?.secondary_currency_exchange_rate ?? null}
+        roundStep={restaurant?.secondary_round_step ?? 0}
+        showSecondaryFirst={restaurant?.show_secondary_first === true}
+        pricesUpdatedAt={restaurant?.prices_updated_at ?? null}
+        items={items}
+        history={rateHistory}
+      />
 
       {doneSteps < steps.length ? (
         <section className="rounded-[20px] border border-border bg-bg-surface p-5">

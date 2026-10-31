@@ -66,6 +66,7 @@ export default async function AdminRestaurantOrdersPage() {
               ? Number(restaurant.secondary_currency_exchange_rate)
               : null
           }
+          secondaryRoundStep={restaurant?.secondary_round_step ?? 0}
           phoneCountryPrefix={restaurant?.phone_country_prefix ?? null}
           subdomain={restaurant?.subdomain ?? ""}
           publicBaseUrl={publicBaseUrl}

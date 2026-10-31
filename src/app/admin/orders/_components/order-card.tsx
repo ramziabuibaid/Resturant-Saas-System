@@ -54,6 +54,8 @@ type Props = {
   currencyCode: string;
   showSecondary: boolean;
   rate: number;
+  /** تقريب مبلغ العملة الثانية */
+  roundStep?: number;
   secondaryCurrencyCode: string | null;
   updating: boolean;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
@@ -77,6 +79,7 @@ export function OrderCard({
   currencyCode,
   showSecondary,
   rate,
+  roundStep = 0,
   secondaryCurrencyCode,
   updating,
   onStatusChange,
@@ -214,7 +217,7 @@ export function OrderCard({
               </span>
               {showSecondary && secondaryCurrencyCode ? (
                 <span className="text-[11px] text-text-muted" dir="ltr">
-                  {formatMenuPrice(secondaryCentsFromPrimaryCents(payable, rate), secondaryCurrencyCode)}
+                  {formatMenuPrice(secondaryCentsFromPrimaryCents(payable, rate, roundStep), secondaryCurrencyCode)}
                 </span>
               ) : null}
             </span>

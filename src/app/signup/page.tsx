@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSessionUser } from "@/lib/auth/session";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { SignupForm } from "./signup-form";
 
 export const metadata = {
@@ -12,16 +13,8 @@ export default async function SignupPage() {
   if (session) redirect("/complete-profile");
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4" dir="rtl">
-      <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-semibold">إنشاء حساب مطعم</h1>
-          <p className="text-sm text-muted-foreground">
-            أنشئ حسابك ثم أنشئ مطعمك من نفس الصفحة — أول شهر مجاناً دون إدخال بطاقة بنكية.
-          </p>
-        </div>
-        <SignupForm />
-      </div>
-    </div>
+    <AuthShell title="أنشئ حساب مطعمك" subtitle="أول شهر مجاناً — بدون بطاقة بنكية." step={1}>
+      <SignupForm />
+    </AuthShell>
   );
 }

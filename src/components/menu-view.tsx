@@ -1,8 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MapPin, Phone, Plus, Search, Sparkles, UtensilsCrossed, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { BadgeCheck, MapPin, Phone, Plus, Search, Sparkles, UtensilsCrossed, X } from "lucide-react";
 import { toast } from "sonner";
 import type { Restaurant, Category, MenuItem } from "@/lib/types/database";
 import { formatMenuPrice } from "@/lib/currencies";
@@ -99,8 +99,17 @@ export function MenuView({
       secondaryCode: secondaryOn ? restaurant.secondary_currency_code ?? null : null,
       exchangeRate:
         restaurant.secondary_currency_exchange_rate != null ? Number(restaurant.secondary_currency_exchange_rate) : null,
+      roundStep: Number(restaurant.secondary_round_step ?? 0),
+      secondaryFirst: restaurant.show_secondary_first === true,
     }),
-    [currencyCode, secondaryOn, restaurant.secondary_currency_code, restaurant.secondary_currency_exchange_rate]
+    [
+      currencyCode,
+      secondaryOn,
+      restaurant.secondary_currency_code,
+      restaurant.secondary_currency_exchange_rate,
+      restaurant.secondary_round_step,
+      restaurant.show_secondary_first,
+    ]
   );
 
   const [cart, setCart] = useState<CartLine[]>([]);
@@ -237,6 +246,8 @@ export function MenuView({
         secondaryEnabled={secondaryOn}
         secondaryCurrencyCode={price.secondaryCode}
         secondaryExchangeRate={price.exchangeRate}
+        secondaryRoundStep={price.roundStep}
+        secondaryFirst={price.secondaryFirst}
         onCheckout={() => setCheckoutOpen(true)}
         onCancelOrder={() => {
           setCart([]);
@@ -263,6 +274,34 @@ export function MenuView({
 /* ------------------------------------------------------------------ */
 /* الأجزاء                                                             */
 /* ------------------------------------------------------------------ */
+
+const noopSubscribe = () => () => {};
+
+/**
+ * «الأسعار محدّثة اليوم» — يُحسب بتوقيت جهاز الزبون بعد التحميل فقط
+ * (لا شيء في HTML الخادم، فلا اختلاف في الترطيب). يختفي إن مضى أكثر من أسبوع.
+ */
+function PricesFreshBadge({ updatedAt }: { updatedAt: string | null }) {
+  const label = useSyncExternalStore(
+    noopSubscribe,
+    () => {
+      if (!updatedAt) return null;
+      const d = new Date(updatedAt);
+      const startOf = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+      const days = Math.round((startOf(new Date()) - startOf(d)) / 86_400_000);
+      if (days < 0 || days > 7) return null;
+      return days === 0 ? "الأسعار محدّثة اليوم" : days === 1 ? "الأسعار محدّثة أمس" : `الأسعار محدّثة ${d.toLocaleDateString("ar", { weekday: "long" })}`;
+    },
+    () => null
+  );
+  if (!label) return null;
+  return (
+    <p className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/12 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+      <BadgeCheck className="size-4" />
+      {label}
+    </p>
+  );
+}
 
 function MenuHero({ restaurant, tableLabel }: { restaurant: Restaurant; tableLabel: string | null }) {
   const cover = restaurant.hero_background_url?.trim() || null;
@@ -312,6 +351,8 @@ function MenuHero({ restaurant, tableLabel }: { restaurant: Restaurant; tableLab
         {restaurant.subheadline ? (
           <p className="mt-4 text-[15px] leading-7 text-text-secondary">{restaurant.subheadline}</p>
         ) : null}
+
+        <PricesFreshBadge updatedAt={restaurant.prices_updated_at ?? null} />
 
         {restaurant.public_address || phone ? (
           <div className="mt-4 flex flex-wrap gap-2 text-sm">
@@ -427,16 +468,20 @@ function CategoryNav({ groups, query, onQuery }: { groups: Group[]; query: strin
 function PriceTag({ item, price, className }: { item: MenuItem; price: PriceContext; className?: string }) {
   const { cents, hasOptions } = minPriceCents(item);
   const secondary =
-    price.secondaryCode && !hasOptions ? resolveSecondaryUnitCents(item, cents, null, price.exchangeRate) : null;
+    price.secondaryCode ? resolveSecondaryUnitCents(item, cents, null, price.exchangeRate, price.roundStep) : null;
+  // الأحجام لها أسعار ثانية يدوية لكل حجم — «من» تعرض المحسوب من أقل سعر
+  const main = formatMenuPrice(cents, price.currencyCode);
+  const second = secondary != null && price.secondaryCode ? formatMenuPrice(secondary, price.secondaryCode) : null;
+  const [big, small] = price.secondaryFirst && second ? [second, main] : [main, second];
   return (
     <span className={cn("inline-flex flex-wrap items-baseline gap-x-1.5", className)}>
       {hasOptions ? <span className="text-xs font-medium text-text-muted">من</span> : null}
       <span className="font-bold text-brand" dir="ltr">
-        {formatMenuPrice(cents, price.currencyCode)}
+        {big}
       </span>
-      {secondary != null && price.secondaryCode ? (
+      {small ? (
         <span className="text-xs text-text-muted" dir="ltr">
-          {formatMenuPrice(secondary, price.secondaryCode)}
+          {small}
         </span>
       ) : null}
     </span>

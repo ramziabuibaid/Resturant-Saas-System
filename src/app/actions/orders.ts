@@ -654,6 +654,7 @@ export type PublicOrderTracking = {
   secondary_currency_enabled: boolean;
   secondary_currency_code: string | null;
   secondary_exchange_rate: number | null;
+  secondary_round_step: number;
 };
 
 export async function getOrderTrackingByToken(subdomain: string, token: string): Promise<PublicOrderTracking | null> {
@@ -723,6 +724,7 @@ export async function getOrderTrackingByToken(subdomain: string, token: string):
     secondary_currency_enabled: secOn,
     secondary_currency_code: secOn ? secCode : null,
     secondary_exchange_rate: secOn && secCode && Number.isFinite(secRate) && secRate > 0 ? secRate : null,
+    secondary_round_step: restaurant.secondaryRoundStep,
   };
 }
 

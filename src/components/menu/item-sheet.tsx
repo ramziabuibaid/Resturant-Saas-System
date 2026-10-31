@@ -15,6 +15,10 @@ export type PriceContext = {
   currencyCode: string;
   secondaryCode: string | null;
   exchangeRate: number | null;
+  /** تقريب أسعار العملة الثانية المحسوبة */
+  roundStep: number;
+  /** العملة الثانية (الليرة) بالخط الكبير أولاً */
+  secondaryFirst: boolean;
 };
 
 /** ورقة تفاصيل الطبق من الأسفل: صورة كبيرة، الحجم، الكمية، ملاحظات، ثم «أضف» */
@@ -64,7 +68,7 @@ function ItemSheetBody({
 
   const unitCents = options.length ? options.find((o) => o.label === option)?.price_cents ?? 0 : item.price;
   const secondaryUnit =
-    price.secondaryCode != null ? resolveSecondaryUnitCents(item, unitCents, option, price.exchangeRate) : null;
+    price.secondaryCode != null ? resolveSecondaryUnitCents(item, unitCents, option, price.exchangeRate, price.roundStep) : null;
 
   function add() {
     onAdd?.({
@@ -163,10 +167,19 @@ function ItemSheetBody({
         >
           <span>{addLabel}</span>
           <span className="flex flex-col items-end leading-tight" dir="ltr">
-            <span>{formatMenuPrice(unitCents * qty, price.currencyCode)}</span>
-            {secondaryUnit != null && price.secondaryCode ? (
-              <span className="text-[11px] font-medium opacity-80">{formatMenuPrice(secondaryUnit * qty, price.secondaryCode)}</span>
-            ) : null}
+            {price.secondaryFirst && secondaryUnit != null && price.secondaryCode ? (
+              <>
+                <span>{formatMenuPrice(secondaryUnit * qty, price.secondaryCode)}</span>
+                <span className="text-[11px] font-medium opacity-80">{formatMenuPrice(unitCents * qty, price.currencyCode)}</span>
+              </>
+            ) : (
+              <>
+                <span>{formatMenuPrice(unitCents * qty, price.currencyCode)}</span>
+                {secondaryUnit != null && price.secondaryCode ? (
+                  <span className="text-[11px] font-medium opacity-80">{formatMenuPrice(secondaryUnit * qty, price.secondaryCode)}</span>
+                ) : null}
+              </>
+            )}
           </span>
         </button>
       </div>

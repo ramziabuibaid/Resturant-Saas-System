@@ -49,6 +49,8 @@ export function MenuCartBar({
   secondaryEnabled,
   secondaryCurrencyCode,
   secondaryExchangeRate,
+  secondaryRoundStep = 0,
+  secondaryFirst = false,
   onCheckout,
   onCancelOrder,
 }: {
@@ -59,6 +61,9 @@ export function MenuCartBar({
   secondaryEnabled: boolean;
   secondaryCurrencyCode: string | null;
   secondaryExchangeRate: number | null;
+  secondaryRoundStep?: number;
+  /** الليرة بالخط الكبير أولاً */
+  secondaryFirst?: boolean;
   onCheckout: () => void;
   /** إفراغ السلة وإغلاق أي خطوة إتمام (من لوحة السفلية) */
   onCancelOrder: () => void;
@@ -87,13 +92,14 @@ export function MenuCartBar({
         item,
         r.cents,
         line.priceOptionLabel,
-        secondaryExchangeRate
+        secondaryExchangeRate,
+        secondaryRoundStep
       );
       if (sec == null) return null;
       t += sec * line.quantity;
     }
     return t;
-  }, [cart, menuById, secondaryEnabled, secondaryCurrencyCode, secondaryExchangeRate]);
+  }, [cart, menuById, secondaryEnabled, secondaryCurrencyCode, secondaryExchangeRate, secondaryRoundStep]);
 
   if (cart.length === 0) return null;
   const count = cart.reduce((s, l) => s + l.quantity, 0);
@@ -112,12 +118,21 @@ export function MenuCartBar({
             <span className="text-[15px] font-bold">عرض الطلب</span>
           </span>
           <span className="flex flex-col items-end leading-tight" dir="ltr">
-            <span className="text-[15px] font-bold tabular-nums">{formatMenuPrice(totalCents, currencyCode)}</span>
-            {totalSecondaryCents != null && secondaryCurrencyCode ? (
-              <span className="text-[11px] opacity-80 tabular-nums">
-                {formatMenuPrice(totalSecondaryCents, secondaryCurrencyCode)}
-              </span>
-            ) : null}
+            {totalSecondaryCents != null && secondaryCurrencyCode && secondaryFirst ? (
+              <>
+                <span className="text-[15px] font-bold tabular-nums">{formatMenuPrice(totalSecondaryCents, secondaryCurrencyCode)}</span>
+                <span className="text-[11px] opacity-80 tabular-nums">{formatMenuPrice(totalCents, currencyCode)}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-[15px] font-bold tabular-nums">{formatMenuPrice(totalCents, currencyCode)}</span>
+                {totalSecondaryCents != null && secondaryCurrencyCode ? (
+                  <span className="text-[11px] opacity-80 tabular-nums">
+                    {formatMenuPrice(totalSecondaryCents, secondaryCurrencyCode)}
+                  </span>
+                ) : null}
+              </>
+            )}
           </span>
         </button>
         <button
@@ -141,6 +156,7 @@ export function CartLinesEditor({
   secondaryEnabled,
   secondaryCurrencyCode,
   secondaryExchangeRate,
+  secondaryRoundStep = 0,
 }: {
   cart: CartLine[];
   setCart: React.Dispatch<React.SetStateAction<CartLine[]>>;
@@ -149,6 +165,7 @@ export function CartLinesEditor({
   secondaryEnabled: boolean;
   secondaryCurrencyCode: string | null;
   secondaryExchangeRate: number | null;
+  secondaryRoundStep?: number;
 }) {
   return (
     <ul className="max-h-[min(24rem,50vh)] space-y-3 overflow-y-auto text-sm">
@@ -163,7 +180,8 @@ export function CartLinesEditor({
                 item,
                 unit,
                 line.priceOptionLabel,
-                secondaryExchangeRate
+                secondaryExchangeRate,
+                secondaryRoundStep
               )
             : null;
         return (
@@ -344,6 +362,8 @@ export function MenuCheckoutDialog({
       : null;
   const secondaryOn =
     restaurant.secondary_currency_enabled === true && Boolean(secondaryCode);
+  const secondaryRoundStep = Number(restaurant.secondary_round_step ?? 0);
+  const secondaryFirst = restaurant.show_secondary_first === true;
 
   const totalSecondaryCents = useMemo(() => {
     if (!secondaryOn || !secondaryCode) return null;
@@ -357,13 +377,14 @@ export function MenuCheckoutDialog({
         item,
         r.cents,
         line.priceOptionLabel,
-        secondaryExchangeRate
+        secondaryExchangeRate,
+        secondaryRoundStep
       );
       if (sec == null) return null;
       t += sec * line.quantity;
     }
     return t;
-  }, [cart, menuById, secondaryOn, secondaryCode, secondaryExchangeRate]);
+  }, [cart, menuById, secondaryOn, secondaryCode, secondaryExchangeRate, secondaryRoundStep]);
 
   // نقاط متوقعة عند اكتمال الطلب — الاستبدال يتم عند الموظف فقط
   const loyaltyOn = restaurant.loyalty_program_enabled === true;
@@ -604,6 +625,7 @@ export function MenuCheckoutDialog({
               secondaryEnabled={secondaryOn}
               secondaryCurrencyCode={secondaryCode}
               secondaryExchangeRate={secondaryExchangeRate}
+              secondaryRoundStep={secondaryRoundStep}
             />
           </div>
 
@@ -613,14 +635,18 @@ export function MenuCheckoutDialog({
                 className="font-display text-3xl font-bold tabular-nums text-brand"
                 dir="ltr"
               >
-                {formatMenuPrice(totalCents, currencyCode)}
+                {secondaryFirst && totalSecondaryCents != null && secondaryCode
+                  ? formatMenuPrice(totalSecondaryCents, secondaryCode)
+                  : formatMenuPrice(totalCents, currencyCode)}
               </span>
               {totalSecondaryCents != null && secondaryCode ? (
                 <span
                   className="inline-flex items-center gap-2 border-s border-brand/25 ps-4 text-sm font-semibold tabular-nums text-text-secondary"
                   dir="ltr"
                 >
-                  {formatMenuPrice(totalSecondaryCents, secondaryCode)}
+                  {secondaryFirst
+                    ? formatMenuPrice(totalCents, currencyCode)
+                    : formatMenuPrice(totalSecondaryCents, secondaryCode)}
                 </span>
               ) : null}
             </div>

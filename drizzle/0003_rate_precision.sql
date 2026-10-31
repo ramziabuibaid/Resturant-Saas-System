@@ -1,0 +1,2 @@
+ALTER TABLE "exchange_rate_history" ALTER COLUMN "rate" SET DATA TYPE numeric(24, 12);--> statement-breakpoint
+ALTER TABLE "restaurants" ALTER COLUMN "secondary_currency_exchange_rate" SET DATA TYPE numeric(24, 12);

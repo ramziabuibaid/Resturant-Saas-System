@@ -6,11 +6,22 @@ import type { MenuItem } from "@/lib/types/database";
  */
 export function secondaryCentsFromPrimaryCents(
   primaryCents: number,
-  secondaryPerPrimaryUnit: number
+  secondaryPerPrimaryUnit: number,
+  roundStep = 0
 ): number {
   if (!Number.isFinite(secondaryPerPrimaryUnit) || secondaryPerPrimaryUnit <= 0) return 0;
-  return Math.round(primaryCents * secondaryPerPrimaryUnit);
+  return roundToStep(Math.round(primaryCents * secondaryPerPrimaryUnit), roundStep);
 }
+
+/** تقريب مبلغ (بالسنت) لأقرب مضاعف لـ step وحدة كاملة — مثل 549.17 ← 550 عند step=10 */
+export function roundToStep(cents: number, step: number): number {
+  const s = Math.round(Number(step) * 100);
+  if (!Number.isFinite(s) || s <= 0) return cents;
+  return Math.round(cents / s) * s;
+}
+
+/** خطوات التقريب المتاحة لصاحب المطعم */
+export const ROUND_STEPS = [0, 1, 5, 10, 25, 50, 100, 500, 1000] as const;
 
 /**
  * يحدد سعر الوحدة بالعملة الثانية (بالسنت): يدوي إن وُجد، وإلا بالصرف عند توفره.
@@ -19,7 +30,8 @@ export function resolveSecondaryUnitCents(
   item: MenuItem,
   primaryCents: number,
   priceOptionLabel: string | null,
-  exchangeRate: number | null | undefined
+  exchangeRate: number | null | undefined,
+  roundStep = 0
 ): number | null {
   const opts = item.price_options;
   const hasOptions = Array.isArray(opts) && opts.length > 0;
@@ -35,7 +47,7 @@ export function resolveSecondaryUnitCents(
 
   const rate = exchangeRate;
   if (typeof rate === "number" && Number.isFinite(rate) && rate > 0) {
-    return secondaryCentsFromPrimaryCents(primaryCents, rate);
+    return secondaryCentsFromPrimaryCents(primaryCents, rate, roundStep);
   }
   return null;
 }

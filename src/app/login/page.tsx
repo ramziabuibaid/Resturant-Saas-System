@@ -5,6 +5,7 @@ import { getRestaurantBySubdomain } from "@/lib/data/restaurants";
 import { getProfile } from "@/lib/auth/current-user";
 import { getSessionUser } from "@/lib/auth/session";
 import { LoginFormSwitch } from "./login-form-switch";
+import { AuthShell } from "@/components/auth/auth-shell";
 import { subdomainFromHost } from "@/lib/tenant-host";
 
 export const metadata = {
@@ -34,11 +35,9 @@ export default async function LoginPage() {
 
   if (!session) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4">
-        <div className="w-full max-w-sm space-y-6 rounded-lg border bg-card p-6 shadow-sm">
-          <LoginFormSwitch serverTenant={serverTenant} loginMode={mode} />
-        </div>
-      </div>
+      <AuthShell>
+        <LoginFormSwitch serverTenant={serverTenant} loginMode={mode} />
+      </AuthShell>
     );
   }
 

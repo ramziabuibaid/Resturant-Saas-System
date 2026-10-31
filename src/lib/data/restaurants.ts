@@ -37,6 +37,9 @@ export function toRestaurantDto(r: RestaurantRow): Restaurant {
     secondary_currency_code: r.secondaryCurrencyCode,
     secondary_currency_exchange_rate:
       r.secondaryCurrencyExchangeRate == null ? null : Number(r.secondaryCurrencyExchangeRate),
+    secondary_round_step: r.secondaryRoundStep,
+    show_secondary_first: r.showSecondaryFirst,
+    prices_updated_at: r.pricesUpdatedAt?.toISOString() ?? null,
     menu_title_animation_enabled: r.menuTitleAnimationEnabled,
     menu_banner_url: r.menuBannerUrl,
     menu_banner_kind: r.menuBannerKind,

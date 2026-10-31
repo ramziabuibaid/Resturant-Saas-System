@@ -217,7 +217,7 @@ export function OrderTrackClient({ subdomain, token, initialData }: Props) {
                 </span>
                 {showSecondary && secondaryCurrencyCode ? (
                   <span className="text-xs text-text-muted" dir="ltr">
-                    {formatMenuPrice(secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate), secondaryCurrencyCode)}
+                    {formatMenuPrice(secondaryCentsFromPrimaryCents(data.total_cents, secondaryRate, data.secondary_round_step), secondaryCurrencyCode)}
                   </span>
                 ) : null}
               </span>
