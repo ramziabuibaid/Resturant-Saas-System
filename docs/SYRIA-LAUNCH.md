@@ -143,3 +143,40 @@ Vertical 9:16 photo of a smiling Syrian restaurant owner in his 30s with a short
 3. **أنت:** تولّد الصور V1–V6 + صور الأصناف الناقصة.
 4. **أنا:** أثبّت النص النهائي مع التوقيتات، فتسجّله على ElevenLabs.
 5. **أنا:** أركّب الفيديو (Remotion) على الصوت كلمةً بكلمة وأصدّر MP4 عمودي وأفقي.
+
+---
+
+## 6. صور أصناف «مطعم بيت الشام» (sham.resturant.app)
+
+> موجودة: مشاوي مشكلة، شاورما دجاج، كنافة، الغلاف. الباقي **24 صنفاً** بلا صورة.
+> ولّد كل صورة بالبادئة التالية مع اسم الطبق، مربعة 1200×1200 PNG، وضعها في `public/images/demo/sham/` **بنفس اسم الملف** في الجدول — وأنا أربطها بالأصناف.
+
+**البادئة (ثابتة لكل الصور حتى تبدو سلسلة واحدة):**
+```
+Top-down professional food photography of [DISH], served on a matte dark stone plate, on a warm neutral linen surface, soft natural window light from the left, subtle steam, fresh herbs garnish, authentic Syrian Damascene restaurant style, consistent styling for a restaurant menu series, appetizing, high detail, square 1:1, no text, no hands
+```
+
+| الصنف | اسم الملف | [DISH] |
+|---|---|---|
+| شيش طاووق | `shish-tawook.png` | grilled chicken shish tawook skewers with garlic toum sauce and grilled tomatoes |
+| كباب حلبي | `kebab-halabi.png` | Aleppo-style lamb kebab skewers on flatbread with grilled onions and sumac |
+| كباب بالكرز | `kebab-karaz.png` | Aleppo kebab with dark red sour cherry sauce on thin bread, sprinkled with parsley and pine nuts |
+| شاورما لحمة | `shawarma-meat.png` | Syrian beef shawarma wrap in thin saj bread cut in half, with tahini sauce and pickles |
+| فلافل | `falafel.png` | crispy falafel balls with tahini sauce, fresh vegetables and pickled turnips |
+| حمص | `hummus.png` | creamy hummus with olive oil swirl, whole chickpeas and paprika |
+| متبل | `mutabbal.png` | smoky eggplant mutabbal with tahini, pomegranate seeds and olive oil |
+| محمرة | `muhammara.png` | red pepper and walnut muhammara dip with pomegranate molasses drizzle and walnuts |
+| فتوش | `fattoush.png` | fattoush salad with crispy fried bread, fresh vegetables, mint and sumac |
+| تبولة | `tabbouleh.png` | fresh tabbouleh salad with finely chopped parsley, bulgur, tomato and lemon |
+| فتة حمص | `fatteh.png` | Damascene hummus fatteh in a deep bowl with yogurt, crispy bread, toasted pine nuts and ghee |
+| كبة مقلية | `kibbeh.png` | four golden fried kibbeh balls, one cut open showing meat and walnut filling, with yogurt dip |
+| يبرق | `yabraq.png` | rolled stuffed grape leaves yabraq with lemon slices |
+| بوظة عربية بالفستق | `booza.png` | Syrian booza ice cream with ashta coated in crushed green pistachios in a glass bowl |
+| حلاوة الجبن | `halawet-jibn.png` | halawet el jibn sweet cheese rolls filled with ashta cream, topped with pistachios and rose jam, syrup drizzle |
+| عصير برتقال | `orange-juice.png` | fresh orange juice in a tall glass with an orange slice (side angle, not top-down) |
+| ليموناضة بالنعنع | `lemon-mint.png` | frozen lemon mint lemonade in a tall glass with fresh mint leaves (side angle, not top-down) |
+| عرق سوس | `erq-sous.png` | traditional Syrian licorice drink erq sous in a glass with a copper jug behind (side angle) |
+| قهوة عربية | `arabic-coffee.png` | Arabic coffee in small cups with a brass dallah pot and dates |
+| شاي | `tea.png` | Syrian black tea in a small clear glass tea cup with a sprig of mint on a brass tray |
+
+> للمشروبات احذف كلمة «Top-down» من البادئة واستبدلها بـ «Eye-level».
