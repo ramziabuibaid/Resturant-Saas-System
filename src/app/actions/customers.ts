@@ -74,6 +74,9 @@ export type LoyaltyDashboardCustomer = {
   lifetime_earned: number;
   lifetime_redeemed: number;
   tx_count: number;
+  order_count: number;
+  total_spent_cents: number;
+  last_order_at: string | null;
   updated_at: string;
 };
 
@@ -114,6 +117,9 @@ export async function listLoyaltyDashboardCustomers(): Promise<{
       lifetime_earned: c.lifetimeEarned,
       lifetime_redeemed: c.lifetimeRedeemed,
       tx_count: txByCustomer.get(c.id) ?? 0,
+      order_count: c.orderCount,
+      total_spent_cents: c.totalSpentCents,
+      last_order_at: c.lastOrderAt?.toISOString() ?? null,
       updated_at: c.updatedAt.toISOString(),
     })),
     error: null,

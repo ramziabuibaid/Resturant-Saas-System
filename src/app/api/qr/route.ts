@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const data = searchParams.get("data");
-  if (!data?.trim()) {
+  if (!data?.trim() || data.length > 1024) {
     return NextResponse.json({ error: "Missing data" }, { status: 400 });
   }
 

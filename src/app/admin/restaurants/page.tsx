@@ -1,5 +1,6 @@
+import { headers } from "next/headers";
 import { requireSuperAdmin } from "@/lib/admin-context";
-import { getAllRestaurants } from "@/app/actions/super-admin";
+import { getPlatformOverview } from "@/lib/data/platform";
 import { RestaurantsTable } from "./restaurants-table";
 
 export const metadata = {
@@ -8,26 +9,16 @@ export const metadata = {
 };
 
 /** صفحة Super Admin فقط — عند الدخول من subdomain نوجّه إلى /admin */
-export default async function AdminRestaurantsPage() {
+export default async function AdminRestaurantsPage({ searchParams }: { searchParams: Promise<{ new?: string }> }) {
   await requireSuperAdmin();
-
-  const restaurants = await getAllRestaurants();
-  const ownerUsernames = Object.fromEntries(
-    restaurants.map((r) => [r.id, r.owner_username ?? null])
-  );
+  const [{ restaurants }, sp, h] = await Promise.all([getPlatformOverview(), searchParams, headers()]);
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">المطاعم</h1>
-        <p className="text-muted-foreground">
-          عرض وإدارة جميع المطاعم. إضافة مطاعم جديدة وإنشاء مستخدم وكلمة مرور لصاحب كل مطعم.
-        </p>
-      </div>
-      <RestaurantsTable
-        initialRestaurants={restaurants}
-        ownerUsernames={ownerUsernames}
-      />
-    </div>
+    <RestaurantsTable
+      restaurants={restaurants}
+      rootHost={(h.get("host") ?? "").replace(/^www\./, "")}
+      proto={h.get("x-forwarded-proto") ?? "https"}
+      openNew={sp.new === "1"}
+    />
   );
 }

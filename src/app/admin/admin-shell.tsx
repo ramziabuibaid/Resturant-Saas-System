@@ -10,8 +10,8 @@ const superAdminNavGroups: NavGroup[] = [
   {
     label: "النظام",
     items: [
-      { href: "/admin", label: "نظرة عامة", icon: <LayoutDashboardIcon /> },
-      { href: "/admin/restaurants", label: "المطاعم", icon: <Building2Icon /> },
+      { href: "/admin", label: "نظرة عامة", icon: <LayoutDashboardIcon />, mobile: true },
+      { href: "/admin/restaurants", label: "المطاعم", icon: <Building2Icon />, mobile: true },
     ],
   },
 ];

@@ -38,6 +38,15 @@ export default async function PublicMenuPage({ params, searchParams }: Props) {
     notFound();
   }
 
+  if (restaurant.status === "suspended") {
+    return (
+      <main dir="rtl" className="flex min-h-svh flex-col items-center justify-center gap-3 bg-bg-base px-6 text-center">
+        <p className="font-display text-2xl font-bold text-text-primary">{restaurant.name}</p>
+        <p className="max-w-sm text-text-secondary">المنيو غير متاح حالياً. يرجى المحاولة لاحقاً أو التواصل مع المطعم مباشرة.</p>
+      </main>
+    );
+  }
+
   const urlToken = typeof sp?.t === "string" ? sp.t : null;
   const tableFromQr = urlToken
     ? await getRestaurantTableByToken(restaurant.id, urlToken)

@@ -25,13 +25,14 @@ export default async function AdminRestaurantTablesPage() {
   return (
     <div className="space-y-4">
       {error ? (
-        <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <p className="rounded-xl bg-red-100 px-4 py-3 text-sm font-semibold text-red-700 dark:bg-red-500/15 dark:text-red-300">
           تعذر تحميل الطاولات: {error}
         </p>
       ) : null}
       <TablesClient
         initialTables={tables}
         menuBaseUrl={menuBaseUrl}
+        restaurantName={restaurant?.name ?? "المطعم"}
         restaurantSubdomain={restaurant?.subdomain?.trim() ?? ""}
         waitersSystemEnabled={restaurant?.waiters_system_enabled === true}
         waiters={restaurantWaiters}

@@ -1,38 +1,11 @@
 "use server";
 
-import { and, asc, count, eq, inArray, or } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { db, schema } from "@/db";
 import { isSuperAdminRequest, UNAUTHORIZED } from "@/lib/auth/current-user";
 import { isSubdomainTaken, toRestaurantDto, validateSubdomain } from "@/lib/data/restaurants";
 import type { Restaurant } from "@/lib/types/database";
-
-export type RestaurantWithOwner = Restaurant & { owner_username?: string | null };
-
-export async function getAllRestaurants(): Promise<RestaurantWithOwner[]> {
-  if (!(await isSuperAdminRequest())) return [];
-  const rows = await db.select().from(schema.restaurants).orderBy(asc(schema.restaurants.name));
-  if (!rows.length) return [];
-
-  const owners = await db
-    .select({ restaurantId: schema.users.restaurantId, username: schema.users.username })
-    .from(schema.users)
-    .where(
-      and(
-        eq(schema.users.role, "owner"),
-        inArray(
-          schema.users.restaurantId,
-          rows.map((r) => r.id)
-        )
-      )
-    );
-  const usernameByRestaurant = new Map(owners.map((o) => [o.restaurantId, o.username]));
-
-  return rows.map((r) => ({
-    ...toRestaurantDto(r),
-    owner_username: usernameByRestaurant.get(r.id) ?? null,
-  }));
-}
 
 export type CreateRestaurantInput = {
   name: string;
@@ -88,20 +61,19 @@ export async function deleteRestaurant(id: string): Promise<{ error: string | nu
   return { error: null };
 }
 
-/** Aggregate counts for super-admin dashboard. */
-export async function getSuperAdminStats(): Promise<{
-  totalRestaurants: number;
-  activeRestaurants: number;
-  totalMenuItems: number;
-}> {
-  if (!(await isSuperAdminRequest())) return { totalRestaurants: 0, activeRestaurants: 0, totalMenuItems: 0 };
-  const [[all], [active], [items]] = await Promise.all([
-    db.select({ n: count() }).from(schema.restaurants),
-    db
-      .select({ n: count() })
-      .from(schema.restaurants)
-      .where(or(eq(schema.restaurants.status, "active"), eq(schema.restaurants.status, "trial"))),
-    db.select({ n: count() }).from(schema.menuItems),
-  ]);
-  return { totalRestaurants: all.n, activeRestaurants: active.n, totalMenuItems: items.n };
+export async function updateRestaurantStatus(
+  restaurantId: string,
+  status: "active" | "trial" | "suspended"
+): Promise<{ error: string | null }> {
+  if (!(await isSuperAdminRequest())) return { error: UNAUTHORIZED };
+  if (!["active", "trial", "suspended"].includes(status)) return { error: "حالة غير صالحة" };
+  const updated = await db
+    .update(schema.restaurants)
+    .set({ status })
+    .where(eq(schema.restaurants.id, restaurantId))
+    .returning({ id: schema.restaurants.id });
+  if (!updated.length) return { error: "المطعم غير موجود" };
+  revalidatePath("/admin");
+  revalidatePath("/admin/restaurants");
+  return { error: null };
 }
