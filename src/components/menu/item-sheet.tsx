@@ -124,7 +124,15 @@ function ItemSheetBody({
                   >
                     <span className="font-semibold">{o.label}</span>
                     <span className="text-sm font-bold text-brand" dir="ltr">
-                      {formatMenuPrice(o.price_cents, price.currencyCode)}
+                      {(() => {
+                        const sec =
+                          price.secondaryFirst && price.secondaryCode
+                            ? resolveSecondaryUnitCents(item, o.price_cents, o.label, price.exchangeRate, price.roundStep)
+                            : null;
+                        return sec != null && price.secondaryCode
+                          ? formatMenuPrice(sec, price.secondaryCode)
+                          : formatMenuPrice(o.price_cents, price.currencyCode);
+                      })()}
                     </span>
                   </button>
                 ))}
